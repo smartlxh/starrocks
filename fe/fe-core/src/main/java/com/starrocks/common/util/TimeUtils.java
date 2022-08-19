@@ -208,7 +208,7 @@ public class TimeUtils {
         return format(date, type.getPrimitiveType());
     }
 
-    public static long timeStringToLong(String timeStr) {
+    public static synchronized long timeStringToLong(String timeStr) {
         Date d;
         try {
             d = DATETIME_FORMAT.parse(timeStr);

@@ -47,6 +47,8 @@ public class RoutineLoadDataSourceProperties {
     private List<Pair<Integer, Long>> kafkaPartitionOffsets = Lists.newArrayList();
     @SerializedName(value = "customKafkaProperties")
     private Map<String, String> customKafkaProperties = Maps.newHashMap();
+    @SerializedName(value = "isOffsetsForTimes")
+    private boolean isOffsetsForTimes = false;
 
     public RoutineLoadDataSourceProperties() {
         // empty
@@ -67,6 +69,10 @@ public class RoutineLoadDataSourceProperties {
 
     public String getType() {
         return type;
+    }
+
+    public boolean isOffsetsForTimes() {
+        return isOffsetsForTimes;
     }
 
     public List<Pair<Integer, Long>> getKafkaPartitionOffsets() {
@@ -100,6 +106,8 @@ public class RoutineLoadDataSourceProperties {
         if (optional.isPresent()) {
             throw new AnalysisException(optional.get() + " is invalid kafka custom property");
         }
+        // check custom properties
+        CreateRoutineLoadStmt.analyzeCustomProperties(properties, customKafkaProperties);
 
         // check partitions
         final String kafkaPartitionsString = properties.get(CreateRoutineLoadStmt.KAFKA_PARTITIONS_PROPERTY);
@@ -108,7 +116,7 @@ public class RoutineLoadDataSourceProperties {
                 throw new AnalysisException("Partition and offset must be specified at the same time");
             }
 
-            CreateRoutineLoadStmt.analyzeKafkaPartitionProperty(kafkaPartitionsString, Maps.newHashMap(),
+            CreateRoutineLoadStmt.analyzeKafkaPartitionProperty(kafkaPartitionsString, customKafkaProperties,
                     kafkaPartitionOffsets);
         } else {
             if (properties.containsKey(CreateRoutineLoadStmt.KAFKA_OFFSETS_PROPERTY)) {
@@ -119,11 +127,8 @@ public class RoutineLoadDataSourceProperties {
         // check offset
         String kafkaOffsetsString = properties.get(CreateRoutineLoadStmt.KAFKA_OFFSETS_PROPERTY);
         if (kafkaOffsetsString != null) {
-            CreateRoutineLoadStmt.analyzeKafkaOffsetProperty(kafkaOffsetsString, kafkaPartitionOffsets);
+            this.isOffsetsForTimes = CreateRoutineLoadStmt.analyzeKafkaOffsetProperty(kafkaOffsetsString, kafkaPartitionOffsets);
         }
-
-        // check custom properties
-        CreateRoutineLoadStmt.analyzeCustomProperties(properties, customKafkaProperties);
     }
 
     @Override

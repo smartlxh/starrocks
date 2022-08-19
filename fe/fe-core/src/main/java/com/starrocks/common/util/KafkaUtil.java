@@ -26,12 +26,15 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.starrocks.common.Config;
 import com.starrocks.common.LoadException;
+import com.starrocks.common.Pair;
 import com.starrocks.common.UserException;
+import com.starrocks.proto.PIntegerPair;
 import com.starrocks.proto.PKafkaLoadInfo;
 import com.starrocks.proto.PKafkaMetaProxyRequest;
 import com.starrocks.proto.PKafkaOffsetBatchProxyRequest;
 import com.starrocks.proto.PKafkaOffsetProxyRequest;
 import com.starrocks.proto.PKafkaOffsetProxyResult;
+import com.starrocks.proto.PKafkaOffsetTimesProxyRequest;
 import com.starrocks.proto.PProxyRequest;
 import com.starrocks.proto.PProxyResult;
 import com.starrocks.proto.PStringPair;
@@ -43,6 +46,7 @@ import com.starrocks.thrift.TStatusCode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +79,13 @@ public class KafkaUtil {
     public static List<PKafkaOffsetProxyResult> getBatchOffsets(List<PKafkaOffsetProxyRequest> requests)
             throws UserException {
         return proxyApi.getBatchOffsets(requests);
+    }
+
+    public static List<Pair<Integer, Long>> getOffsetsForTimes(String brokerList, String topic,
+                                                               ImmutableMap<String, String> convertedCustomProperties,
+                                                               List<Pair<Integer, Long>> timestampOffsets)
+            throws UserException {
+        return proxyApi.getOffsetsForTimes(brokerList, topic, convertedCustomProperties, timestampOffsets);
     }
 
     public static PKafkaLoadInfo genPKafkaLoadInfo(String brokerList, String topic,
@@ -159,6 +170,37 @@ public class KafkaUtil {
             PProxyResult result = sendProxyRequest(pProxyRequest);
 
             return result.kafkaOffsetBatchResult.results;
+        }
+
+        public List<Pair<Integer, Long>> getOffsetsForTimes(String brokerList, String topic,
+                                                                ImmutableMap<String, String> convertedCustomProperties,
+                                                                List<Pair<Integer, Long>> timestampOffsets)
+                throws UserException {
+
+            PKafkaOffsetTimesProxyRequest pKafkaOffsetTimesProxyRequest = new PKafkaOffsetTimesProxyRequest();
+            pKafkaOffsetTimesProxyRequest.kafkaInfo = genPKafkaLoadInfo(brokerList, topic, convertedCustomProperties);
+            List offsetTimes = new ArrayList<PIntegerPair>();
+
+            PIntegerPair par = new PIntegerPair();
+            for (Pair<Integer, Long> pair : timestampOffsets) {
+                PIntegerPair item = new PIntegerPair();
+                item.key = pair.first;
+                item.val = pair.second;
+                offsetTimes.add(item);
+            }
+            pKafkaOffsetTimesProxyRequest.offsetTimes = offsetTimes;
+
+            PProxyRequest request = new PProxyRequest();
+            request.kafkaOffsetTimesRequest = pKafkaOffsetTimesProxyRequest;
+
+            PProxyResult result = sendProxyRequest(request);
+
+            List<Pair<Integer, Long>> partitonOffset = new ArrayList<>();
+            result.kafkaOffsetTimesResult.offsetTimes.stream().forEach(pIntegerPair -> {
+                partitonOffset.add(new Pair<>(pIntegerPair.key, pIntegerPair.val)); });
+
+            return partitonOffset;
+
         }
 
         private PProxyResult sendProxyRequest(PProxyRequest request) throws UserException {

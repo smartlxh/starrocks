@@ -79,12 +79,16 @@ public:
 
     Status get_kafka_partition_offset(const PKafkaOffsetProxyRequest& request, std::vector<int64_t>* beginning_offsets,
                                       std::vector<int64_t>* latest_offsets);
-
+    Status get_kafka_partition_offsets_for_times(const PKafkaOffsetTimesProxyRequest& request,
+                                                 std::vector<PIntegerPair>* partition_offsets);
 private:
     // execute the task
     void exec_task(StreamLoadContext* ctx, DataConsumerPool* pool, const ExecFinishCallback& cb);
 
     void err_handler(StreamLoadContext* ctx, const Status& st, const std::string& err_msg);
+
+    // create a dummy StreamLoadContext for PKafkaOffsetTimesProxyRequest
+    Status _prepare_ctx(const PKafkaOffsetTimesProxyRequest& request, StreamLoadContext* ctx);
 
     // for test only
     Status _execute_plan_for_test(StreamLoadContext* ctx);

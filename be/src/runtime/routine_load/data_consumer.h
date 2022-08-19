@@ -35,6 +35,7 @@ namespace starrocks {
 class KafkaConsumerPipe;
 class Status;
 class StreamLoadPipe;
+class PIntegerPair;
 
 class DataConsumer {
 public:
@@ -141,6 +142,9 @@ public:
     Status get_partition_offset(std::vector<int32_t>* partition_ids, std::vector<int64_t>* beginning_offsets,
                                 std::vector<int64_t>* latest_offsets);
 
+    // get offsets for times
+    Status get_offsets_for_times(const std::vector<PIntegerPair>& times,
+                                 std::vector<PIntegerPair>* offsets);
 private:
     std::string _brokers;
     std::string _topic;

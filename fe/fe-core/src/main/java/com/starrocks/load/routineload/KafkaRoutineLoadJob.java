@@ -32,7 +32,6 @@ import com.starrocks.analysis.CreateRoutineLoadStmt;
 import com.starrocks.analysis.RoutineLoadDataSourceProperties;
 import com.starrocks.catalog.Database;
 import com.starrocks.catalog.Table;
-import com.starrocks.common.AnalysisException;
 import com.starrocks.common.Config;
 import com.starrocks.common.DdlException;
 import com.starrocks.common.ErrorCode;
@@ -50,6 +49,7 @@ import com.starrocks.common.util.LogBuilder;
 import com.starrocks.common.util.LogKey;
 import com.starrocks.common.util.SmallFileMgr;
 import com.starrocks.common.util.SmallFileMgr.SmallFile;
+import com.starrocks.common.util.TimeUtils;
 import com.starrocks.server.GlobalStateMgr;
 import com.starrocks.system.SystemInfoService;
 import com.starrocks.transaction.TransactionState;
@@ -82,9 +82,9 @@ public class KafkaRoutineLoadJob extends RoutineLoadJob {
     // current kafka partitions is the actually partition which will be fetched
     private List<Integer> currentKafkaPartitions = Lists.newArrayList();
     // optional, user want to set default offset when new partition add or offset not set.
-    private Long kafkaDefaultOffSet = null;
+    private String kafkaDefaultOffSet = null;
     // kafka properties, property prefix will be mapped to kafka custom parameters, which can be extended in the future
-    private Map<String, String> customProperties = Maps.newHashMap();
+    private Map<String, String> customProperties = Maps.newHashMap();    // from stmt
     private Map<String, String> convertedCustomProperties = Maps.newHashMap();
 
     public KafkaRoutineLoadJob() {
@@ -100,6 +100,12 @@ public class KafkaRoutineLoadJob extends RoutineLoadJob {
         this.progress = new KafkaProgress();
     }
 
+    private boolean isOffsetForTimes() {
+        if (this.kafkaDefaultOffSet != null) {
+            return TimeUtils.timeStringToLong(this.kafkaDefaultOffSet) != -1;
+        }
+        return false;
+    }
     public String getTopic() {
         return topic;
     }
@@ -111,6 +117,7 @@ public class KafkaRoutineLoadJob extends RoutineLoadJob {
     public Map<String, String> getConvertedCustomProperties() {
         return convertedCustomProperties;
     }
+
 
     @Override
     public void prepare() throws UserException {
@@ -147,12 +154,7 @@ public class KafkaRoutineLoadJob extends RoutineLoadJob {
             }
         }
         if (convertedCustomProperties.containsKey(CreateRoutineLoadStmt.KAFKA_DEFAULT_OFFSETS)) {
-            try {
-                kafkaDefaultOffSet = CreateRoutineLoadStmt.getKafkaOffset(
-                        convertedCustomProperties.remove(CreateRoutineLoadStmt.KAFKA_DEFAULT_OFFSETS));
-            } catch (AnalysisException e) {
-                throw new DdlException(e.getMessage());
-            }
+            kafkaDefaultOffSet = convertedCustomProperties.remove(CreateRoutineLoadStmt.KAFKA_DEFAULT_OFFSETS);
         }
     }
 
@@ -269,7 +271,7 @@ public class KafkaRoutineLoadJob extends RoutineLoadJob {
     }
 
     @Override
-    protected void unprotectUpdateProgress() {
+    protected void unprotectUpdateProgress() throws UserException {
         updateNewPartitionProgress();
     }
 
@@ -418,20 +420,71 @@ public class KafkaRoutineLoadJob extends RoutineLoadJob {
         }
     }
 
-    private void updateNewPartitionProgress() {
+    private long convertedDefaultOffsetToLong() {
+        if (this.kafkaDefaultOffSet == null || this.kafkaDefaultOffSet.isEmpty()) {
+            return KafkaProgress.OFFSET_END_VAL;
+        } else {
+            if (isOffsetForTimes()) {
+                return TimeUtils.timeStringToLong(this.kafkaDefaultOffSet);
+            } else if (this.kafkaDefaultOffSet.equalsIgnoreCase(KafkaProgress.OFFSET_BEGINNING)) {
+                return KafkaProgress.OFFSET_BEGINNING_VAL;
+            } else if (this.kafkaDefaultOffSet.equalsIgnoreCase(KafkaProgress.OFFSET_END)) {
+                return KafkaProgress.OFFSET_END_VAL;
+            } else {
+                return KafkaProgress.OFFSET_END_VAL;
+            }
+        }
+    }
+
+    private List<Pair<Integer, Long>> getNewPartitionOffsetsFromDefaultOffset(List<Integer> newPartitions)
+            throws UserException {
+        List<Pair<Integer, Long>> partitionOffsets = Lists.newArrayList();
+        // get default offset
+        long beginOffset = convertedDefaultOffsetToLong();
+        LOG.warn("beginOffset: " + beginOffset);
+        for (Integer kafkaPartition : newPartitions) {
+            partitionOffsets.add(Pair.create(kafkaPartition, beginOffset));
+        }
+        if (isOffsetForTimes()) {
+            LOG.warn("getNewPartitionOffsetsFromDefaultOffset: " + isOffsetForTimes());
+            try {
+                partitionOffsets = KafkaUtil.getOffsetsForTimes(this.brokerList,
+                        this.topic, ImmutableMap.copyOf(convertedCustomProperties), partitionOffsets);
+            } catch (LoadException e) {
+                LOG.warn(new LogBuilder(LogKey.ROUTINE_LOAD_JOB, id)
+                        .add("partition:timestamp", Joiner.on(",").join(partitionOffsets))
+                        .add("error_msg", "Job failed to fetch current offsets from times with error " + e.getMessage())
+                        .build(), e);
+                throw new UserException(e);
+            }
+        }
+        return partitionOffsets;
+    }
+
+    private void updateNewPartitionProgress() throws UserException {
+        List<Integer> newPartitions = Lists.newArrayList();
         // update the progress of new partitions
         for (Integer kafkaPartition : currentKafkaPartitions) {
             if (!((KafkaProgress) progress).containsPartition(kafkaPartition)) {
-                // if offset is not assigned, start from OFFSET_END
-                long beginOffSet = kafkaDefaultOffSet == null ? KafkaProgress.OFFSET_END_VAL : kafkaDefaultOffSet;
-                ((KafkaProgress) progress).addPartitionOffset(Pair.create(kafkaPartition, beginOffSet));
-                if (LOG.isDebugEnabled()) {
-                    LOG.debug(new LogBuilder(LogKey.ROUTINE_LOAD_JOB, id)
-                            .add("kafka_partition_id", kafkaPartition)
-                            .add("begin_offset", beginOffSet)
-                            .add("msg", "The new partition has been added in job"));
-                }
+                newPartitions.add(kafkaPartition);
             }
+        }
+
+        List<Pair<Integer, Long>> newPartitionsOffsets
+                = getNewPartitionOffsetsFromDefaultOffset(newPartitions);
+
+        for (Pair<Integer, Long> newPartitionOffset : newPartitionsOffsets) {
+            ((KafkaProgress) progress).addPartitionOffset(newPartitionOffset);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug(new LogBuilder(LogKey.ROUTINE_LOAD_JOB, id)
+                        .add("kafka_partition_id", newPartitionOffset.first)
+                        .add("begin_offset", newPartitionOffset.second)
+                        .add("msg", "The new partition has been added in job"));
+            }
+            LOG.warn(new LogBuilder(LogKey.ROUTINE_LOAD_JOB, id)
+                    .add("kafka_partition_id", newPartitionOffset.first)
+                    .add("begin_offset", newPartitionOffset.second)
+                    .add("msg", "The new partition has been added in job"));
         }
     }
 
@@ -440,7 +493,7 @@ public class KafkaRoutineLoadJob extends RoutineLoadJob {
         super.setOptional(stmt);
 
         if (!stmt.getKafkaPartitionOffsets().isEmpty()) {
-            setCustomKafkaPartitions(stmt.getKafkaPartitionOffsets());
+            setCustomKafkaPartitions(stmt);
         }
         if (!stmt.getCustomKafkaProperties().isEmpty()) {
             setCustomKafkaProperties(stmt.getCustomKafkaProperties());
@@ -448,7 +501,13 @@ public class KafkaRoutineLoadJob extends RoutineLoadJob {
     }
 
     // this is a unprotected method which is called in the initialization function
-    private void setCustomKafkaPartitions(List<Pair<Integer, Long>> kafkaPartitionOffsets) throws LoadException {
+    private void setCustomKafkaPartitions(CreateRoutineLoadStmt stmt) throws UserException {
+        List<Pair<Integer, Long>> kafkaPartitionOffsets = stmt.getKafkaPartitionOffsets();
+        boolean isForTimes = stmt.isOffsetsForTimes();
+        if (isForTimes) {
+            kafkaPartitionOffsets = KafkaUtil.getOffsetsForTimes(stmt.getKafkaBrokerList(), stmt.getKafkaTopic(),
+                   ImmutableMap.copyOf(convertedCustomProperties), stmt.getKafkaPartitionOffsets());
+        }
         for (Pair<Integer, Long> partitionOffset : kafkaPartitionOffsets) {
             this.customKafkaPartitions.add(partitionOffset.first);
             ((KafkaProgress) progress).addPartitionOffset(partitionOffset);
@@ -457,6 +516,12 @@ public class KafkaRoutineLoadJob extends RoutineLoadJob {
 
     private void setCustomKafkaProperties(Map<String, String> kafkaProperties) {
         this.customProperties = kafkaProperties;
+    }
+
+    private List<Pair<Integer, Long>> convertTimestampToOffset(List<Pair<Integer, Long>> kafkaPartitionOffsets)
+            throws UserException {
+        return KafkaUtil.getOffsetsForTimes(brokerList, topic,
+                ImmutableMap.copyOf(convertedCustomProperties), kafkaPartitionOffsets);
     }
 
     @Override
@@ -528,6 +593,19 @@ public class KafkaRoutineLoadJob extends RoutineLoadJob {
 
         // modify partition offset first
         if (!kafkaPartitionOffsets.isEmpty()) {
+            if (dataSourceProperties.isOffsetsForTimes()) {
+                LOG.warn("modifyDataSourceProperties" + dataSourceProperties.isOffsetsForTimes());
+                // if the partition offset is set by timestamp, convert it to real offset
+                try {
+                    kafkaPartitionOffsets = convertTimestampToOffset(kafkaPartitionOffsets);
+                } catch (UserException e) {
+                    throw new DdlException(e.getMessage());
+                }
+                for (Pair<Integer, Long> pair : kafkaPartitionOffsets) {
+                    LOG.warn("pair:" + pair.first + " " + pair.second);
+                }
+
+            }
             // we can only modify the partition that is being consumed
             ((KafkaProgress) progress).modifyOffset(kafkaPartitionOffsets);
         }

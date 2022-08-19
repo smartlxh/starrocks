@@ -304,6 +304,22 @@ void PInternalServiceImplBase<T>::get_info(google::protobuf::RpcController* cont
         st.to_protobuf(response->mutable_status());
         return;
     }
+    if (request->has_kafka_offset_times_request()) {
+        std::vector<PIntegerPair> partition_offsets;
+        Status st =
+                _exec_env->routine_load_task_executor()->get_kafka_partition_offsets_for_times(
+                        request->kafka_offset_times_request(), &partition_offsets);
+        if (st.ok()) {
+            PKafkaOffsetTimesProxyResult* part_offsets = response->mutable_kafka_offset_times_result();
+            for (const auto& entry : partition_offsets) {
+                PIntegerPair* res = part_offsets->add_offset_times();
+                res->set_key(entry.key());
+                res->set_val(entry.val());
+            }
+        }
+        st.to_protobuf(response->mutable_status());
+        return;
+    }
     if (request->has_kafka_offset_request()) {
         std::vector<int64_t> beginning_offsets;
         std::vector<int64_t> latest_offsets;

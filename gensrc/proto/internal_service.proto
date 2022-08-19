@@ -250,6 +250,11 @@ message PStringPair {
     required string val = 2;
 };
 
+message PIntegerPair {
+    required int32 key = 1;
+    required int64 val = 2;
+};
+
 message PKafkaLoadInfo {
     required string brokers = 1;
     required string topic = 2;
@@ -269,8 +274,14 @@ message PKafkaOffsetBatchProxyRequest {
     repeated PKafkaOffsetProxyRequest requests = 1;
 }
 
+message PKafkaOffsetTimesProxyRequest {
+    optional PKafkaLoadInfo kafka_info = 1;
+    repeated PIntegerPair offset_times = 2;
+}
+
 message PProxyRequest {
     optional PKafkaMetaProxyRequest kafka_meta_request = 1;
+    optional PKafkaOffsetTimesProxyRequest kafka_offset_times_request = 2;
     optional PKafkaOffsetProxyRequest kafka_offset_request = 101;
     optional PKafkaOffsetBatchProxyRequest kafka_offset_batch_request = 102;
 };
@@ -290,9 +301,14 @@ message PKafkaOffsetBatchProxyResult {
     repeated PKafkaOffsetProxyResult results = 1;
 }
 
+message PKafkaOffsetTimesProxyResult {
+    repeated PIntegerPair offset_times = 1;
+};
+
 message PProxyResult {
     required StatusPB status = 1;
     optional PKafkaMetaProxyResult kafka_meta_result = 2;
+    optional PKafkaOffsetTimesProxyResult kafka_offset_times_result = 3;
     optional PKafkaOffsetProxyResult kafka_offset_result = 101;
     optional PKafkaOffsetBatchProxyResult kafka_offset_batch_result = 102;
 };

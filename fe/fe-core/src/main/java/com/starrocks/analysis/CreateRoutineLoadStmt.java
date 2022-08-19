@@ -21,6 +21,7 @@
 
 package com.starrocks.analysis;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -40,6 +41,7 @@ import com.starrocks.qe.ConnectContext;
 import com.starrocks.qe.OriginStatement;
 import com.starrocks.qe.SessionVariable;
 import com.starrocks.qe.SqlModeHelper;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -47,6 +49,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TimeZone;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -172,6 +175,8 @@ public class CreateRoutineLoadStmt extends DdlStmt {
     // kafka related properties
     private String kafkaBrokerList;
     private String kafkaTopic;
+
+    private boolean isOffsetsForTimes = false;
     // pair<partition id, offset>
     private List<Pair<Integer, Long>> kafkaPartitionOffsets = Lists.newArrayList();
 
@@ -264,6 +269,10 @@ public class CreateRoutineLoadStmt extends DdlStmt {
 
     public String getKafkaTopic() {
         return kafkaTopic;
+    }
+
+    public boolean isOffsetsForTimes() {
+        return this.isOffsetsForTimes;
     }
 
     public List<Pair<Integer, Long>> getKafkaPartitionOffsets() {
@@ -489,9 +498,21 @@ public class CreateRoutineLoadStmt extends DdlStmt {
 
         // check offset
         String kafkaOffsetsString = dataSourceProperties.get(KAFKA_OFFSETS_PROPERTY);
-        if (kafkaOffsetsString != null) {
-            analyzeKafkaOffsetProperty(kafkaOffsetsString, kafkaPartitionOffsets);
+        String kafkaDefaultOffsetString = customKafkaProperties.get(CreateRoutineLoadStmt.KAFKA_DEFAULT_OFFSETS);
+        if (kafkaOffsetsString != null && kafkaDefaultOffsetString != null) {
+            throw new AnalysisException("Only one of " + CreateRoutineLoadStmt.KAFKA_OFFSETS_PROPERTY
+                    + " and " + CreateRoutineLoadStmt.KAFKA_DEFAULT_OFFSETS + " can be set.");
         }
+        if (kafkaOffsetsString != null) {
+            this.isOffsetsForTimes = analyzeKafkaOffsetProperty(kafkaOffsetsString, kafkaPartitionOffsets);
+        } else if (kafkaDefaultOffsetString != null) {
+            this.isOffsetsForTimes = checkDefaultTimetOffset(kafkaDefaultOffsetString);
+        }
+    }
+
+    // return true when the defaultOffset is described with timestamp
+    private static boolean checkDefaultTimetOffset(String defultOffset) {
+        return TimeUtils.timeStringToLong(defultOffset) != -1;
     }
 
     public static void analyzeKafkaPartitionProperty(String kafkaPartitionsString,
@@ -506,7 +527,11 @@ public class CreateRoutineLoadStmt extends DdlStmt {
         // get kafka default offset if set
         Long kafkaDefaultOffset = null;
         if (customKafkaProperties.containsKey(KAFKA_DEFAULT_OFFSETS)) {
-            kafkaDefaultOffset = getKafkaOffset(customKafkaProperties.get(KAFKA_DEFAULT_OFFSETS));
+            kafkaDefaultOffset = TimeUtils.timeStringToLong(customKafkaProperties.get(KAFKA_DEFAULT_OFFSETS));
+            // this is not time offset
+            if (kafkaDefaultOffset == -1) {
+                kafkaDefaultOffset = getKafkaOffset(customKafkaProperties.get(KAFKA_DEFAULT_OFFSETS));
+            }
         }
 
         String[] kafkaPartitionsStringList = kafkaPartitionsString.split(",");
@@ -522,10 +547,10 @@ public class CreateRoutineLoadStmt extends DdlStmt {
         }
     }
 
-    public static void analyzeKafkaOffsetProperty(String kafkaOffsetsString,
+    public static boolean analyzeKafkaOffsetProperty(String kafkaOffsetsString,
                                                   List<Pair<Integer, Long>> kafkaPartitionOffsets)
             throws AnalysisException {
-        kafkaOffsetsString = kafkaOffsetsString.replaceAll(" ", "");
+        //kafkaOffsetsString = kafkaOffsetsString.replaceAll(" ", "");
         if (kafkaOffsetsString.isEmpty()) {
             throw new AnalysisException(KAFKA_OFFSETS_PROPERTY + " could not be a empty string");
         }
@@ -533,10 +558,39 @@ public class CreateRoutineLoadStmt extends DdlStmt {
         if (kafkaOffsetsStringList.length != kafkaPartitionOffsets.size()) {
             throw new AnalysisException("Partitions number should be equals to offsets number");
         }
-
-        for (int i = 0; i < kafkaOffsetsStringList.length; i++) {
-            kafkaPartitionOffsets.get(i).second = getKafkaOffset(kafkaOffsetsStringList[i]);
+        // to do support the timestamp
+        // add by lxh
+        boolean foundTime = false;
+        boolean foundOffset = false;
+        for (String kafkaOffsetsStr : kafkaOffsetsStringList) {
+            if (TimeUtils.timeStringToLong(kafkaOffsetsStr) != -1) {
+                foundTime = true;
+            } else {
+                foundOffset = true;
+            }
         }
+        if (foundTime && foundOffset) {
+            throw new AnalysisException("The offset of the partition cannot be specified by the timestamp "
+                    + "and the offset at the same time");
+        }
+
+        if (foundTime) {
+            // convert all datetime strs to timestamps
+            // and set them as the partition's offset.
+            // These timestamps will be converted to real offset when job is running.
+            TimeZone timeZone = TimeUtils.getOrSystemTimeZone(null);
+            for (int i = 0; i < kafkaOffsetsStringList.length; i++) {
+                String kafkaOffsetsStr = kafkaOffsetsStringList[i];
+                long timestamp = TimeUtils.timeStringToLong(kafkaOffsetsStr);
+                Preconditions.checkState(timestamp != -1);
+                kafkaPartitionOffsets.get(i).second = timestamp;
+            }
+        } else {
+            for (int i = 0; i < kafkaOffsetsStringList.length; i++) {
+                kafkaPartitionOffsets.get(i).second = getKafkaOffset(kafkaOffsetsStringList[i]);
+            }
+        }
+        return foundTime;
     }
 
     // Get kafka offset from string
@@ -576,10 +630,15 @@ public class CreateRoutineLoadStmt extends DdlStmt {
             }
             // can be extended in the future which other prefix
         }
-
-        // check kafka_default_offsets
         if (customKafkaProperties.containsKey(KAFKA_DEFAULT_OFFSETS)) {
-            getKafkaOffset(customKafkaProperties.get(KAFKA_DEFAULT_OFFSETS));
+            checkDefaultOffsetValid(customKafkaProperties.get(KAFKA_DEFAULT_OFFSETS));
+        }
+    }
+
+    private static void checkDefaultOffsetValid(String defaultOffset) throws AnalysisException {
+        boolean isOffsetTimes = checkDefaultTimetOffset(defaultOffset);
+        if (!isOffsetTimes) {
+            getKafkaOffset(defaultOffset);
         }
     }
 

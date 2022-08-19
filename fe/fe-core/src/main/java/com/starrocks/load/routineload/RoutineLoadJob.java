@@ -1208,7 +1208,7 @@ public abstract class RoutineLoadJob extends AbstractTxnStateChangeCallback impl
         }
     }
 
-    protected void unprotectUpdateProgress() {
+    protected void unprotectUpdateProgress() throws UserException {
     }
 
     protected boolean unprotectNeedReschedule() throws UserException {
