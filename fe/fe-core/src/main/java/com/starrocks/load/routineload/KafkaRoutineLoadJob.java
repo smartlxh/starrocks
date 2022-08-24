@@ -441,12 +441,10 @@ public class KafkaRoutineLoadJob extends RoutineLoadJob {
         List<Pair<Integer, Long>> partitionOffsets = Lists.newArrayList();
         // get default offset
         long beginOffset = convertedDefaultOffsetToLong();
-        LOG.warn("beginOffset: " + beginOffset);
         for (Integer kafkaPartition : newPartitions) {
             partitionOffsets.add(Pair.create(kafkaPartition, beginOffset));
         }
         if (isOffsetForTimes()) {
-            LOG.warn("getNewPartitionOffsetsFromDefaultOffset: " + isOffsetForTimes());
             try {
                 partitionOffsets = KafkaUtil.getOffsetsForTimes(this.brokerList,
                         this.topic, ImmutableMap.copyOf(convertedCustomProperties), partitionOffsets);
@@ -481,10 +479,6 @@ public class KafkaRoutineLoadJob extends RoutineLoadJob {
                         .add("begin_offset", newPartitionOffset.second)
                         .add("msg", "The new partition has been added in job"));
             }
-            LOG.warn(new LogBuilder(LogKey.ROUTINE_LOAD_JOB, id)
-                    .add("kafka_partition_id", newPartitionOffset.first)
-                    .add("begin_offset", newPartitionOffset.second)
-                    .add("msg", "The new partition has been added in job"));
         }
     }
 
@@ -594,17 +588,12 @@ public class KafkaRoutineLoadJob extends RoutineLoadJob {
         // modify partition offset first
         if (!kafkaPartitionOffsets.isEmpty()) {
             if (dataSourceProperties.isOffsetsForTimes()) {
-                LOG.warn("modifyDataSourceProperties" + dataSourceProperties.isOffsetsForTimes());
                 // if the partition offset is set by timestamp, convert it to real offset
                 try {
                     kafkaPartitionOffsets = convertTimestampToOffset(kafkaPartitionOffsets);
                 } catch (UserException e) {
                     throw new DdlException(e.getMessage());
                 }
-                for (Pair<Integer, Long> pair : kafkaPartitionOffsets) {
-                    LOG.warn("pair:" + pair.first + " " + pair.second);
-                }
-
             }
             // we can only modify the partition that is being consumed
             ((KafkaProgress) progress).modifyOffset(kafkaPartitionOffsets);

@@ -550,7 +550,6 @@ public class CreateRoutineLoadStmt extends DdlStmt {
     public static boolean analyzeKafkaOffsetProperty(String kafkaOffsetsString,
                                                   List<Pair<Integer, Long>> kafkaPartitionOffsets)
             throws AnalysisException {
-        //kafkaOffsetsString = kafkaOffsetsString.replaceAll(" ", "");
         if (kafkaOffsetsString.isEmpty()) {
             throw new AnalysisException(KAFKA_OFFSETS_PROPERTY + " could not be a empty string");
         }
@@ -558,8 +557,7 @@ public class CreateRoutineLoadStmt extends DdlStmt {
         if (kafkaOffsetsStringList.length != kafkaPartitionOffsets.size()) {
             throw new AnalysisException("Partitions number should be equals to offsets number");
         }
-        // to do support the timestamp
-        // add by lxh
+        // support the timestamp
         boolean foundTime = false;
         boolean foundOffset = false;
         for (String kafkaOffsetsStr : kafkaOffsetsStringList) {
