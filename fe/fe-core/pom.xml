@@ -679,24 +679,6 @@ under the License.
             <artifactId>hadoop-aws</artifactId>
         </dependency>
 
-        <!-- https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-aliyun -->
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-aliyun</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.jdom</groupId>
-                    <artifactId>jdom2</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <!--Fix CVF from hadoop-aliyun-->
-        <dependency>
-            <groupId>org.jdom</groupId>
-            <artifactId>jdom2</artifactId>
-            <version>2.0.6.1</version>
-        </dependency>
-
         <!-- https://mvnrepository.com/artifact/com.qcloud.cos/hadoop-cos -->
         <dependency>
             <groupId>com.qcloud.cos</groupId>
