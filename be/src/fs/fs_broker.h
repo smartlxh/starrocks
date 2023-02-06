@@ -7,7 +7,7 @@
 
 namespace starrocks {
 
-const static int DEFAULT_TIMEOUT_MS = 10000;
+const static int DEFAULT_TIMEOUT_MS = 30000;
 
 class TBrokerFileStatus;
 class TFileBrokerServiceClient;

@@ -40,6 +40,8 @@
 #include "storage/storage_engine.h"
 #include "storage/tablet.h"
 #include "storage/tablet_manager.h"
+#include "thread"
+#include "util/threadpool.h"
 #include "util/thrift_rpc_helper.h"
 
 namespace starrocks {
@@ -64,8 +66,476 @@ inline const std::string& client_id(ExecEnv* env, const TNetworkAddress& addr) {
 }
 #endif
 
+class UploadTask : public Runnable {
+public:
+    Status _rename_remote_file(const std::string& orig_name, const std::string& new_name,
+                               const std::map<std::string, std::string>& broker_prop) {
+        Status status = Status::OK();
+        BrokerServiceConnection client(client_cache(_env), _broker_addr, config::broker_write_timeout_seconds * 1000,
+                                       &status);
+        if (!status.ok()) {
+            std::stringstream ss;
+            ss << "failed to get broker client. "
+               << "broker addr: " << _broker_addr << ". msg: " << status.get_error_msg();
+            LOG(WARNING) << ss.str();
+            return Status::InternalError(ss.str());
+        }
+
+        try {
+            TBrokerOperationStatus op_status;
+            TBrokerRenamePathRequest rename_req;
+            rename_req.__set_version(TBrokerVersion::VERSION_ONE);
+            rename_req.__set_srcPath(orig_name);
+            rename_req.__set_destPath(new_name);
+            rename_req.__set_properties(broker_prop);
+
+            try {
+                client->renamePath(op_status, rename_req);
+            } catch (apache::thrift::transport::TTransportException& e) {
+                RETURN_IF_ERROR(client.reopen());
+                client->renamePath(op_status, rename_req);
+            }
+
+            if (op_status.statusCode != TBrokerOperationStatusCode::OK) {
+                std::stringstream ss;
+                ss << "Fail to rename file: " << orig_name << " to: " << new_name << " msg:" << op_status.message;
+                LOG(WARNING) << ss.str();
+                return Status::InternalError(ss.str());
+            }
+        } catch (apache::thrift::TException& e) {
+            std::stringstream ss;
+            ss << "Fail to rename file: " << orig_name << " to: " << new_name << " msg:" << e.what();
+            LOG(WARNING) << ss.str();
+            return Status::ThriftRpcError(ss.str());
+        }
+
+        LOG(INFO) << "finished to rename file. orig: " << orig_name << ", new: " << new_name;
+
+        return Status::OK();
+    }
+
+    void run() override {
+        LOG(INFO) << "upload task tid run" << std::this_thread::get_id() << " " << _full_remote_file << " "
+                  << _tmp_broker_file_name << " " << _local_file_path << std::endl;
+        BrokerFileSystem fs_broker(_broker_addr, _broker_prop);
+        WritableFileOptions opts{.sync_on_close = false, .mode = FileSystem::CREATE_OR_OPEN_WITH_TRUNCATE};
+        //ASSIGN (auto broker_file, fs_broker.new_writable_file(opts, _tmp_broker_file_name));
+        auto status_file = fs_broker.new_writable_file(opts, _tmp_broker_file_name);
+        if (!status_file.ok()) {
+            LOG(WARNING) << "open broker file failed\n";
+            return;
+        }
+        auto broker_file = std::move(status_file).value();
+
+        //ASSIGN_OR_RETURN(auto input_file, FileSystem::Default()->new_sequential_file(_local_file_path));
+        LOG(INFO) << "local file path :" << _local_file_path << std::endl;
+        auto result = FileSystem::Default()->new_sequential_file(_local_file_path);
+        auto input_file = std::move(result).value();
+
+        auto res = fs::copy(input_file.get(), broker_file.get(), 1024 * 1024);
+        if (!res.ok()) {
+            LOG(WARNING) << "copy file through broker failed\n";
+            return;
+        }
+        LOG(INFO) << "finished to write file via broker. file: " << _local_file_path << ", length: " << *res << " "
+                  << std::this_thread::get_id();
+        auto close_status = broker_file->close();
+        if (!close_status.ok()) {
+            LOG(WARNING) << "broker file close failed\n";
+        }
+        // rename file to end with ".md5sum"
+        LOG(INFO) << "rename file " << _full_remote_file + ".part" << _full_remote_file + "." + _md5sum;
+        _rename_remote_file(_full_remote_file + ".part", _full_remote_file + "." + _md5sum, _broker_prop);
+    }
+
+    UploadTask(const std::string full_remote_file, const std::string tmp_broker_file_name,
+               const std::string local_file_path, const TNetworkAddress& broker_addr,
+               const std::map<std::string, std::string>& broker_prop, std::string md5sum, ExecEnv* env)
+            : _full_remote_file(full_remote_file),
+              _tmp_broker_file_name(tmp_broker_file_name),
+              _local_file_path(local_file_path),
+              _broker_addr(broker_addr),
+              _broker_prop(broker_prop),
+              _md5sum(md5sum),
+              _env(env) {
+        LOG(INFO) << "upload task tid" << std::this_thread::get_id() << " " << _full_remote_file << " "
+                  << _tmp_broker_file_name << " " << _local_file_path << std::endl;
+    }
+
+private:
+    std::string _full_remote_file;
+    std::string _tmp_broker_file_name;
+
+    std::string _local_file_path;
+    TNetworkAddress _broker_addr;
+    std::map<std::string, std::string> _broker_prop;
+    BrokerServiceConnection* _client;
+    std::string _md5sum;
+    ExecEnv* _env;
+};
+
+class DownloadTask : public Runnable {
+public:
+    Status _get_tablet_id_and_schema_hash_from_file_path(const std::string& src_path, int64_t* tablet_id,
+                                                                         int32_t* schema_hash) {
+        // path should be like: /path/.../tablet_id/schema_hash
+        // we try to extract tablet_id from path
+        size_t pos = src_path.find_last_of('/');
+        if (pos == std::string::npos || pos == src_path.length() - 1) {
+            return Status::InternalError("failed to get tablet id from path: " + src_path);
+        }
+
+        std::string schema_hash_str = src_path.substr(pos + 1);
+        std::stringstream ss1;
+        ss1 << schema_hash_str;
+        ss1 >> *schema_hash;
+
+        // skip schema hash part
+        size_t pos2 = src_path.find_last_of('/', pos - 1);
+        if (pos2 == std::string::npos) {
+            return Status::InternalError("failed to get tablet id from path: " + src_path);
+        }
+
+        std::string tablet_str = src_path.substr(pos2 + 1, pos - pos2);
+        std::stringstream ss2;
+        ss2 << tablet_str;
+        ss2 >> *tablet_id;
+
+        VLOG(2) << "get tablet id " << *tablet_id << ", schema hash: " << *schema_hash << " from path: " << src_path;
+        return Status::OK();
+    }
+
+    Status _get_tablet_id_from_remote_path(const std::string& remote_path, int64_t* tablet_id) {
+        // eg:
+        // bos://xxx/../__tbl_10004/__part_10003/__idx_10004/__10005
+        size_t pos = remote_path.find_last_of('_');
+        if (pos == std::string::npos) {
+            return Status::InternalError("invalid remove file path: " + remote_path);
+        }
+
+        std::string tablet_id_str = remote_path.substr(pos + 1);
+        std::stringstream ss;
+        ss << tablet_id_str;
+        ss >> *tablet_id;
+
+        return Status::OK();
+    }
+
+    Status _get_existing_files_from_local(const std::string& local_path,
+                                                          std::vector<std::string>* local_files) {
+        Status status = FileSystem::Default()->get_children(local_path, local_files);
+        if (!status.ok()) {
+            std::stringstream ss;
+            ss << "failed to list files in local path: " << local_path << ", msg: " << status.get_error_msg();
+            LOG(WARNING) << ss.str();
+            return status;
+        }
+        LOG(INFO) << "finished to list files in local path: " << local_path << ", file num: " << local_files->size();
+        return Status::OK();
+    }
+
+    bool _end_with(const std::string& str, const std::string& match) {
+        if (str.size() >= match.size() && str.compare(str.size() - match.size(), match.size(), match) == 0) {
+            return true;
+        }
+        return false;
+    }
+    Status _replace_tablet_id(const std::string& file_name, int64_t tablet_id, std::string* new_file_name) {
+        // eg:
+        // 10007.hdr
+        // 10007_2_2_0_0.idx
+        // 10007_2_2_0_0.dat
+        if (_end_with(file_name, ".hdr")) {
+            std::stringstream ss;
+            ss << tablet_id << ".hdr";
+            *new_file_name = ss.str();
+            return Status::OK();
+        } else if (_end_with(file_name, ".idx") || _end_with(file_name, ".dat")) {
+            *new_file_name = file_name;
+            return Status::OK();
+        } else {
+            return Status::InternalError("invalid tablet file name: " + file_name);
+        }
+    }
+
+    Status _get_existing_files_from_remote(BrokerServiceConnection& client, const std::string& remote_path,
+                                                           const std::map<std::string, std::string>& broker_prop,
+                                                           std::map<std::string, FileStat>* files) {
+        try {
+            // get existing files from remote path
+            TBrokerListResponse list_rep;
+            TBrokerListPathRequest list_req;
+            list_req.__set_version(TBrokerVersion::VERSION_ONE);
+            list_req.__set_path(remote_path + "/*");
+            list_req.__set_isRecursive(false);
+            list_req.__set_properties(broker_prop);
+            list_req.__set_fileNameOnly(true); // we only need file name, not abs path
+
+            try {
+                client->listPath(list_rep, list_req);
+            } catch (apache::thrift::transport::TTransportException& e) {
+                RETURN_IF_ERROR(client.reopen());
+                client->listPath(list_rep, list_req);
+            }
+
+            if (list_rep.opStatus.statusCode == TBrokerOperationStatusCode::FILE_NOT_FOUND) {
+                LOG(INFO) << "path does not exist: " << remote_path;
+                return Status::OK();
+            } else if (list_rep.opStatus.statusCode != TBrokerOperationStatusCode::OK) {
+                std::stringstream ss;
+                ss << "failed to list files from remote path: " << remote_path << ", msg: " << list_rep.opStatus.message;
+                LOG(WARNING) << ss.str();
+                return Status::InternalError(ss.str());
+            }
+            LOG(INFO) << "finished to list files from remote path. file num: " << list_rep.files.size();
+
+            // split file name and checksum
+            for (const auto& file : list_rep.files) {
+                if (file.isDir) {
+                    // this is not a file
+                    continue;
+                }
+
+                const std::string& file_name = file.path;
+                size_t pos = file_name.find_last_of('.');
+                if (pos == std::string::npos || pos == file_name.size() - 1) {
+                    // Not found checksum separator, ignore this file
+                    continue;
+                }
+
+                FileStat stat = {std::string(file_name, 0, pos), std::string(file_name, pos + 1), file.size};
+                files->emplace(std::string(file_name, 0, pos), stat);
+                VLOG(2) << "split remote file: " << std::string(file_name, 0, pos)
+                        << ", checksum: " << std::string(file_name, pos + 1);
+            }
+
+            LOG(INFO) << "finished to split files. valid file num: " << files->size();
+
+        } catch (apache::thrift::TException& e) {
+            std::stringstream ss;
+            ss << "failed to list files in remote path: " << remote_path << ", msg: " << e.what();
+            LOG(WARNING) << ss.str();
+            return Status::ThriftRpcError(ss.str());
+        }
+
+        return Status::OK();
+    }
+
+    void run() override {
+        LOG(INFO) << "download task run" << _remote_path << " " << _local_path << std::endl;
+        int64_t local_tablet_id = 0;
+        int32_t schema_hash = 0;
+        //RETURN_IF_ERROR(_get_tablet_id_and_schema_hash_from_file_path(_local_path, &local_tablet_id, &schema_hash));
+        auto get_tablet_schema = _get_tablet_id_and_schema_hash_from_file_path(_local_path, &local_tablet_id, &schema_hash);
+        if (!get_tablet_schema.ok()) {
+            LOG(WARNING) << "get_tablet_schema failed\n";
+            return;
+        }
+        {
+            const std::lock_guard<std::mutex> lock(_download_mutex);
+            _downloaded_tablet_ids->push_back(local_tablet_id);
+        }
+
+        int64_t remote_tablet_id = 0;
+        _get_tablet_id_from_remote_path(_remote_path, &remote_tablet_id);
+        VLOG(2) << "get local tablet id: " << local_tablet_id << ", schema hash: " << schema_hash
+                << ", remote tablet id: " << remote_tablet_id;
+
+        // 1. get local files
+        std::vector<std::string> local_files;
+        _get_existing_files_from_local(_local_path, &local_files);
+
+        Status status_client = Status::OK();
+        // 2. get remote files
+        BrokerServiceConnection client(client_cache(_env), _broker_addr, config::broker_write_timeout_seconds * 1000,
+                                       &status_client);
+        if (!status_client.ok()) {
+            std::stringstream ss;
+            ss << "failed to get broker client. "
+               << "broker addr: " << _broker_addr << ". msg: " << status_client.get_error_msg();
+            LOG(WARNING) << ss.str();
+            //return Status::InternalError(ss.str());
+            return;
+        }
+
+        std::map<std::string, FileStat> remote_files;
+        _get_existing_files_from_remote(client, _remote_path, _broker_prop, &remote_files);
+        if (remote_files.empty()) {
+            std::stringstream ss;
+            ss << "get nothing from remote path: " << _remote_path;
+            LOG(WARNING) << ss.str();
+            //return Status::InternalError(ss.str());
+            return;
+        }
+
+        TabletSharedPtr tablet = _env->storage_engine()->tablet_manager()->get_tablet(local_tablet_id);
+        if (tablet == nullptr) {
+            std::stringstream ss;
+            ss << "failed to get local tablet: " << local_tablet_id;
+            LOG(WARNING) << ss.str();
+            //return Status::InternalError(ss.str());
+            return;
+        }
+        DataDir* data_dir = tablet->data_dir();
+
+        for (auto& iter : remote_files) {
+            //RETURN_IF_ERROR(_report_every(10, _report_counter, *_finished_num, total_num, TTaskType::type::DOWNLOAD));
+
+            bool need_download = false;
+            const std::string& remote_file = iter.first;
+            const FileStat& file_stat = iter.second;
+            auto find = std::find(local_files.begin(), local_files.end(), remote_file);
+            if (find == local_files.end()) {
+                // remote file does not exist in local, download it
+                need_download = true;
+            } else {
+                if (_end_with(remote_file, ".hdr")) {
+                    // this is a header file, download it.
+                    need_download = true;
+                } else {
+                    // check checksum
+                    auto local_md5sum = fs::md5sum(_local_path + "/" + remote_file);
+                    if (!local_md5sum.ok()) {
+                        LOG(WARNING) << "failed to get md5sum of local file: " << remote_file
+                                     << ". msg: " << local_md5sum.status() << ". download it";
+                        need_download = true;
+                    } else {
+                        VLOG(2) << "get local file checksum: " << remote_file << ": " << *local_md5sum;
+                        if (file_stat.md5 != *local_md5sum) {
+                            // file's checksum does not equal, download it.
+                            need_download = true;
+                        }
+                    }
+                }
+            }
+
+            if (!need_download) {
+                LOG(INFO) << "remote file already exist in local, no need to download."
+                          << ", file: " << remote_file;
+                continue;
+            }
+
+            // begin to download
+            std::string full_remote_file = _remote_path + "/" + remote_file + "." + file_stat.md5;
+            std::string local_file_name;
+            // we need to replace the tablet_id in remote file name with local tablet id
+            auto status = _replace_tablet_id(remote_file, local_tablet_id, &local_file_name);
+            if (!status.ok()) {
+                LOG(WARNING) << "replace_tablet_id failed\n";
+                return;
+            }
+            std::string full_local_file = _local_path + "/" + local_file_name;
+            LOG(INFO) << "begin to download from " << full_remote_file << " to " << full_local_file;
+            size_t file_len = file_stat.size;
+
+            // check disk capacity
+            if (data_dir->capacity_limit_reached(file_len)) {
+                LOG(WARNING) << "capacity limit reached\n";
+                //return Status::InternalError("capacity limit reached");
+                return;
+            }
+
+            BrokerFileSystem fs_broker(_broker_addr, _broker_prop);
+            //ASSIGN_OR_RETURN(auto broker_file, fs_broker.new_sequential_file(full_remote_file));
+            auto broker_file = std::move(fs_broker.new_sequential_file(full_remote_file)).value();
+
+            // remove file which will be downloaded now.
+            // this file will be added to local_files if it be downloaded successfully.
+            local_files.erase(find);
+
+            // 3. open local file for write
+            WritableFileOptions opts{.sync_on_close = false, .mode = FileSystem::CREATE_OR_OPEN_WITH_TRUNCATE};
+            //ASSIGN_OR_RETURN(auto local_file, FileSystem::Default()->new_writable_file(opts, full_local_file));
+            auto st_local_file = FileSystem::Default()->new_writable_file(opts, full_local_file);
+            auto local_file = std::move(st_local_file).value();
+
+            auto res = fs::copy(broker_file.get(), local_file.get(), 1024 * 1024);
+            if (!res.ok()) {
+                LOG(WARNING) << "fs::copy failed\n";
+                //return res.status();
+                return;
+            }
+            //RETURN_IF_ERROR(local_file->close());
+            auto st = local_file->close();
+            if (!st.ok()) {
+                LOG(WARNING) << "fs close failed\n";
+            }
+
+            // 5. check md5 of the downloaded file
+            //ASSIGN_OR_RETURN(auto downloaded_md5sum, fs::md5sum(full_local_file));
+            auto st_downloaded_md5sum = fs::md5sum(full_local_file);
+            auto downloaded_md5sum = std::move(st_downloaded_md5sum).value();
+            VLOG(2) << "get downloaded file checksum: " << full_local_file << ": " << downloaded_md5sum;
+            if (downloaded_md5sum != file_stat.md5) {
+                std::stringstream ss;
+                ss << "invalid md5 of downloaded file: " << full_local_file << ", expected: " << file_stat.md5
+                   << ", get: " << downloaded_md5sum;
+                LOG(WARNING) << ss.str();
+               // return Status::InternalError(ss.str());
+                return;
+            }
+
+            // local_files always keep the updated local files
+            local_files.push_back(local_file_name);
+            LOG(INFO) << "finished to download file via broker. file: " << full_local_file << ", length: " << file_len;
+        } // end for all remote files
+
+        // finally, delete local files which are not in remote
+        for (const auto& local_file : local_files) {
+            // replace the tablet id in local file name with the remote tablet id,
+            // in order to compare the file name.
+            std::string new_name;
+            Status st = _replace_tablet_id(local_file, remote_tablet_id, &new_name);
+            if (!st.ok()) {
+                LOG(WARNING) << "failed to replace tablet id. unknown local file: " << st.get_error_msg()
+                             << ". ignore it";
+                continue;
+            }
+            VLOG(2) << "new file name after replace tablet id: " << new_name;
+            const auto& find = remote_files.find(new_name);
+            if (find != remote_files.end()) {
+                continue;
+            }
+
+            // delete
+            std::string full_local_file = _local_path + "/" + local_file;
+            VLOG(2) << "begin to delete local snapshot file: " << full_local_file << ", it does not exist in remote";
+            if (remove(full_local_file.c_str()) != 0) {
+                LOG(WARNING) << "failed to delete unknown local file: " << full_local_file << ", ignore it";
+            }
+        }
+
+    }
+
+    DownloadTask(const std::string remote_path, const std::string local_path, ExecEnv* env, std::mutex& download_mutex,
+                 const TNetworkAddress& broker_addr, const std::map<std::string, std::string>& broker_prop,
+                 std::vector<int64_t>* downloaded_tablet_ids)
+            : _remote_path(remote_path),
+              _local_path(local_path),
+              _env(env),
+              _broker_addr(broker_addr),
+              _broker_prop(broker_prop),
+              _download_mutex(download_mutex),
+              _downloaded_tablet_ids(downloaded_tablet_ids) {
+        LOG(INFO) << "download task" << _remote_path << " " << _local_path << std::endl;
+    }
+
+private:
+    std::string _remote_path;
+    std::string _local_path;
+    ExecEnv* _env;
+    TNetworkAddress _broker_addr;
+    std::map<std::string, std::string> _broker_prop;
+    std::mutex& _download_mutex;
+    std::vector<int64_t>* _downloaded_tablet_ids;
+};
+
 SnapshotLoader::SnapshotLoader(ExecEnv* env, int64_t job_id, int64_t task_id)
-        : _env(env), _job_id(job_id), _task_id(task_id) {}
+        : _env(env), _job_id(job_id), _task_id(task_id) {
+    auto st = ThreadPoolBuilder("snap_loader").set_max_threads(10).build(&thread_pool);
+    CHECK(st.ok()) << st;
+    LOG(INFO) << "snapshot loader pool init\n";
+}
 
 SnapshotLoader::~SnapshotLoader() = default;
 
@@ -155,22 +625,25 @@ Status SnapshotLoader::upload(const std::map<std::string, std::string>& src_to_d
             auto full_remote_file = dest_path + "/" + local_file;
             auto tmp_broker_file_name = full_remote_file + ".part";
             auto local_file_path = src_path + "/" + local_file;
-
-            BrokerFileSystem fs_broker(broker_addr, broker_prop);
-            WritableFileOptions opts{.sync_on_close = false, .mode = FileSystem::CREATE_OR_OPEN_WITH_TRUNCATE};
-            ASSIGN_OR_RETURN(auto broker_file, fs_broker.new_writable_file(opts, tmp_broker_file_name));
-
-            ASSIGN_OR_RETURN(auto input_file, FileSystem::Default()->new_sequential_file(local_file_path));
-
-            auto res = fs::copy(input_file.get(), broker_file.get(), 1024 * 1024);
-            if (!res.ok()) {
-                return res.status();
-            }
-            LOG(INFO) << "finished to write file via broker. file: " << local_file_path << ", length: " << *res;
-            RETURN_IF_ERROR(broker_file->close());
-            // rename file to end with ".md5sum"
-            RETURN_IF_ERROR(_rename_remote_file(client, full_remote_file + ".part", full_remote_file + "." + md5sum,
-                                                broker_prop));
+            auto upload_task = std::make_shared<UploadTask>(full_remote_file, tmp_broker_file_name, local_file_path,
+                                                            broker_addr, broker_prop, md5sum, _env);
+            auto st = thread_pool->submit(std::move(upload_task));
+            LOG(INFO) << "queue size :" << thread_pool->num_queued_tasks() << std::endl;
+            //            BrokerFileSystem fs_broker(broker_addr, broker_prop);
+            //            WritableFileOptions opts{.sync_on_close = false, .mode = FileSystem::CREATE_OR_OPEN_WITH_TRUNCATE};
+            //            ASSIGN_OR_RETURN(auto broker_file, fs_broker.new_writable_file(opts, tmp_broker_file_name));
+            //
+            //            ASSIGN_OR_RETURN(auto input_file, FileSystem::Default()->new_sequential_file(local_file_path));
+            //
+            //            auto res = fs::copy(input_file.get(), broker_file.get(), 1024 * 1024);
+            //            if (!res.ok()) {
+            //                return res.status();
+            //            }
+            //            LOG(INFO) << "finished to write file via broker. file: " << local_file_path << ", length: " << *res;
+            //            RETURN_IF_ERROR(broker_file->close());
+            //            // rename file to end with ".md5sum"
+            //            RETURN_IF_ERROR(_rename_remote_file(client, full_remote_file + ".part", full_remote_file + "." + md5sum,
+            //                                                broker_prop));
         } // end for each tablet's local files
 
         tablet_files->emplace(tablet_id, local_files_with_checksum);
@@ -178,6 +651,7 @@ Status SnapshotLoader::upload(const std::map<std::string, std::string>& src_to_d
         LOG(INFO) << "finished to write tablet to remote. local path: " << src_path << ", remote path: " << dest_path;
     } // end for each tablet path
 
+    thread_pool->wait();
     LOG(INFO) << "finished to upload snapshots. job: " << _job_id << ", task id: " << _task_id;
     return status;
 }
@@ -193,7 +667,7 @@ Status SnapshotLoader::download(const std::map<std::string, std::string>& src_to
                                 std::vector<int64_t>* downloaded_tablet_ids) {
     LOG(INFO) << "begin to download snapshot files. num: " << src_to_dest_path.size()
               << ", broker addr: " << broker_addr << ", job: " << _job_id << ", task id: " << _task_id;
-
+    std::mutex download_mutex;
     // check if job has already been cancelled
     int tmp_counter = 1;
     RETURN_IF_ERROR(_report_every(0, &tmp_counter, 0, 0, TTaskType::type::DOWNLOAD));
@@ -216,158 +690,162 @@ Status SnapshotLoader::download(const std::map<std::string, std::string>& src_to
     std::vector<TNetworkAddress> broker_addrs;
     broker_addrs.push_back(broker_addr);
     // 3. for each src path, download it to local storage
-    int report_counter = 0;
-    int total_num = src_to_dest_path.size();
+    //int report_counter = 0;
+    //int total_num = src_to_dest_path.size();
     int finished_num = 0;
     for (const auto& iter : src_to_dest_path) {
         const std::string& remote_path = iter.first;
         const std::string& local_path = iter.second;
+        auto download_task = std::make_shared<DownloadTask>(remote_path, local_path, _env, download_mutex,
+                                                        broker_addr, broker_prop, downloaded_tablet_ids);
+        auto st = thread_pool->submit(std::move(download_task));
 
-        int64_t local_tablet_id = 0;
-        int32_t schema_hash = 0;
-        RETURN_IF_ERROR(_get_tablet_id_and_schema_hash_from_file_path(local_path, &local_tablet_id, &schema_hash));
-        downloaded_tablet_ids->push_back(local_tablet_id);
-
-        int64_t remote_tablet_id = 0;
-        RETURN_IF_ERROR(_get_tablet_id_from_remote_path(remote_path, &remote_tablet_id));
-        VLOG(2) << "get local tablet id: " << local_tablet_id << ", schema hash: " << schema_hash
-                << ", remote tablet id: " << remote_tablet_id;
-
-        // 1. get local files
-        std::vector<std::string> local_files;
-        RETURN_IF_ERROR(_get_existing_files_from_local(local_path, &local_files));
-
-        // 2. get remote files
-        std::map<std::string, FileStat> remote_files;
-        RETURN_IF_ERROR(_get_existing_files_from_remote(client, remote_path, broker_prop, &remote_files));
-        if (remote_files.empty()) {
-            std::stringstream ss;
-            ss << "get nothing from remote path: " << remote_path;
-            LOG(WARNING) << ss.str();
-            return Status::InternalError(ss.str());
-        }
-
-        TabletSharedPtr tablet = _env->storage_engine()->tablet_manager()->get_tablet(local_tablet_id);
-        if (tablet == nullptr) {
-            std::stringstream ss;
-            ss << "failed to get local tablet: " << local_tablet_id;
-            LOG(WARNING) << ss.str();
-            return Status::InternalError(ss.str());
-        }
-        DataDir* data_dir = tablet->data_dir();
-
-        for (auto& iter : remote_files) {
-            RETURN_IF_ERROR(_report_every(10, &report_counter, finished_num, total_num, TTaskType::type::DOWNLOAD));
-
-            bool need_download = false;
-            const std::string& remote_file = iter.first;
-            const FileStat& file_stat = iter.second;
-            auto find = std::find(local_files.begin(), local_files.end(), remote_file);
-            if (find == local_files.end()) {
-                // remote file does not exist in local, download it
-                need_download = true;
-            } else {
-                if (_end_with(remote_file, ".hdr")) {
-                    // this is a header file, download it.
-                    need_download = true;
-                } else {
-                    // check checksum
-                    auto local_md5sum = fs::md5sum(local_path + "/" + remote_file);
-                    if (!local_md5sum.ok()) {
-                        LOG(WARNING) << "failed to get md5sum of local file: " << remote_file
-                                     << ". msg: " << local_md5sum.status() << ". download it";
-                        need_download = true;
-                    } else {
-                        VLOG(2) << "get local file checksum: " << remote_file << ": " << *local_md5sum;
-                        if (file_stat.md5 != *local_md5sum) {
-                            // file's checksum does not equal, download it.
-                            need_download = true;
-                        }
-                    }
-                }
-            }
-
-            if (!need_download) {
-                LOG(INFO) << "remote file already exist in local, no need to download."
-                          << ", file: " << remote_file;
-                continue;
-            }
-
-            // begin to download
-            std::string full_remote_file = remote_path + "/" + remote_file + "." + file_stat.md5;
-            std::string local_file_name;
-            // we need to replace the tablet_id in remote file name with local tablet id
-            RETURN_IF_ERROR(_replace_tablet_id(remote_file, local_tablet_id, &local_file_name));
-            std::string full_local_file = local_path + "/" + local_file_name;
-            LOG(INFO) << "begin to download from " << full_remote_file << " to " << full_local_file;
-            size_t file_len = file_stat.size;
-
-            // check disk capacity
-            if (data_dir->capacity_limit_reached(file_len)) {
-                return Status::InternalError("capacity limit reached");
-            }
-
-            BrokerFileSystem fs_broker(broker_addr, broker_prop);
-            ASSIGN_OR_RETURN(auto broker_file, fs_broker.new_sequential_file(full_remote_file));
-
-            // remove file which will be downloaded now.
-            // this file will be added to local_files if it be downloaded successfully.
-            local_files.erase(find);
-
-            // 3. open local file for write
-            WritableFileOptions opts{.sync_on_close = false, .mode = FileSystem::CREATE_OR_OPEN_WITH_TRUNCATE};
-            ASSIGN_OR_RETURN(auto local_file, FileSystem::Default()->new_writable_file(opts, full_local_file));
-
-            auto res = fs::copy(broker_file.get(), local_file.get(), 1024 * 1024);
-            if (!res.ok()) {
-                return res.status();
-            }
-            RETURN_IF_ERROR(local_file->close());
-
-            // 5. check md5 of the downloaded file
-            ASSIGN_OR_RETURN(auto downloaded_md5sum, fs::md5sum(full_local_file));
-            VLOG(2) << "get downloaded file checksum: " << full_local_file << ": " << downloaded_md5sum;
-            if (downloaded_md5sum != file_stat.md5) {
-                std::stringstream ss;
-                ss << "invalid md5 of downloaded file: " << full_local_file << ", expected: " << file_stat.md5
-                   << ", get: " << downloaded_md5sum;
-                LOG(WARNING) << ss.str();
-                return Status::InternalError(ss.str());
-            }
-
-            // local_files always keep the updated local files
-            local_files.push_back(local_file_name);
-            LOG(INFO) << "finished to download file via broker. file: " << full_local_file << ", length: " << file_len;
-        } // end for all remote files
-
-        // finally, delete local files which are not in remote
-        for (const auto& local_file : local_files) {
-            // replace the tablet id in local file name with the remote tablet id,
-            // in order to compare the file name.
-            std::string new_name;
-            Status st = _replace_tablet_id(local_file, remote_tablet_id, &new_name);
-            if (!st.ok()) {
-                LOG(WARNING) << "failed to replace tablet id. unknown local file: " << st.get_error_msg()
-                             << ". ignore it";
-                continue;
-            }
-            VLOG(2) << "new file name after replace tablet id: " << new_name;
-            const auto& find = remote_files.find(new_name);
-            if (find != remote_files.end()) {
-                continue;
-            }
-
-            // delete
-            std::string full_local_file = local_path + "/" + local_file;
-            VLOG(2) << "begin to delete local snapshot file: " << full_local_file << ", it does not exist in remote";
-            if (remove(full_local_file.c_str()) != 0) {
-                LOG(WARNING) << "failed to delete unknown local file: " << full_local_file << ", ignore it";
-            }
-        }
+//        int64_t local_tablet_id = 0;
+//        int32_t schema_hash = 0;
+//        RETURN_IF_ERROR(_get_tablet_id_and_schema_hash_from_file_path(local_path, &local_tablet_id, &schema_hash));
+//        downloaded_tablet_ids->push_back(local_tablet_id);
+//
+//        int64_t remote_tablet_id = 0;
+//        RETURN_IF_ERROR(_get_tablet_id_from_remote_path(remote_path, &remote_tablet_id));
+//        VLOG(2) << "get local tablet id: " << local_tablet_id << ", schema hash: " << schema_hash
+//                << ", remote tablet id: " << remote_tablet_id;
+//
+//        // 1. get local files
+//        std::vector<std::string> local_files;
+//        RETURN_IF_ERROR(_get_existing_files_from_local(local_path, &local_files));
+//
+//        // 2. get remote files
+//        std::map<std::string, FileStat> remote_files;
+//        RETURN_IF_ERROR(_get_existing_files_from_remote(client, remote_path, broker_prop, &remote_files));
+//        if (remote_files.empty()) {
+//            std::stringstream ss;
+//            ss << "get nothing from remote path: " << remote_path;
+//            LOG(WARNING) << ss.str();
+//            return Status::InternalError(ss.str());
+//        }
+//
+//        TabletSharedPtr tablet = _env->storage_engine()->tablet_manager()->get_tablet(local_tablet_id);
+//        if (tablet == nullptr) {
+//            std::stringstream ss;
+//            ss << "failed to get local tablet: " << local_tablet_id;
+//            LOG(WARNING) << ss.str();
+//            return Status::InternalError(ss.str());
+//        }
+//        DataDir* data_dir = tablet->data_dir();
+//
+//        for (auto& iter : remote_files) {
+//            RETURN_IF_ERROR(_report_every(10, &report_counter, finished_num, total_num, TTaskType::type::DOWNLOAD));
+//
+//            bool need_download = false;
+//            const std::string& remote_file = iter.first;
+//            const FileStat& file_stat = iter.second;
+//            auto find = std::find(local_files.begin(), local_files.end(), remote_file);
+//            if (find == local_files.end()) {
+//                // remote file does not exist in local, download it
+//                need_download = true;
+//            } else {
+//                if (_end_with(remote_file, ".hdr")) {
+//                    // this is a header file, download it.
+//                    need_download = true;
+//                } else {
+//                    // check checksum
+//                    auto local_md5sum = fs::md5sum(local_path + "/" + remote_file);
+//                    if (!local_md5sum.ok()) {
+//                        LOG(WARNING) << "failed to get md5sum of local file: " << remote_file
+//                                     << ". msg: " << local_md5sum.status() << ". download it";
+//                        need_download = true;
+//                    } else {
+//                        VLOG(2) << "get local file checksum: " << remote_file << ": " << *local_md5sum;
+//                        if (file_stat.md5 != *local_md5sum) {
+//                            // file's checksum does not equal, download it.
+//                            need_download = true;
+//                        }
+//                    }
+//                }
+//            }
+//
+//            if (!need_download) {
+//                LOG(INFO) << "remote file already exist in local, no need to download."
+//                          << ", file: " << remote_file;
+//                continue;
+//            }
+//
+//            // begin to download
+//            std::string full_remote_file = remote_path + "/" + remote_file + "." + file_stat.md5;
+//            std::string local_file_name;
+//            // we need to replace the tablet_id in remote file name with local tablet id
+//            RETURN_IF_ERROR(_replace_tablet_id(remote_file, local_tablet_id, &local_file_name));
+//            std::string full_local_file = local_path + "/" + local_file_name;
+//            LOG(INFO) << "begin to download from " << full_remote_file << " to " << full_local_file;
+//            size_t file_len = file_stat.size;
+//
+//            // check disk capacity
+//            if (data_dir->capacity_limit_reached(file_len)) {
+//                return Status::InternalError("capacity limit reached");
+//            }
+//
+//            BrokerFileSystem fs_broker(broker_addr, broker_prop);
+//            ASSIGN_OR_RETURN(auto broker_file, fs_broker.new_sequential_file(full_remote_file));
+//
+//            // remove file which will be downloaded now.
+//            // this file will be added to local_files if it be downloaded successfully.
+//            local_files.erase(find);
+//
+//            // 3. open local file for write
+//            WritableFileOptions opts{.sync_on_close = false, .mode = FileSystem::CREATE_OR_OPEN_WITH_TRUNCATE};
+//            ASSIGN_OR_RETURN(auto local_file, FileSystem::Default()->new_writable_file(opts, full_local_file));
+//
+//            auto res = fs::copy(broker_file.get(), local_file.get(), 1024 * 1024);
+//            if (!res.ok()) {
+//                return res.status();
+//            }
+//            RETURN_IF_ERROR(local_file->close());
+//
+//            // 5. check md5 of the downloaded file
+//            ASSIGN_OR_RETURN(auto downloaded_md5sum, fs::md5sum(full_local_file));
+//            VLOG(2) << "get downloaded file checksum: " << full_local_file << ": " << downloaded_md5sum;
+//            if (downloaded_md5sum != file_stat.md5) {
+//                std::stringstream ss;
+//                ss << "invalid md5 of downloaded file: " << full_local_file << ", expected: " << file_stat.md5
+//                   << ", get: " << downloaded_md5sum;
+//                LOG(WARNING) << ss.str();
+//                return Status::InternalError(ss.str());
+//            }
+//
+//            // local_files always keep the updated local files
+//            local_files.push_back(local_file_name);
+//            LOG(INFO) << "finished to download file via broker. file: " << full_local_file << ", length: " << file_len;
+//        } // end for all remote files
+//
+//        // finally, delete local files which are not in remote
+//        for (const auto& local_file : local_files) {
+//            // replace the tablet id in local file name with the remote tablet id,
+//            // in order to compare the file name.
+//            std::string new_name;
+//            Status st = _replace_tablet_id(local_file, remote_tablet_id, &new_name);
+//            if (!st.ok()) {
+//                LOG(WARNING) << "failed to replace tablet id. unknown local file: " << st.get_error_msg()
+//                             << ". ignore it";
+//                continue;
+//            }
+//            VLOG(2) << "new file name after replace tablet id: " << new_name;
+//            const auto& find = remote_files.find(new_name);
+//            if (find != remote_files.end()) {
+//                continue;
+//            }
+//
+//            // delete
+//            std::string full_local_file = local_path + "/" + local_file;
+//            VLOG(2) << "begin to delete local snapshot file: " << full_local_file << ", it does not exist in remote";
+//            if (remove(full_local_file.c_str()) != 0) {
+//                LOG(WARNING) << "failed to delete unknown local file: " << full_local_file << ", ignore it";
+//            }
+//        }
 
         finished_num++;
     } // end for src_to_dest_path
 
+    thread_pool->wait();
     LOG(INFO) << "finished to download snapshots. job: " << _job_id << ", task id: " << _task_id;
     return status;
 }

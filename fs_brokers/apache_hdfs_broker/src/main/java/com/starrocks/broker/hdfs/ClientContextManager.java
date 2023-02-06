@@ -90,7 +90,7 @@ public class ClientContextManager {
         String clientId = fdToClientMap.get(fd);
         if (clientId == null) {
             throw new BrokerException(TBrokerOperationStatusCode.TARGET_STORAGE_SERVICE_ERROR, 
-                    "the fd is not owned by client {}", clientId);
+                    "the fd {} is not owned by client {}", fd, clientId);
         }
         ClientResourceContext clientContext = clientContexts.get(clientId);
         clientContext.updateClientLastPingTime();

@@ -206,6 +206,7 @@ public class HDFSBrokerServiceImpl implements TFileBrokerService.Iface {
         TBrokerOpenWriterResponse response = new TBrokerOpenWriterResponse();
         try {
             TBrokerFD fd = fileSystemManager.openWriter(request.clientId, request.path, request.properties);
+            logger.info("request.clientId-request.path-fd" + request.clientId + " " + request.path + " " + fd);
             response.setFd(fd);
             response.setOpStatus(generateOKStatus());
         } catch (BrokerException e) {
@@ -219,9 +220,10 @@ public class HDFSBrokerServiceImpl implements TFileBrokerService.Iface {
     @Override
     public TBrokerOperationStatus pwrite(TBrokerPWriteRequest request)
             throws TException {
-        logger.debug("receive a pwrite request, request detail: " + request);
+        //logger.debug("receive a pwrite request, request detail: " + request);
         Stopwatch stopwatch = BrokerPerfMonitor.startWatch();
         try {
+            logger.info("pwrite reqeust.fd " + request.fd);
             fileSystemManager.pwrite(request.fd, request.offset, request.getData());
         } catch (BrokerException e) {
             logger.warn("failed to pwrite: " + request.fd, e);
@@ -229,6 +231,9 @@ public class HDFSBrokerServiceImpl implements TFileBrokerService.Iface {
             return errorStatus;
         } finally {
             stopwatch.stop();
+            logger.info("write request fd: " + request.fd.high + ""
+                    + request.fd.low + " cost "
+                    + stopwatch.elapsed(TimeUnit.MILLISECONDS) + " millis");
             logger.debug("write request fd: " + request.fd.high + "" 
                     + request.fd.low + " cost " 
                     + stopwatch.elapsed(TimeUnit.MILLISECONDS) + " millis");

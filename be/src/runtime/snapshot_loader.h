@@ -99,10 +99,17 @@ private:
 
     Status _report_every(int report_threshold, int* counter, int finished_num, int total_num, TTaskType::type type);
 
+    static Status download_file(const std::string& full_remote_file, const std::string& tmp_broker_file_name,
+                                const std::string& local_file_path, const TNetworkAddress& broker_addr,
+                                const std::map<std::string, std::string>& broker_prop, BrokerServiceConnection& client,
+                                std::string md5sum);
+
 private:
+    std::unique_ptr<ThreadPool> thread_pool;
     ExecEnv* _env;
     int64_t _job_id;
     int64_t _task_id;
 };
 
 } // end namespace starrocks
+
