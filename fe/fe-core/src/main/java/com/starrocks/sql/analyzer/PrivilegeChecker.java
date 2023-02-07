@@ -26,6 +26,7 @@ import com.starrocks.catalog.OlapTable;
 import com.starrocks.catalog.Partition;
 import com.starrocks.catalog.Table;
 import com.starrocks.common.AnalysisException;
+import com.starrocks.common.Config;
 import com.starrocks.common.ErrorCode;
 import com.starrocks.common.ErrorReport;
 import com.starrocks.common.Pair;
@@ -705,6 +706,12 @@ public class PrivilegeChecker {
 
         @Override
         public Void visitGrantRevokePrivilegeStatement(BaseGrantRevokePrivilegeStmt stmt, ConnectContext session) {
+            // emr product restrictions
+            if (Config.enable_emr_product_restrictions && stmt.getPrivBitSet().containsPrivs(Privilege.GRANT_PRIV)) {
+                throw new SemanticException(
+                        "EMR Serverless StarRocks policies: never grant ‘GRANT_PRIV’ privileges," +
+                                " instead you should update privileges in EMR StarRocks Manager.");
+            }
             if (stmt.getRole() != null || stmt.getObjectTypeUnResolved().equals("USER")) {
                 if (!GlobalStateMgr.getCurrentState().getAuth().checkGlobalPriv(
                         session, PrivPredicate.GRANT)) {
