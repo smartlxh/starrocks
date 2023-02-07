@@ -28,6 +28,7 @@ import com.starrocks.catalog.Table;
 import com.starrocks.catalog.View;
 import com.starrocks.catalog.system.SystemTable;
 import com.starrocks.common.AnalysisException;
+import com.starrocks.common.Config;
 import com.starrocks.common.DdlException;
 import com.starrocks.common.ErrorCode;
 import com.starrocks.common.ErrorReport;
@@ -37,6 +38,7 @@ import com.starrocks.load.ExportJob;
 import com.starrocks.load.loadv2.LoadJob;
 import com.starrocks.load.loadv2.SparkLoadJob;
 import com.starrocks.load.routineload.RoutineLoadJob;
+import com.starrocks.mysql.privilege.Privilege;
 import com.starrocks.privilege.AccessDeniedException;
 import com.starrocks.privilege.AuthorizationMgr;
 import com.starrocks.privilege.ObjectType;
@@ -1266,6 +1268,12 @@ public class AuthorizerStmtVisitor extends AstVisitor<Void, ConnectContext> {
 
     @Override
     public Void visitGrantRevokePrivilegeStatement(BaseGrantRevokePrivilegeStmt stmt, ConnectContext context) {
+        // emr product restrictions
+        if (Config.enable_emr_product_restrictions && stmt.getPrivBitSet().containsPrivs(Privilege.GRANT_PRIV)) {
+            throw new SemanticException(
+                    "EMR Serverless StarRocks policies: never grant ‘GRANT_PRIV’ privileges," +
+                            " instead you should update privileges in EMR StarRocks Manager.");
+        }
         try {
             Authorizer.checkSystemAction(context.getCurrentUserIdentity(), context.getCurrentRoleIds(), PrivilegeType.GRANT);
         } catch (AccessDeniedException e) {
