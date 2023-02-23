@@ -210,7 +210,9 @@ StatusOr<HeartbeatServer::CmpResult> HeartbeatServer::compare_master_info(const 
 
             for (auto& host : hosts) {
                 if (host.is_address_v4() && host.get_host_address_v4() == ip) {
-                    BackendOptions::set_localhost(master_info.backend_ip);
+                    if (!config::force_use_ip_as_localhost) {
+                        BackendOptions::set_localhost(master_info.backend_ip);
+                    }
                     set_new_localhost = true;
                     break;
                 }
