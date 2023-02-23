@@ -37,6 +37,9 @@
 #include "configbase.h"
 
 namespace starrocks::config {
+// In k8s we should use ip to report error log url
+CONF_Bool(force_use_ip_as_localhost, "false");
+
 // The cluster id.
 CONF_Int32(cluster_id, "-1");
 // The port on which ImpalaInternalService is exported.
