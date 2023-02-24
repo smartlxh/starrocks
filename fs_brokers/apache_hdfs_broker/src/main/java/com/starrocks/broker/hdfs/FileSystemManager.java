@@ -122,9 +122,13 @@ public class FileSystemManager {
     private static final String FS_OSS_ACCESS_KEY = "fs.oss.accessKeyId";
     private static final String FS_OSS_SECRET_KEY = "fs.oss.accessKeySecret";
     private static final String FS_OSS_ENDPOINT = "fs.oss.endpoint";
+    private static final String FS_OSS_UPLOAD_THREAD = "fs.oss.upload_thread";
     // This property is used like 'fs.hdfs.impl.disable.cache'
     private static final String FS_OSS_IMPL_DISABLE_CACHE = "fs.oss.impl.disable.cache";
     private static final String FS_OSS_IMPL = "fs.oss.impl";
+
+    public static final String MULTIPART_DOWNLOAD_THREAD_NUMBER_KEY =
+            "fs.oss.multipart.download.threads";
 
     // arguments for cos
     private static final String FS_COS_ACCESS_KEY = "fs.cosn.userinfo.secretId";
@@ -625,6 +629,7 @@ public class FileSystemManager {
         String accessKey = properties.getOrDefault(FS_OSS_ACCESS_KEY, "");
         String secretKey = properties.getOrDefault(FS_OSS_SECRET_KEY, "");
         String endpoint = properties.getOrDefault(FS_OSS_ENDPOINT, "");
+        String uploadThread = properties.getOrDefault(FS_OSS_UPLOAD_THREAD,"10");
         String disableCache = properties.getOrDefault(FS_OSS_IMPL_DISABLE_CACHE, "true");
         // endpoint is the server host, pathUri.getUri().getHost() is the bucket
         // we should use these two params as the host identity, because FileSystem will cache both.
@@ -654,6 +659,8 @@ public class FileSystemManager {
                 conf.set(FS_OSS_ENDPOINT, endpoint);
                 conf.set(FS_OSS_IMPL, "org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem");
                 conf.set(FS_OSS_IMPL_DISABLE_CACHE, disableCache);
+                conf.set(MULTIPART_DOWNLOAD_THREAD_NUMBER_KEY, uploadThread);
+
                 FileSystem ossFileSystem = FileSystem.get(pathUri.getUri(), conf);
                 fileSystem.setFileSystem(ossFileSystem);
             }
