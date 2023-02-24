@@ -532,9 +532,10 @@ private:
 
 SnapshotLoader::SnapshotLoader(ExecEnv* env, int64_t job_id, int64_t task_id)
         : _env(env), _job_id(job_id), _task_id(task_id) {
-    auto st = ThreadPoolBuilder("snap_loader").set_max_threads(10).build(&thread_pool);
+    auto st = ThreadPoolBuilder("snap_loader").set_max_threads(starrocks::config::snapshot_loader_thread).build(&thread_pool);
     CHECK(st.ok()) << st;
     LOG(INFO) << "snapshot loader pool init\n";
+    LOG(INFO) << "thread numms : " <<  starrocks::config::snapshot_loader_thread << std::endl;
 }
 
 SnapshotLoader::~SnapshotLoader() = default;
