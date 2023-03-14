@@ -47,7 +47,8 @@ add_library(Webserver STATIC
   action/update_config_action.cpp
   action/runtime_filter_cache_action.cpp
   action/query_cache_action.cpp
-  action/pipeline_blocking_drivers_action.cpp)
+  action/pipeline_blocking_drivers_action.cpp
+  action/stop_be_action.cpp)
 
 # target_link_libraries(Webserver pthread dl Util)
 #ADD_BE_TEST(integer-array-test)
