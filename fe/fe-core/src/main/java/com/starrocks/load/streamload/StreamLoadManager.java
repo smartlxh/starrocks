@@ -222,7 +222,7 @@ public class StreamLoadManager {
     }
 
     // add load tasks and also add to to callback factory
-    private void addLoadTask(StreamLoadTask task) {
+    public void addLoadTask(StreamLoadTask task) {
         if (task.isSyncStreamLoad()) {
             labelToSyncStreamLoadTasks.put(task.getLabel(), task);
             txnIdToSyncStreamLoadTasks.put(task.getTxnId(), task);

@@ -2122,6 +2122,13 @@ public class Config extends ConfigBase {
     public static int profile_info_reserved_num = 500;
 
     /**
+     * Number of stream load profile infos reserved by `ProfileManager` for recently executed stream load and routine load task.
+     * Default value: 500
+     */
+    @ConfField(mutable = true)
+    public static int load_profile_info_reserved_num = 500;
+
+    /**
      * format of profile infos reserved by `ProfileManager` for recently executed query.
      * Default value: "default"
      */
@@ -2219,4 +2226,11 @@ public class Config extends ConfigBase {
     public static boolean enable_execute_script_on_frontend = true;
     @ConfField(mutable = true)
     public static boolean enable_stream_load_profile = false;
+
+    /**
+     * Only when the stream load time exceeds this value,
+     * the profile will be put into the profileManager
+     */
+    @ConfField(mutable = true)
+    public static long stream_load_profile_collect_second = 10;
 }

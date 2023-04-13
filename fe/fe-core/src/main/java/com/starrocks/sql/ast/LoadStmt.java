@@ -101,6 +101,8 @@ public class LoadStmt extends DdlStmt {
     public static final String CASE_SENSITIVE = "case_sensitive";
     public static final String LOG_REJECTED_RECORD_NUM = "log_rejected_record_num";
 
+    public static final String ENABLE_PROFILE = "enable_profile";
+
 
     // for load data from Baidu Object Store(BOS)
     public static final String BOS_ENDPOINT = "bos_endpoint";

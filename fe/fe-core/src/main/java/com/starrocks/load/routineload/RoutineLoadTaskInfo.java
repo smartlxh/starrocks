@@ -37,10 +37,12 @@ package com.starrocks.load.routineload;
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
+import com.starrocks.catalog.Database;
 import com.starrocks.common.Config;
 import com.starrocks.common.UserException;
 import com.starrocks.common.util.DebugUtil;
 import com.starrocks.common.util.TimeUtils;
+import com.starrocks.load.streamload.StreamLoadTask;
 import com.starrocks.metric.MetricRepo;
 import com.starrocks.server.GlobalStateMgr;
 import com.starrocks.service.FrontendOptions;
@@ -97,6 +99,10 @@ public abstract class RoutineLoadTaskInfo {
 
     // record task schedule info
     protected String msg;
+
+    protected String label;
+
+    protected StreamLoadTask streamLoadTask = null;
 
     public RoutineLoadTaskInfo(UUID id, long jobId, long taskScheduleIntervalMs,
                                long timeToExecuteMs) {
@@ -211,6 +217,24 @@ public abstract class RoutineLoadTaskInfo {
                 new TxnCoordinator(TxnSourceType.FE, FrontendOptions.getLocalHostAddress()),
                 TransactionState.LoadJobSourceType.ROUTINE_LOAD_TASK, routineLoadJob.getId(),
                 timeoutMs / 1000);
+    }
+
+    public void afterCommitted(TransactionState txnState, boolean txnOperated) throws UserException {
+        //StreamLoadTask is null, if not specify `enable_profile = true` when creating the routine load job
+        if (streamLoadTask != null) {
+            streamLoadTask.afterCommitted(txnState, txnOperated);
+        }
+    }
+
+    public void afterAborted(TransactionState txnState, boolean txnOperated, String txnStatusChangeReason) throws UserException {
+        //StreamLoadTask is null, if not specify `enable_profile = true` when creating the routine load job
+        if (streamLoadTask != null) {
+            streamLoadTask.afterAborted(txnState, txnOperated, txnStatusChangeReason);
+        }
+    }
+
+    public void setStreamLoadTask(StreamLoadTask streamLoadTask) {
+        this.streamLoadTask = streamLoadTask;
     }
 
     public List<String> getTaskShowInfo() {

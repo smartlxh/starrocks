@@ -182,6 +182,15 @@ public class KafkaTaskInfo extends RoutineLoadTaskInfo {
         } else {
             tRoutineLoadTask.setFormat(TFileFormatType.FORMAT_CSV_PLAIN);
         }
+
+        if (routineLoadJob.isEnableProfile()) {
+            streamLoadTask = GlobalStateMgr.getCurrentState().getStreamLoadManager().getSyncSteamLoadTaskByLabel(label);
+            if (streamLoadTask == null) {
+                LOG.info("Stream load task null");
+                throw new UserException("Stream load task null");
+            }
+        }
+
         return tRoutineLoadTask;
     }
 
@@ -192,9 +201,11 @@ public class KafkaTaskInfo extends RoutineLoadTaskInfo {
     }
 
     private TExecPlanFragmentParams plan(RoutineLoadJob routineLoadJob) throws UserException {
+        label =
+                Joiner.on("-").join(routineLoadJob.getName(), routineLoadJob.getId(), DebugUtil.printId(id), txnId);
         TUniqueId loadId = new TUniqueId(id.getMostSignificantBits(), id.getLeastSignificantBits());
         // plan for each task, in case table has change(rollup or schema change)
-        TExecPlanFragmentParams tExecPlanFragmentParams = routineLoadJob.plan(loadId, txnId);
+        TExecPlanFragmentParams tExecPlanFragmentParams = routineLoadJob.plan(loadId, txnId, label);
         TPlanFragment tPlanFragment = tExecPlanFragmentParams.getFragment();
         tPlanFragment.getOutput_sink().getOlap_table_sink().setTxn_id(txnId);
         return tExecPlanFragmentParams;
