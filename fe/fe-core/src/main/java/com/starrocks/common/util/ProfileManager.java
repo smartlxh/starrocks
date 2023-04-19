@@ -181,6 +181,8 @@ public class ProfileManager {
         String profileString = generateProfileString(profile);
 
         ProfileElement element = createElement(profile.getChildList().get(0).first, profileString);
+        LOG.info("profile content:" + element.profileContent.length);
+
         String loadId = element.infoStrings.get(ProfileManager.QUERY_ID);
         // check when push in, which can ensure every element in the list has QUERY_ID column,
         // so there is no need to check when remove element from list.
