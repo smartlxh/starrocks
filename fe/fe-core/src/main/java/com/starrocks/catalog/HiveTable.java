@@ -122,6 +122,8 @@ public class HiveTable extends Table implements HiveMetaStoreTable {
 
     private HiveStorageFormat storageFormat;
 
+    private boolean isMaxComputeTable = false;
+
     public HiveTable() {
         super(TableType.HIVE);
     }
@@ -132,6 +134,11 @@ public class HiveTable extends Table implements HiveMetaStoreTable {
                      HiveStorageFormat storageFormat) {
         super(id, name, TableType.HIVE, fullSchema);
         this.resourceName = resourceName;
+        Resource resource = GlobalStateMgr.getCurrentState().getResourceMgr().getResource(resourceName);
+        if (resource != null) {
+            HiveResource hiveResource = (HiveResource) resource;
+            isMaxComputeTable = hiveResource.isMaxComputeResource();
+        }
         this.catalogName = catalog;
         this.hiveDbName = hiveDbName;
         this.hiveTableName = hiveTableName;
@@ -230,7 +237,12 @@ public class HiveTable extends Table implements HiveMetaStoreTable {
         Resource resource = GlobalStateMgr.getCurrentState().getResourceMgr().getResource(resourceName);
         if (resource != null) {
             HiveResource hiveResource = (HiveResource) resource;
-            hiveProperties.put(HIVE_METASTORE_URIS, hiveResource.getHiveMetastoreURIs());
+            isMaxComputeTable = hiveResource.isMaxComputeResource();
+            if (!isMaxComputeTable) {
+                hiveProperties.put(HIVE_METASTORE_URIS, hiveResource.getHiveMetastoreURIs());
+            } else {
+                hiveProperties.putAll(hiveResource.getResourceOptions());
+            }
         }
         return hiveProperties == null ? new HashMap<>() : hiveProperties;
     }
