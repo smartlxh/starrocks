@@ -2256,6 +2256,7 @@ public class Config extends ConfigBase {
      */
     @ConfField(mutable = true)
     public static boolean only_use_compute_node = false;
+
     @ConfField
     public static boolean enable_execute_script_on_frontend = true;
 
