@@ -354,7 +354,7 @@ int main(int argc, char** argv) {
     }
 
     if (starrocks::k_starrocks_exit_quick.load()) {
-        LOG(INFO) << "exit quickly";
+        LOG(INFO) << "BE is shutting down，will exit quickly";
         exit(0);
     }
 
