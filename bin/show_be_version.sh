@@ -31,6 +31,8 @@ else
     fi
 fi
 
+export LD_LIBRARY_PATH=$STARROCKS_HOME/lib/jindosdk:$LD_LIBRARY_PATH
+
 export_cachelib_lib_path
 
 ${STARROCKS_HOME}/lib/starrocks_be --version
