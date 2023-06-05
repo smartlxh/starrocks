@@ -224,7 +224,7 @@ else
     fi
 fi
 
-export LD_LIBRARY_PATH=$STARROCKS_HOME/lib/hadoop/native:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=${STARROCKS_THIRDPARTY}/installed/jindosdk:$STARROCKS_HOME/lib/hadoop/native:$LD_LIBRARY_PATH
 
 THIRDPARTY_HADOOP_HOME=${STARROCKS_THIRDPARTY}/installed/hadoop/share/hadoop
 if [[ -d ${THIRDPARTY_HADOOP_HOME} ]] ; then
