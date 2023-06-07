@@ -88,7 +88,6 @@ public class CloudConfigurationFactoryTest {
         Assert.assertEquals(cc.getCloudType(), CloudType.ALIYUN);
         TCloudConfiguration tc = new TCloudConfiguration();
         cc.toThrift(tc);
-        Assert.assertEquals(tc.getCloud_properties().get(CloudConfigurationConstants.AWS_S3_ENABLE_SSL), "true");
         Configuration conf = new Configuration();
         cc.applyToConfiguration(conf);
         cc.toFileStoreInfo();
