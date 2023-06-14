@@ -148,6 +148,7 @@ public:
     static Status AlreadyExist(const Slice& msg) { return Status(TStatusCode::ALREADY_EXIST, msg); }
     static Status NotSupported(const Slice& msg) { return Status(TStatusCode::NOT_IMPLEMENTED_ERROR, msg); }
     static Status EndOfFile(const Slice& msg) { return Status(TStatusCode::END_OF_FILE, msg); }
+    static Status SimdJsonUTF8Error(const Slice& msg) { return Status(TStatusCode::SIMDJSON_UTF8_ERROR, msg); }
     static Status InternalError(const Slice& msg, int16_t precise_code = 1, const Slice& msg2 = Slice()) {
         return Status(TStatusCode::INTERNAL_ERROR, msg);
     }
@@ -226,6 +227,11 @@ public:
     bool is_ok_or_eof() const {
         mark_checked();
         return ok() || is_end_of_file();
+    }
+
+    bool is_simdjson_utf8_error() const {
+        mark_checked();
+        return code() == TStatusCode::SIMDJSON_UTF8_ERROR;
     }
 
     bool is_not_found() const {
