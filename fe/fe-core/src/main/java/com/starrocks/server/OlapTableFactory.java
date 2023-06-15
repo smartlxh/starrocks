@@ -56,6 +56,7 @@ import com.starrocks.sql.ast.PartitionDesc;
 import com.starrocks.sql.ast.RangePartitionDesc;
 import com.starrocks.sql.ast.SingleRangePartitionDesc;
 import com.starrocks.thrift.TCompressionType;
+import com.starrocks.thrift.TPersistentIndexType;
 import com.starrocks.thrift.TStorageType;
 import com.starrocks.thrift.TTabletType;
 import org.apache.commons.lang3.StringUtils;
@@ -266,9 +267,15 @@ public class OlapTableFactory implements AbstractTableFactory {
                     PropertyAnalyzer.analyzeBooleanProp(properties, PropertyAnalyzer.PROPERTIES_ENABLE_PERSISTENT_INDEX,
                             false);
             if (enablePersistentIndex && table.isCloudNativeTable()) {
-                throw new DdlException("Cannot create cloud native table with persistent index yet");
-            }
+                // Judge there are whether compute nodes or not.
+                // Cannot create cloud native table with persistent_index = true with ComputeNode
+                if (GlobalStateMgr.getCurrentSystemInfo().getIdComputeNode().size() != 0) {
+                    throw new DdlException("Cannot create cloud native table with persistent_index = true with ComputeNode");
+                } else {
+                    table.setPersistentIndexType(TPersistentIndexType.LOCAL);
+                }
 
+            }
             table.setEnablePersistentIndex(enablePersistentIndex);
 
             if (properties != null && (properties.containsKey(PropertyAnalyzer.PROPERTIES_BINLOG_ENABLE) ||

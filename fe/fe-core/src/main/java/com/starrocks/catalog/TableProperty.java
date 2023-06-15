@@ -55,6 +55,7 @@ import com.starrocks.persist.gson.GsonUtils;
 import com.starrocks.server.RunMode;
 import com.starrocks.sql.analyzer.AnalyzerUtils;
 import com.starrocks.thrift.TCompressionType;
+import com.starrocks.thrift.TPersistentIndexType;
 import com.starrocks.thrift.TWriteQuorumType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -113,6 +114,10 @@ public class TableProperty implements Writable, GsonPostProcessable {
     private boolean isInMemory = false;
 
     private boolean enablePersistentIndex = false;
+
+    // Only meaningful when enablePersistentIndex = true.
+    // and it's null in SHARED NOTHGING
+    TPersistentIndexType persistendIndexType;
 
     /*
      * the default storage volume of this table.
@@ -378,6 +383,27 @@ public class TableProperty implements Writable, GsonPostProcessable {
         return this;
     }
 
+    public TableProperty buildPersistentIndexType() {
+        String type = properties.getOrDefault(PropertyAnalyzer.PROPERTIES_PERSISTENT_INDEX_TYPE, "LOCAL");
+        if (type.equals("LOCAL")) {
+            persistendIndexType = TPersistentIndexType.LOCAL;
+        }
+        return this;
+    }
+
+    public static String persistentIndexTypeToString(TPersistentIndexType type) {
+        switch (type) {
+            case LOCAL:
+                return "LOCAL";
+            default:
+                // shouldn't happen
+                // for it has been checked outside
+                LOG.warn("unknown PersistentIndexType");
+                return "UNKNOWN";
+        }
+    }
+
+
     public TableProperty buildConstraint() {
         try {
             uniqueConstraints = UniqueConstraint.parse(
@@ -475,6 +501,14 @@ public class TableProperty implements Writable, GsonPostProcessable {
         return enablePersistentIndex;
     }
 
+    public String getPersistentIndexTypeString() {
+        return persistentIndexTypeToString(persistendIndexType);
+    }
+
+    public TPersistentIndexType getPersistentIndexType() {
+        return persistendIndexType;
+    }
+
     public TWriteQuorumType writeQuorum() {
         return writeQuorum;
     }
@@ -569,6 +603,7 @@ public class TableProperty implements Writable, GsonPostProcessable {
         buildInMemory();
         buildStorageVolume();
         buildEnablePersistentIndex();
+        buildPersistentIndexType();
         buildCompressionType();
         buildWriteQuorum();
         buildPartitionTTL();
