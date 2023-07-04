@@ -37,10 +37,12 @@ package com.starrocks.http.rest;
 import com.codahale.metrics.Histogram;
 import com.google.common.base.Strings;
 import com.starrocks.catalog.Database;
+import com.starrocks.common.Config;
 import com.starrocks.common.DdlException;
 import com.starrocks.common.LabelAlreadyUsedException;
 import com.starrocks.common.UserException;
 import com.starrocks.common.util.DebugUtil;
+import com.starrocks.common.util.NetUtils;
 import com.starrocks.http.ActionController;
 import com.starrocks.http.BaseRequest;
 import com.starrocks.http.BaseResponse;
@@ -355,7 +357,12 @@ public class TransactionLoadAction extends RestBaseAction {
             }
         }
 
-        TNetworkAddress redirectAddr = new TNetworkAddress(node.getHost(), node.getHttpPort());
+        String redirectHost = node.getHost();
+        if (Config.stream_load_force_use_ip) {
+            redirectHost = NetUtils.getIpByHost(redirectHost);
+        }
+
+        TNetworkAddress redirectAddr = new TNetworkAddress(redirectHost, node.getHttpPort());
 
         LOG.info("redirect transaction action to destination={}, db: {}, table: {}, op: {}, label: {}",
                 redirectAddr, dbName, tableName, op, label);
