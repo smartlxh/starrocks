@@ -59,6 +59,10 @@ CONF_Int32(brpc_max_connections_per_server, "1");
 // If no ip match this rule, will choose one randomly.
 CONF_String(priority_networks, "");
 
+// Count for flushing caused by memory limit, we assume max tablet size as 10GB.
+// Memory table buffer size is 100MB so we set default threshold as 100.
+CONF_mInt64(memtable_flush_alert_threshold, "100");
+
 CONF_mBool(enable_auto_adjust_pagecache, "true");
 // Memory urget water level, if the memory usage exceeds this level, reduce the size of
 // the Pagecache immediately, it should be between (memory_high_level, 100].
