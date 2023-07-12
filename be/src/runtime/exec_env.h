@@ -42,6 +42,10 @@
 #include "exec/query_cache/cache_manager.h"
 #include "exec/workgroup/work_group_fwd.h"
 #include "runtime/base_load_path_mgr.h"
+#include "runtime/health_check/brpc_thread_checker.h"
+#include "runtime/health_check/disk_checker.h"
+#include "runtime/health_check/monitor_manager.h"
+#include "runtime/health_check/thread_pool_checker.h"
 #include "storage/options.h"
 #include "util/threadpool.h"
 // NOTE: Be careful about adding includes here. This file is included by many files.
@@ -76,6 +80,7 @@ class SmallFileMgr;
 class RuntimeFilterWorker;
 class RuntimeFilterCache;
 class ProfileReportWorker;
+class HealthChecker;
 class QuerySpillManager;
 class BlockCache;
 struct RfTracePoint;
@@ -83,6 +88,8 @@ struct RfTracePoint;
 class BackendServiceClient;
 class FrontendServiceClient;
 class TFileBrokerServiceClient;
+class ThreadPoolChecker;
+class HealthChecker;
 template <class T>
 class ClientCache;
 class HeartbeatFlags;
@@ -298,6 +305,8 @@ public:
 
     ProfileReportWorker* profile_report_worker() { return _profile_report_worker; }
 
+    ThreadPoolChecker* thread_pool_checker() { return _thread_pool_checker; }
+
     void add_rf_event(const RfTracePoint& pt);
 
     pipeline::QueryContextManager* query_context_mgr() { return _query_context_mgr; }
@@ -325,6 +334,8 @@ public:
     spill::DirManager* spill_dir_mgr() const { return _spill_dir_mgr.get(); }
 
     ThreadPool* delete_file_thread_pool();
+
+    MonitorManager* get_monitor_manager() { return _monitor_manager; }
 
 private:
     void _wait_for_fragments_finish();
@@ -380,6 +391,11 @@ private:
     RuntimeFilterCache* _runtime_filter_cache = nullptr;
 
     ProfileReportWorker* _profile_report_worker = nullptr;
+
+    MonitorManager* _monitor_manager = nullptr;
+    ThreadPoolChecker* _thread_pool_checker = nullptr;
+    BrpcThreadChecker* _brpc_thread_checker = nullptr;
+    DiskChecker* _disk_checker = nullptr;
 
     lake::TabletManager* _lake_tablet_manager = nullptr;
     lake::LocationProvider* _lake_location_provider = nullptr;
