@@ -149,15 +149,6 @@ Status SchemaHelper::get_task_runs(const std::string& ip, const int32_t port, co
                                                        });
 }
 
-Status SchemaHelper::get_tablet_schedules(const std::string& ip, const int32_t port,
-                                          const TGetTabletScheduleRequest& request,
-                                          TGetTabletScheduleResponse* response) {
-    return ThriftRpcHelper::rpc<FrontendServiceClient>(ip, port,
-                                                       [&request, &response](FrontendServiceConnection& client) {
-                                                           client->getTabletSchedule(*response, request);
-                                                       });
-}
-
 Status SchemaHelper::get_loads(const TGetLoadsParams& var_params, TGetLoadsResult* var_result, int timeout_ms) {
     TNetworkAddress network_address = get_master_address();
     return ThriftRpcHelper::rpc<FrontendServiceClient>(
