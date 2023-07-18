@@ -226,8 +226,6 @@ public class UpdateTabletMetaInfoTask extends AgentTask {
                         metaInfo.setSchema_hash(pair.second);
                         metaInfo.setEnable_persistent_index(enablePersistentIndex);
                         metaInfo.setMeta_type(metaType);
-                        metaInfo.setTablet_type(tabletType);
-                        metaInfo.setTxn_id(txnId);
                         metaInfos.add(metaInfo);
                     }
                 } else {
@@ -269,6 +267,12 @@ public class UpdateTabletMetaInfoTask extends AgentTask {
 
         }
         updateTabletMetaInfoReq.setTabletMetaInfos(metaInfos);
+
+        if (tabletType != null) {
+            updateTabletMetaInfoReq.setTablet_type(tabletType);
+            updateTabletMetaInfoReq.setTxn_id(txnId);
+        }
+
         return updateTabletMetaInfoReq;
     }
 }
