@@ -367,8 +367,9 @@ Status SchemaChangeHandler ::do_process_update_tablet_meta(const TTabletMetaInfo
         op_alter_meta->set_enable_persistent_index(tablet_meta_info.enable_persistent_index);
     }
 
-    LOG(INFO) << "update lake tablet:" << tablet_id;
-    << " enable_persistent_index:" << tablet_meta_info.enable_persistent_index << "cost time" << timer.elapsed_time();
+    LOG(INFO) << "update lake tablet:" << tablet_id
+              << " enable_persistent_index:" << tablet_meta_info.enable_persistent_index << "cost time"
+              << timer.elapsed_time();
 
     // write txn log
     RETURN_IF_ERROR(tablet.put_txn_log(std::move(txn_log)));
