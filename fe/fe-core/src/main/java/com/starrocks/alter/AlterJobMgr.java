@@ -712,7 +712,8 @@ public class AlterJobMgr {
                 throw InvalidOlapTableStateException.of(olapTable.getState(), olapTable.getName());
             }
 
-            if (currentAlterOps.hasSchemaChangeOp()) {
+            if (currentAlterOps.hasSchemaChangeOp() || currentAlterOps.contains(AlterOpType.MODIFY_TABLE_PROPERTY_SYNC) &&
+                    olapTable.isCloudNativeTable()) {
                 // if modify storage type to v2, do schema change to convert all related tablets to segment v2 format
                 schemaChangeHandler.process(alterClauses, db, olapTable);
                 isSynchronous = false;

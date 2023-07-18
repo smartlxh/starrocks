@@ -1101,7 +1101,7 @@ public class SchemaChangeHandler extends AlterHandler {
                     List<Integer> originSortKeyIdxes = index.getSortKeyIdxes();
                     for (Integer colIdx : originSortKeyIdxes) {
                         String columnName = index.getSchema().get(colIdx).getName();
-                        Optional<Column> oneCol = 
+                        Optional<Column> oneCol =
                                 alterSchema.stream().filter(c -> c.getName().equalsIgnoreCase(columnName)).findFirst();
                         if (!oneCol.isPresent()) {
                             LOG.warn("Sort Key Column[" + columnName + "] not exists in new schema");
@@ -1113,20 +1113,20 @@ public class SchemaChangeHandler extends AlterHandler {
                 }
             }
             if (!sortKeyIdxes.isEmpty()) {
-                short newShortKeyCount = GlobalStateMgr.calcShortKeyColumnCount(alterSchema, 
-                                                                                indexIdToProperties.get(alterIndexId),
-                                                                                sortKeyIdxes);
+                short newShortKeyCount = GlobalStateMgr.calcShortKeyColumnCount(alterSchema,
+                        indexIdToProperties.get(alterIndexId),
+                        sortKeyIdxes);
                 LOG.debug("alter index[{}] short key column count: {}", alterIndexId, newShortKeyCount);
-                jobBuilder.withNewIndexShortKeyCount(alterIndexId, 
-                                                     newShortKeyCount).withNewIndexSchema(alterIndexId, alterSchema);
+                jobBuilder.withNewIndexShortKeyCount(alterIndexId,
+                        newShortKeyCount).withNewIndexSchema(alterIndexId, alterSchema);
                 jobBuilder.withSortKeyIdxes(sortKeyIdxes);
                 LOG.debug("schema change[{}-{}-{}] check pass.", dbId, tableId, alterIndexId);
             } else {
-                short newShortKeyCount = GlobalStateMgr.calcShortKeyColumnCount(alterSchema, 
-                                                                                indexIdToProperties.get(alterIndexId));
+                short newShortKeyCount = GlobalStateMgr.calcShortKeyColumnCount(alterSchema,
+                        indexIdToProperties.get(alterIndexId));
                 LOG.debug("alter index[{}] short key column count: {}", alterIndexId, newShortKeyCount);
-                jobBuilder.withNewIndexShortKeyCount(alterIndexId, 
-                                                     newShortKeyCount).withNewIndexSchema(alterIndexId, alterSchema);
+                jobBuilder.withNewIndexShortKeyCount(alterIndexId,
+                        newShortKeyCount).withNewIndexSchema(alterIndexId, alterSchema);
                 LOG.debug("schema change[{}-{}-{}] check pass.", dbId, tableId, alterIndexId);
             }
         } // end for indices
@@ -1227,6 +1227,41 @@ public class SchemaChangeHandler extends AlterHandler {
     @VisibleForTesting
     @Nullable
     public AlterJobV2 analyzeAndCreateJob(List<AlterClause> alterClauses, Database db, OlapTable olapTable) throws UserException {
+        if (olapTable.isCloudNativeTable()) {
+            Preconditions.checkState(alterClauses.size() == 1);
+            AlterClause alterClause = alterClauses.get(0);
+            Map<String, String> properties = alterClause.getProperties();
+            if (alterClause instanceof ModifyTablePropertiesClause) {
+                // update table meta
+                // for now enable_persistent_index
+                if (properties.size() > 1) {
+                    throw new DdlException("Only support alter one property in one stmt");
+                }
+
+                boolean enablePersistentIndex = false;
+                if (properties.containsKey(PropertyAnalyzer.PROPERTIES_ENABLE_PERSISTENT_INDEX)) {
+                    enablePersistentIndex = PropertyAnalyzer.analyzeBooleanProp(properties,
+                            PropertyAnalyzer.PROPERTIES_ENABLE_PERSISTENT_INDEX, false);
+                    boolean oldEnablePersistentIndex = olapTable.enablePersistentIndex();
+                    if (oldEnablePersistentIndex == enablePersistentIndex) {
+                        LOG.info(String.format("table: %s enable_persistent_index is %s, nothing need to do",
+                                olapTable.getName(), enablePersistentIndex));
+                        return null;
+                    }
+                }
+
+
+                long timeoutSecond = PropertyAnalyzer.analyzeTimeout(properties, Config.alter_table_timeout_second);
+                return new LakeTableAlterMetaJob(GlobalStateMgr.getCurrentState().getNextId(),
+                        AlterJobV2.JobType.ALTER_META, db.getId(),
+                        olapTable.getId(), olapTable.getName(), timeoutSecond,
+                        TTabletMetaType.ENABLE_PERSISTENT_INDEX, enablePersistentIndex);
+            } else {
+                // shouldn't happen
+                throw new DdlException("Cloud Native Table only supports alter table properties enable_persistent_index");
+            }
+        }
+
         // index id -> index schema
         Map<Long, LinkedList<Column>> indexSchemaMap = new HashMap<>();
         for (Map.Entry<Long, List<Column>> entry : olapTable.getIndexIdToSchema().entrySet()) {

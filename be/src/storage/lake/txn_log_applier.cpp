@@ -79,6 +79,9 @@ public:
         if (log.has_op_schema_change()) {
             RETURN_IF_ERROR(apply_schema_change_log(log.op_schema_change()));
         }
+        if (log.has_op_alter_meta()) {
+            RETURN_IF_ERROR(apply_alter_meta_log(log.op_alter_meta()));
+        }
         return Status::OK();
     }
 
@@ -125,6 +128,17 @@ private:
             auto base_meta = std::make_shared<TabletMetadata>(*_metadata);
             base_meta->set_version(_base_version);
             RETURN_IF_ERROR(_tablet.put_metadata(std::move(base_meta)));
+        }
+        return Status::OK();
+    }
+
+
+    Status apply_alter_meta_log(const TxnLogPB_OpAlterMeta& op_alter_meta) {
+        DCHECK_EQ(_base_version + 1, _new_version);
+        switch (op_alter_meta.table_meta_type()) {
+        case TabletMetaTypePB::ENABLE_PERSISTENT_INDEX:
+            _metadata->set_enable_persistent_index(op_alter_meta.enable_persistent_index());
+            break;
         }
         return Status::OK();
     }

@@ -23,6 +23,7 @@
 #include "runtime/snapshot_loader.h"
 #include "service/backend_options.h"
 #include "storage/lake/tablet_manager.h"
+#include "storage/lake/schema_change.h"
 #include "storage/snapshot_manager.h"
 #include "storage/tablet_manager.h"
 #include "storage/task/engine_alter_tablet_task.h"
@@ -693,58 +694,69 @@ void run_update_meta_info_task(const std::shared_ptr<UpdateTabletMetaInfoAgentTa
     TStatusCode::type status_code = TStatusCode::OK;
     std::vector<std::string> error_msgs;
 
-    for (const auto& tablet_meta_info : update_tablet_meta_req.tabletMetaInfos) {
-        TabletSharedPtr tablet = StorageEngine::instance()->tablet_manager()->get_tablet(tablet_meta_info.tablet_id);
-        if (tablet == nullptr) {
-            LOG(WARNING) << "could not find tablet when update partition id"
-                         << " tablet_id=" << tablet_meta_info.tablet_id
-                         << " schema_hash=" << tablet_meta_info.schema_hash;
-            continue;
+    if (update_tablet_meta_req.__isset.tablet_type &&
+        update_tablet_meta_req.tablet_type == TTabletType::TABLET_TYPE_LAKE) {
+        lake::SchemaChangeHandler handler(ExecEnv::GetInstance()->lake_tablet_manager());
+        auto res = handler.process_update_tablet_meta(update_tablet_meta_req);Status s;
+        if (!res.ok()) {
+            // TODO explict the error message and errorCode
+            error_msgs.emplace_back(res.get_error_msg());
+            status_code = TStatusCode::RUNTIME_ERROR;
         }
-        std::unique_lock wrlock(tablet->get_header_lock());
-        // update tablet meta
-        if (!tablet_meta_info.__isset.meta_type) {
-            tablet->set_partition_id(tablet_meta_info.partition_id);
-        } else {
-            switch (tablet_meta_info.meta_type) {
-            case TTabletMetaType::PARTITIONID:
-                tablet->set_partition_id(tablet_meta_info.partition_id);
-                break;
-            case TTabletMetaType::INMEMORY:
-                // This property is no longer supported.
-                break;
-            case TTabletMetaType::WRITE_QUORUM:
-                break;
-            case TTabletMetaType::REPLICATED_STORAGE:
-                break;
-            case TTabletMetaType::DISABLE_BINLOG:
-                break;
-            case TTabletMetaType::BINLOG_CONFIG:
-                LOG(INFO) << "update tablet:" << tablet->tablet_id() << "binlog config";
-                {
-                    auto curr_binlog_config = tablet->tablet_meta()->get_binlog_config();
-                    if (curr_binlog_config != nullptr) {
-                        LOG(INFO) << "current binlog config:" << curr_binlog_config->to_string();
-                    }
-                }
-
-                BinlogConfig binlog_config;
-                binlog_config.update(tablet_meta_info.binlog_config);
-                tablet->update_binlog_config(binlog_config);
-                break;
-            case TTabletMetaType::ENABLE_PERSISTENT_INDEX:
-                LOG(INFO) << "update tablet:" << tablet->tablet_id()
-                          << " enable_persistent_index:" << tablet_meta_info.enable_persistent_index;
-                tablet->set_enable_persistent_index(tablet_meta_info.enable_persistent_index);
-                // If tablet is doing apply rowset right now, remove primary index from index cache may be failed
-                // because the primary index is available in cache
-                // But it will be remove from index cache after apply is finished
-                auto manager = StorageEngine::instance()->update_manager();
-                manager->index_cache().try_remove_by_key(tablet->tablet_id());
-                break;
+    } else {
+        for (const auto& tablet_meta_info : update_tablet_meta_req.tabletMetaInfos) {
+            TabletSharedPtr tablet = StorageEngine::instance()->tablet_manager()->get_tablet(tablet_meta_info.tablet_id);
+            if (tablet == nullptr) {
+                LOG(WARNING) << "could not find tablet when update partition id"
+                             << " tablet_id=" << tablet_meta_info.tablet_id
+                             << " schema_hash=" << tablet_meta_info.schema_hash;
+                continue;
             }
+            std::unique_lock wrlock(tablet->get_header_lock());
+            // update tablet meta
+            if (!tablet_meta_info.__isset.meta_type) {
+                tablet->set_partition_id(tablet_meta_info.partition_id);
+            } else {
+                switch (tablet_meta_info.meta_type) {
+                case TTabletMetaType::PARTITIONID:
+                    tablet->set_partition_id(tablet_meta_info.partition_id);
+                    break;
+                case TTabletMetaType::INMEMORY:
+                    // This property is no longer supported.
+                    break;
+                case TTabletMetaType::WRITE_QUORUM:
+                    break;
+                case TTabletMetaType::REPLICATED_STORAGE:
+                    break;
+                case TTabletMetaType::DISABLE_BINLOG:
+                    break;
+                case TTabletMetaType::BINLOG_CONFIG:
+                    LOG(INFO) << "update tablet:" << tablet->tablet_id() << "binlog config";
+                    {
+                        auto curr_binlog_config = tablet->tablet_meta()->get_binlog_config();
+                        if (curr_binlog_config != nullptr) {
+                            LOG(INFO) << "current binlog config:" << curr_binlog_config->to_string();
+                        }
+                    }
+
+                    BinlogConfig binlog_config;
+                    binlog_config.update(tablet_meta_info.binlog_config);
+                    tablet->update_binlog_config(binlog_config);
+                    break;
+                case TTabletMetaType::ENABLE_PERSISTENT_INDEX:
+                    LOG(INFO) << "update tablet:" << tablet->tablet_id()
+                              << " enable_persistent_index:" << tablet_meta_info.enable_persistent_index;
+                    tablet->set_enable_persistent_index(tablet_meta_info.enable_persistent_index);
+                    // If tablet is doing apply rowset right now, remove primary index from index cache may be failed
+                    // because the primary index is available in cache
+                    // But it will be remove from index cache after apply is finished
+                    auto manager = StorageEngine::instance()->update_manager();
+                    manager->index_cache().try_remove_by_key(tablet->tablet_id());
+                    break;
+                }
+            }
+            tablet->save_meta();
         }
-        tablet->save_meta();
     }
 
     LOG(INFO) << "finish update tablet meta task. signature:" << agent_task_req->signature;
