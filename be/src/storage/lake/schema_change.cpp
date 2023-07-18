@@ -328,9 +328,7 @@ Status SchemaChangeHandler::do_process_alter_tablet(const TAlterTabletReqV2& req
     return Status::OK();
 }
 
-
 Status SchemaChangeHandler::process_update_tablet_meta(const TUpdateTabletMetaInfoReq& request) {
-
     if (!request.__isset.txn_id) {
         return Status::InternalError("txn_id not be set");
     }
@@ -346,10 +344,11 @@ Status SchemaChangeHandler::process_update_tablet_meta(const TUpdateTabletMetaIn
     return Status::OK();
 }
 
-Status SchemaChangeHandler:do_process_update_tablet_meta(const TTabletMetaInfo& tablet_meta_info, int64_t txn_id) {
+Status SchemaChangeHandler : do_process_update_tablet_meta(const TTabletMetaInfo& tablet_meta_info, int64_t txn_id) {
     MonotonicStopWatch timer;
     timer.start();
-    LOG(INFO) << "begin to update tablet. tablet: " << tablet_meta_info.tablet_id << "update meta type:" << tablet_meta_info.meta_type;
+    LOG(INFO) << "begin to update tablet. tablet: " << tablet_meta_info.tablet_id
+              << "update meta type:" << tablet_meta_info.meta_type;
 
     auto tablet_id = tablet_meta_info.tablet_id;
     ASSIGN_OR_RETURN(auto tablet, _tablet_manager->get_tablet(tablet_id));
@@ -368,14 +367,12 @@ Status SchemaChangeHandler:do_process_update_tablet_meta(const TTabletMetaInfo& 
         op_alter_meta->set_enable_persistent_index(tablet_meta_info.enable_persistent_index);
     }
 
-
     LOG(INFO) << "update lake tablet:" << tablet_id;
     << " enable_persistent_index:" << tablet_meta_info.enable_persistent_index << "cost time" << timer.elapsed_time();
 
     // write txn log
     RETURN_IF_ERROR(tablet.put_txn_log(std::move(txn_log)));
     return Status::OK();
-
 }
 
 Status SchemaChangeHandler::convert_historical_rowsets(const SchemaChangeParams& sc_params,

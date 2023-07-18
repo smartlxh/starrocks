@@ -132,7 +132,6 @@ private:
         return Status::OK();
     }
 
-
     Status apply_alter_meta_log(const TxnLogPB_OpAlterMeta& op_alter_meta) {
         DCHECK_EQ(_base_version + 1, _new_version);
         switch (op_alter_meta.table_meta_type()) {
