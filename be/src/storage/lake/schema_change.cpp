@@ -336,7 +336,7 @@ Status SchemaChangeHandler::process_update_tablet_meta(const TUpdateTabletMetaIn
 
     for (const auto& tablet_meta_info : update_tablet_meta_req.tabletMetaInfos) {
         auto status = do_process_update_tablet_meta(tablet_meta_info, txn_id);
-        if (!Status.ok()) {
+        if (!status.ok()) {
             return status;
         }
     }
@@ -344,7 +344,7 @@ Status SchemaChangeHandler::process_update_tablet_meta(const TUpdateTabletMetaIn
     return Status::OK();
 }
 
-Status SchemaChangeHandler : do_process_update_tablet_meta(const TTabletMetaInfo& tablet_meta_info, int64_t txn_id) {
+Status SchemaChangeHandler ::do_process_update_tablet_meta(const TTabletMetaInfo& tablet_meta_info, int64_t txn_id) {
     MonotonicStopWatch timer;
     timer.start();
     LOG(INFO) << "begin to update tablet. tablet: " << tablet_meta_info.tablet_id
