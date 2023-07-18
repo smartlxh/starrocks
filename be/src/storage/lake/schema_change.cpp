@@ -334,7 +334,7 @@ Status SchemaChangeHandler::process_update_tablet_meta(const TUpdateTabletMetaIn
     }
     int64_t txn_id = request.txn_id;
 
-    for (const auto& tablet_meta_info : update_tablet_meta_req.tabletMetaInfos) {
+    for (const auto& tablet_meta_info : request.tabletMetaInfos) {
         auto status = do_process_update_tablet_meta(tablet_meta_info, txn_id);
         if (!status.ok()) {
             return status;
