@@ -1285,8 +1285,10 @@ Status PrimaryIndex::upsert(uint32_t rssid, uint32_t rowid_start, const Column& 
     DCHECK(_status.ok() && (_pkey_to_rssid_rowid || _persistent_index));
     Status st;
     if (_persistent_index != nullptr) {
+        LOG(INFO) << "persistent_index upsert";
         st = _upsert_into_persistent_index(rssid, rowid_start, pks, 0, pks.size(), deletes, stat);
     } else {
+        LOG(INFO) << "memory_index upsert";
         _pkey_to_rssid_rowid->upsert(rssid, rowid_start, pks, 0, pks.size(), deletes);
     }
     return st;

@@ -69,6 +69,7 @@ public:
 
     Status apply(const TxnLogPB& log) override {
         _max_txn_id = std::max(_max_txn_id, log.txn_id());
+        LOG(INFO) << "txn_id" << log.txn_id();
         if (log.has_op_write()) {
             RETURN_IF_ERROR(apply_write_log(log.op_write(), log.txn_id()));
         }
@@ -77,6 +78,10 @@ public:
         }
         if (log.has_op_schema_change()) {
             RETURN_IF_ERROR(apply_schema_change_log(log.op_schema_change()));
+        }
+        if (log.has_op_alter_meta()) {
+            LOG(INFO) << "op_alter_meta";
+            RETURN_IF_ERROR(apply_alter_meta_log(log.op_alter_meta()));
         }
         return Status::OK();
     }
@@ -144,6 +149,22 @@ private:
             auto base_meta = std::make_shared<TabletMetadata>(*_metadata);
             base_meta->set_version(_base_version);
             RETURN_IF_ERROR(_tablet.put_metadata(std::move(base_meta)));
+        }
+        return Status::OK();
+    }
+
+    Status apply_alter_meta_log(const TxnLogPB_OpAlterMeta& op_alter_meta) {
+        DCHECK_EQ(_base_version + 1, _new_version);
+        switch (op_alter_meta.table_meta_type()) {
+        case TabletMetaTypePB::ENABLE_PERSISTENT_INDEX:
+            _metadata->set_enable_persistent_index(op_alter_meta.enable_persistent_index());
+
+            // Try remove index from index cache
+            // If tablet is doing apply rowset right now, remove primary index from index cache may be failed
+            // because the primary index is available in cache
+            // But it will be remove from index cache after apply is finished
+            _tablet.update_mgr()->index_cache().try_remove_by_key(_tablet.id());
+            break;
         }
         return Status::OK();
     }
