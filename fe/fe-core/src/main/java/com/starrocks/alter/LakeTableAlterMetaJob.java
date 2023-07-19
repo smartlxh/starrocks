@@ -102,6 +102,9 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
             db.readUnlock();
         }
 
+        this.watershedTxnId =
+                GlobalStateMgr.getCurrentGlobalTransactionMgr().getTransactionIDGenerator().getNextTransactionId();
+        LOG.info("watershedTxnId:" + watershedTxnId);
         try {
             for (Partition partition : partitions) {
                 updatePartitionTabletMeta(db, olapTable.getName(), partition.getName(), metaValue, metaType);
@@ -110,8 +113,6 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
             throw new AlterCancelException(e.getMessage());
         }
 
-        this.watershedTxnId =
-                GlobalStateMgr.getCurrentGlobalTransactionMgr().getTransactionIDGenerator().getNextTransactionId();
         // update meta can change state from PENDING -> FINISHED_REWRITING
         this.jobState = JobState.RUNNING;
     }
@@ -129,7 +130,7 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
             throw new AlterCancelException("database does not exist, dbId:" + dbId);
         }
         db.writeLock();
-        ;
+
 
         LakeTable table = (LakeTable) db.getTable(tableId);
         if (table == null) {
@@ -143,6 +144,7 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
                 Preconditions.checkNotNull(partition, partitionId);
                 long commitVersion = partition.getNextVersion();
                 commitVersionMap.put(partitionId, commitVersion);
+                LOG.info("commit version of partition {} is {}. jobId={}", partitionId, commitVersion, jobId);
                 LOG.debug("commit version of partition {} is {}. jobId={}", partitionId, commitVersion, jobId);
             }
             this.jobState = JobState.FINISHED_REWRITING;
@@ -179,7 +181,6 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
             LOG.warn("database does not exist, dbId:" + dbId);
         }
         db.writeLock();
-        ;
 
         try {
             LakeTable table = (LakeTable) db.getTable(tableId);
@@ -194,6 +195,9 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
                 }
 
             }
+
+            // set visible version
+            updateVisibleVersion(table);
 
         } finally {
             db.writeUnlock();
@@ -344,6 +348,18 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
             Preconditions.checkState(partition.getNextVersion() == commitVersion,
                     "partitionNextVersion=" + partition.getNextVersion() + " commitVersion=" + commitVersion);
             partition.setNextVersion(commitVersion + 1);
+            LOG.info("partitionNextVersion=" + partition.getNextVersion() + " commitVersion=" + commitVersion);
+        }
+    }
+
+    void updateVisibleVersion(@NotNull LakeTable table) {
+        for (long partitionId : partitionIndexMap.rowKeySet()) {
+            Partition partition = table.getPartition(partitionId);
+            long commitVersion = commitVersionMap.get(partitionId);
+            Preconditions.checkState(partition.getVisibleVersion() == commitVersion - 1,
+                    "partitionVisitionVersion=" + partition.getVisibleVersion() + " commitVersion=" + commitVersion);
+            partition.updateVisibleVersion(commitVersion);
+            LOG.info("partitionVisitionVersion=" + partition.getVisibleVersion() + " commitVersion=" + commitVersion);
         }
     }
 
