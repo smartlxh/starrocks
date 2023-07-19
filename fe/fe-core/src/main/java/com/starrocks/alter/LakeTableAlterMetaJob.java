@@ -33,10 +33,12 @@ import com.starrocks.common.DdlException;
 import com.starrocks.common.FeConstants;
 import com.starrocks.common.MarkedCountDownLatch;
 import com.starrocks.common.Pair;
+import com.starrocks.common.io.Text;
 import com.starrocks.common.util.PropertyAnalyzer;
 import com.starrocks.lake.LakeTable;
 import com.starrocks.lake.LakeTablet;
 import com.starrocks.lake.Utils;
+import com.starrocks.persist.gson.GsonUtils;
 import com.starrocks.server.GlobalStateMgr;
 import com.starrocks.task.AgentBatchTask;
 import com.starrocks.task.AgentTaskExecutor;
@@ -49,6 +51,8 @@ import io.opentelemetry.api.trace.StatusCode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.DataOutput;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,8 +65,12 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
 
     private static final Logger LOG = LogManager.getLogger(LakeTableAlterMetaJob.class);
 
-    private boolean metaValue;
+    @SerializedName(value = "metaType")
     private TTabletMetaType metaType;
+
+    @SerializedName(value = "metaValue")
+    private boolean metaValue;
+
     @SerializedName(value = "watershedTxnId")
     private long watershedTxnId = -1;
 
@@ -74,9 +82,9 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
     // Mapping from partition id to commit version
     private Map<Long, Long> commitVersionMap;
 
-    public LakeTableAlterMetaJob(long jobId, JobType jobType, long dbId, long tableId, String tableName,
+    public LakeTableAlterMetaJob(long jobId, long dbId, long tableId, String tableName,
                                  long timeoutMs, TTabletMetaType metaType, boolean metaValue) {
-        super(jobId, jobType, dbId, tableId, tableName, timeoutMs);
+        super(jobId, AlterJobV2.JobType.ALTER_META, dbId, tableId, tableName, timeoutMs);
         this.metaType = metaType;
         this.metaValue = metaValue;
     }
@@ -102,8 +110,16 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
             db.readUnlock();
         }
 
-        this.watershedTxnId =
-                GlobalStateMgr.getCurrentGlobalTransactionMgr().getTransactionIDGenerator().getNextTransactionId();
+        // If the function of updatePartitionTabletMeta has been called,
+        // then FE restart or change leader,
+        // updatePartitionTabletMeta will have the same txnId so that
+        // BE can judge whether the task has been processed。
+        if (this.watershedTxnId == -1) {
+            this.watershedTxnId =
+                    GlobalStateMgr.getCurrentGlobalTransactionMgr().getTransactionIDGenerator().getNextTransactionId();
+            GlobalStateMgr.getCurrentState().getEditLog().logAlterJob(this);
+        }
+
         LOG.info("watershedTxnId:" + watershedTxnId);
         try {
             for (Partition partition : partitions) {
@@ -113,7 +129,6 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
             throw new AlterCancelException(e.getMessage());
         }
 
-        // update meta can change state from PENDING -> FINISHED_REWRITING
         this.jobState = JobState.RUNNING;
     }
 
@@ -144,14 +159,13 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
                 Preconditions.checkNotNull(partition, partitionId);
                 long commitVersion = partition.getNextVersion();
                 commitVersionMap.put(partitionId, commitVersion);
-                LOG.info("commit version of partition {} is {}. jobId={}", partitionId, commitVersion, jobId);
                 LOG.debug("commit version of partition {} is {}. jobId={}", partitionId, commitVersion, jobId);
             }
+
             this.jobState = JobState.FINISHED_REWRITING;
+            GlobalStateMgr.getCurrentState().getEditLog().logAlterJob(this);
 
-            //writeEditLog(this);
-
-            // NOTE: !!! below this point, this schema change job must success unless the database or table been dropped. !!!
+            // NOTE: !!! below this point, this update meta job must success unless the database or table been dropped. !!!
             updateNextVersion(table);
         } finally {
             db.writeUnlock();
@@ -174,7 +188,6 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
             return;
         }
 
-        // modify table meta
         Database db = GlobalStateMgr.getCurrentState().getDb(dbId);
         if (db == null) {
             // database has been dropped
@@ -188,6 +201,7 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
                 // table has been dropped
                 LOG.warn("table does not exist, tableId:" + tableId);
             } else {
+                // modify table meta
                 if (metaType == TTabletMetaType.ENABLE_PERSISTENT_INDEX) {
                     Map<String, String> tempProperties = new HashMap<>();
                     tempProperties.put(PropertyAnalyzer.PROPERTIES_ENABLE_PERSISTENT_INDEX, String.valueOf(metaValue));
@@ -195,9 +209,11 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
                 }
 
             }
+            // writeeditlog
 
             // set visible version
             updateVisibleVersion(table);
+            table.setState(OlapTable.OlapTableState.NORMAL);
 
         } finally {
             db.writeUnlock();
@@ -408,11 +424,56 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
 
     @Override
     public void replay(AlterJobV2 replayedJob) {
+        LakeTableAlterMetaJob other = (LakeTableAlterMetaJob) replayedJob;
 
+        LOG.info("Replaying lake table update meta job. state={} jobId={}", replayedJob.jobState, replayedJob.jobId);
+
+        if (this != other) {
+            Preconditions.checkState(this.type.equals(other.type));
+            Preconditions.checkState(this.jobId == other.jobId);
+            Preconditions.checkState(this.dbId == other.dbId);
+            Preconditions.checkState(this.tableId == other.tableId);
+
+            this.jobState = other.jobState;
+            this.createTimeMs = other.createTimeMs;
+            this.finishedTimeMs = other.finishedTimeMs;
+            this.errMsg = other.errMsg;
+            this.timeoutMs = other.timeoutMs;
+
+            this.partitionIndexMap = other.partitionIndexMap;
+            this.watershedTxnId = other.watershedTxnId;
+            this.commitVersionMap = other.commitVersionMap;
+        }
+
+        Database db = GlobalStateMgr.getCurrentState().getDb(dbId);
+        if (db == null) {
+            // database has been dropped
+            LOG.warn("database does not exist, dbId:" + dbId);
+            return;
+        }
+        db.writeLock();
+        LakeTable table = (LakeTable) db.getTable(tableId);
+        if (table == null) {
+            return;
+        }
+
+        try  {
+            if (jobState == JobState.FINISHED_REWRITING) {
+                updateNextVersion(table);
+            }
+        } finally {
+            db.writeUnlock();
+        }
     }
 
     @Override
     public Optional<Long> getTransactionId() {
         return watershedTxnId < 0 ? Optional.empty() : Optional.of(watershedTxnId);
+    }
+
+    @Override
+    public void write(DataOutput out) throws IOException {
+        String json = GsonUtils.GSON.toJson(this, AlterJobV2.class);
+        Text.writeString(out, json);
     }
 }

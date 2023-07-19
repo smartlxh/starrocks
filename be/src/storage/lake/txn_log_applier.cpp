@@ -139,6 +139,12 @@ private:
         switch (op_alter_meta.table_meta_type()) {
         case TabletMetaTypePB::ENABLE_PERSISTENT_INDEX:
             _metadata->set_enable_persistent_index(op_alter_meta.enable_persistent_index());
+
+            // Try remove index from index cache
+            // If tablet is doing apply rowset right now, remove primary index from index cache may be failed
+            // because the primary index is available in cache
+            // But it will be remove from index cache after apply is finished
+            _tablet.update_mgr()->index_cache().try_remove_by_key(_tablet.id());
             break;
         }
         return Status::OK();

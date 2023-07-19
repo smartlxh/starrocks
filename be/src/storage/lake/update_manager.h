@@ -118,6 +118,8 @@ public:
         return Status::OK();
     }
 
+    DynamicCache<uint64_t, LakePrimaryIndex>& index_cache() { return _index_cache; }
+
 private:
     // print memory tracker state
     void _print_memory_stats();

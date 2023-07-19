@@ -1253,7 +1253,7 @@ public class SchemaChangeHandler extends AlterHandler {
 
                 long timeoutSecond = PropertyAnalyzer.analyzeTimeout(properties, Config.alter_table_timeout_second);
                 return new LakeTableAlterMetaJob(GlobalStateMgr.getCurrentState().getNextId(),
-                        AlterJobV2.JobType.ALTER_META, db.getId(),
+                        db.getId(),
                         olapTable.getId(), olapTable.getName(), timeoutSecond,
                         TTabletMetaType.ENABLE_PERSISTENT_INDEX, enablePersistentIndex);
             } else {
