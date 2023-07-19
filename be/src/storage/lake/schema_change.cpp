@@ -333,12 +333,7 @@ Status SchemaChangeHandler::process_update_tablet_meta(const TUpdateTabletMetaIn
         return Status::InternalError("txn_id not be set");
     }
     int64_t txn_id = request.txn_id;
-    ASSIGN_OR_RETURN(auto tablet, _tablet_manager->get_tablet(tablet_id));
 
-    if (tablet.get_txn_log(txn_id).ok()) {
-        LOG(INFO) << "the update tablet meta task has been processed, txn_id:" << txn_id;
-        return Status::OK();
-    }
     for (const auto& tablet_meta_info : request.tabletMetaInfos) {
         auto status = do_process_update_tablet_meta(tablet_meta_info, txn_id);
         if (!status.ok()) {
@@ -357,6 +352,11 @@ Status SchemaChangeHandler ::do_process_update_tablet_meta(const TTabletMetaInfo
 
     auto tablet_id = tablet_meta_info.tablet_id;
     ASSIGN_OR_RETURN(auto tablet, _tablet_manager->get_tablet(tablet_id));
+
+    if (tablet.get_txn_log(txn_id).ok()) {
+        LOG(INFO) << "the update tablet meta task has been processed, txn_id:" << txn_id;
+        return Status::OK();
+    }
 
     // create txn log
     auto txn_log = std::make_shared<TxnLog>();
