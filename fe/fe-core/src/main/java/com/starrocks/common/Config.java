@@ -3192,6 +3192,9 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true)
     public static long safe_mode_checker_interval_sec = 5;
 
+    @ConfField(mutable = true)
+    public static String emr_serverless_full_domain = "";
+
     /**
      * Enable auto create tablet when creating table and add partition
      **/
