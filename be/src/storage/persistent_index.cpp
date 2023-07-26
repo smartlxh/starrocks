@@ -2803,7 +2803,7 @@ Status PersistentIndex::load_from_tablet(Tablet *tablet) {
     }
     auto pkey_schema = ChunkHelper::convert_schema(tablet_schema, pk_columns);
     size_t fix_size = PrimaryKeyEncoder::get_encoded_fixed_size(pkey_schema);
-    RETURN_IF_ERROR(init_persistent_index(index_meta, latest_applied_versioin, fix_size);
+    RETURN_IF_ERROR(init_persistent_index(index_meta, latest_applied_versioin, fix_size));
 
     std::unique_ptr <Column> pk_column;
     if (tablet_schema.num_key_columns() > 1) {
