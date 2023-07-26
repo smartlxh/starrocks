@@ -715,18 +715,19 @@ namespace starrocks {
 
         Status _update_usage_and_size_by_key_length(std::vector <std::pair<int64_t, int64_t>> &add_usage_and_size);
 
-        Status _check(Tablet* tablet);
+        Status _check(Tablet *tablet);
 
     protected:
         Status _delete_expired_index_file(const EditVersion &l0_version, const EditVersion &l1_version);
 
         // commit index meta
-        Status _build_commit(DataDir* store, PersistentIndexMetaPB &index_meta, int64_t tablet_id);
+        Status _build_commit(DataDir *store, PersistentIndexMetaPB &index_meta, int64_t tablet_id);
 
         Status try_load_from_persistent_index(PersistentIndexMetaPB *index_meta, int64_t tablet_id,
                                               EditVersion &lastest_applied_version);
 
-        Status init_persistent_index(const TabletSchema &tablet_schema, PersistentIndexMetaPB &index_meta);
+        Status init_persistent_index(const TabletSchema &tablet_schema, PersistentIndexMetaPB &index_meta,
+                                     const EditVersion &apply_version);
 
     protected:
         // prevent concurrent operations
