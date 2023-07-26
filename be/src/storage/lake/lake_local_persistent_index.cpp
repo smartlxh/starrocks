@@ -23,7 +23,8 @@
 namespace starrocks::lake {
     Status LakeLocalPersistentIndex::_insert_rowsets(starrocks::lake::Tablet *tablet,
                                                      const Schema &pkey_schema, int64_t base_version,
-                                                     std::unique_ptr <Column> pk_column, MetaFileBuilder *builder,
+                                                     std::unique_ptr <Column> pk_column, const TabletMetadata &metadata,
+                                                     MetaFileBuilder *builder,
                                                      size_t total_data_size,
                                                      size_t total_segments, size_t total_rows) {
         vector <uint32_t> rowids;
@@ -132,7 +133,7 @@ namespace starrocks::lake {
 
         if (status.ok()) {
             EditVersion applied_version = EditVersion(base_version, 0);
-            auto load_index_status = try_load_from_persistent_index(tablet->id(), &index_meta, applied_version);
+            auto load_index_status = try_load_from_persistent_index(tablet->id(), &index_meta, applied_version, timer);
 
             if (load_index_status.ok()) {
                 return load_index_status;
@@ -140,12 +141,12 @@ namespace starrocks::lake {
         }
 
         // 1. create and set key column schema
-        std::unique_ptr <TabletSchema> tablet_schema = std::make_unique<TabletSchema>(metadata.schema());
-        vector <ColumnId> pk_columns(tablet_schema.num_key_columns());
-        for (auto i = 0; i < tablet_schema.num_key_columns(); i++) {
-            pk_columns[i] = (ColumnId) i;
+        std::unique_ptr<TabletSchema> tablet_schema = std::make_unique<TabletSchema>(metadata.schema());
+        vector<ColumnId> pk_columns(tablet_schema->num_key_columns());
+        for (auto i = 0; i < tablet_schema->num_key_columns(); i++) {
+            pk_columns[i] = (ColumnId)i;
         }
-        auto pkey_schema = ChunkHelper::convert_schema(tablet_schema, pk_columns);
+        auto pkey_schema = ChunkHelper::convert_schema(*tablet_schema, pk_columns);
         size_t fix_size = PrimaryKeyEncoder::get_encoded_fixed_size(pkey_schema);
 
         RETURN_IF_ERROR(init_persistent_index(tablet_schema, index_meta, fix_size));
