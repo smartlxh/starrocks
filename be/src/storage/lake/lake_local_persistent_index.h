@@ -38,7 +38,8 @@ namespace starrocks::lake {
     private:
         Status _insert_rowsets(starrocks::lake::Tablet *tablet,
                                const Schema &pkey_schema, int64_t base_version,
-                               std::unique_ptr <Column> pk_column, MetaFileBuilder *builder);
+                               std::unique_ptr <Column> pk_column, MetaFileBuilder *builder,
+                               size_t total_data_size, size_t total_segments, size_t total_rows);
 
     private:
         DataDir *_meta_dir = nullptr;

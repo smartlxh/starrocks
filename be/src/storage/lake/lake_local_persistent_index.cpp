@@ -131,7 +131,7 @@ namespace starrocks::lake {
         }
 
         if (status.ok()) {
-            applied_version = EditVersion(base_version, 0);
+            EditVersion applied_version = EditVersion(base_version, 0);
             auto load_index_status = try_load_from_persistent_index(tablet->id(), &index_meta, applied_version);
 
             if (load_index_status.ok()) {
@@ -141,7 +141,14 @@ namespace starrocks::lake {
 
         // 1. create and set key column schema
         std::unique_ptr <TabletSchema> tablet_schema = std::make_unique<TabletSchema>(metadata.schema());
-        RETURN_IF_ERROR(init_persistent_index(tablet_schema, index_meta));
+        vector <ColumnId> pk_columns(tablet_schema.num_key_columns());
+        for (auto i = 0; i < tablet_schema.num_key_columns(); i++) {
+            pk_columns[i] = (ColumnId) i;
+        }
+        auto pkey_schema = ChunkHelper::convert_schema(tablet_schema, pk_columns);
+        size_t fix_size = PrimaryKeyEncoder::get_encoded_fixed_size(pkey_schema);
+
+        RETURN_IF_ERROR(init_persistent_index(tablet_schema, index_meta, fix_size));
 
         size_t total_data_size = 0;
         size_t total_segments = 0;
