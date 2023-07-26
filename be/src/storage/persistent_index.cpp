@@ -2647,8 +2647,8 @@ Status PersistentIndex::_insert_rowsets(Tablet *tablet, std::vector <RowsetShare
     return Status::OK();
 }
 
-Status PersistentIndex::try_load_from_persistent_index(PersistentIndexMetaPB *index_meta, int64_t tablet_id,
-                                                       EditVersion &lastest_applied_version) {
+Status PersistentIndex::try_load_from_persistent_index(PersistentIndexMetaPB& index_meta, int64_t tablet_id,
+                                                       EditVersion &lastest_applied_version, MonotonicStopWatch& timer) {
     // There are three conditions
     // First is we do not find PersistentIndexMetaPB in TabletMeta, it maybe the first time to
     // enable persistent index
@@ -2660,45 +2660,43 @@ Status PersistentIndex::try_load_from_persistent_index(PersistentIndexMetaPB *in
     // In this case, we don't have all rowset data in persistent index files, so we also need to rebuild it
     // The last is we find PersistentIndexMetaPB and it's version is equal to latest applied version. In this case,
     // we can load from index file directly
-    if (status.ok()) {
-        // all applied rowsets has save in existing persistent index meta
-        // so we can load persistent index according to PersistentIndexMetaPB
-        EditVersion version = index_meta.version();
-        if (version == lastest_applied_version) {
-            // If format version is not equal to PERSISTENT_INDEX_VERSION_2, this maybe upgrade from
-            // PERSISTENT_INDEX_VERSION_2.
-            // We need to rebuild persistent index because the meta structure is changed
-            if (index_meta.format_version() != PERSISTENT_INDEX_VERSION_2) {
-                LOG(WARNING) << "different format version, we need to rebuild persistent index";
-                status = Status::InternalError("different format version");
-            } else {
-                status = load(index_meta);
+    // all applied rowsets has save in existing persistent index meta
+    // so we can load persistent index according to PersistentIndexMetaPB
+    EditVersion version = index_meta.version();
+    if (version == lastest_applied_version) {
+        // If format version is not equal to PERSISTENT_INDEX_VERSION_2, this maybe upgrade from
+        // PERSISTENT_INDEX_VERSION_2.
+        // We need to rebuild persistent index because the meta structure is changed
+        if (index_meta.format_version() != PERSISTENT_INDEX_VERSION_2) {
+            LOG(WARNING) << "different format version, we need to rebuild persistent index";
+            status = Status::InternalError("different format version");
+        } else {
+            status = load(index_meta);
+        }
+        if (status.ok()) {
+            LOG(INFO) << "load persistent index tablet:" << tablet_id
+                      << " version:" << version.to_string() << " size: " << _size
+                      << " l0_size: " << (_l0 ? _l0->size() : 0) << " l0_capacity:" << (_l0 ? _l0->capacity() : 0)
+                      << " #shard: " << (_has_l1 ? _l1_vec[0]->_shards.size() : 0)
+                      << " l1_size:" << (_has_l1 ? _l1_vec[0]->_size : 0) << " memory: " << memory_usage()
+                      << " status: " << status.to_string() << " time:" << timer.elapsed_time() / 1000000 << "ms";
+            return status;
+        } else {
+            LOG(WARNING) << "load persistent index failed, tablet: " << tablet_id
+                         << ", status: " << status;
+            if (index_meta.has_l0_meta()) {
+                EditVersion l0_version = index_meta.l0_meta().snapshot().version();
+                std::string l0_file_name =
+                        strings::Substitute("index.l0.$0.$1", l0_version.major(), l0_version.minor());
+                Status st = FileSystem::Default()->delete_file(l0_file_name);
+                LOG(WARNING) << "delete error l0 index file: " << l0_file_name << ", status: " << st;
             }
-            if (status.ok()) {
-                LOG(INFO) << "load persistent index tablet:" << tablet_id
-                          << " version:" << version.to_string() << " size: " << _size
-                          << " l0_size: " << (_l0 ? _l0->size() : 0) << " l0_capacity:" << (_l0 ? _l0->capacity() : 0)
-                          << " #shard: " << (_has_l1 ? _l1_vec[0]->_shards.size() : 0)
-                          << " l1_size:" << (_has_l1 ? _l1_vec[0]->_size : 0) << " memory: " << memory_usage()
-                          << " status: " << status.to_string() << " time:" << timer.elapsed_time() / 1000000 << "ms";
-                return status;
-            } else {
-                LOG(WARNING) << "load persistent index failed, tablet: " << tablet_id
-                             << ", status: " << status;
-                if (index_meta.has_l0_meta()) {
-                    EditVersion l0_version = index_meta.l0_meta().snapshot().version();
-                    std::string l0_file_name =
-                            strings::Substitute("index.l0.$0.$1", l0_version.major(), l0_version.minor());
-                    Status st = FileSystem::Default()->delete_file(l0_file_name);
-                    LOG(WARNING) << "delete error l0 index file: " << l0_file_name << ", status: " << st;
-                }
-                if (index_meta.has_l1_version()) {
-                    EditVersion l1_version = index_meta.l1_version();
-                    std::string l1_file_name =
-                            strings::Substitute("index.l1.$0.$1", l1_version.major(), l1_version.minor());
-                    Status st = FileSystem::Default()->delete_file(l1_file_name);
-                    LOG(WARNING) << "delete error l1 index file: " << l1_file_name << ", status: " << st;
-                }
+            if (index_meta.has_l1_version()) {
+                EditVersion l1_version = index_meta.l1_version();
+                std::string l1_file_name =
+                        strings::Substitute("index.l1.$0.$1", l1_version.major(), l1_version.minor());
+                Status st = FileSystem::Default()->delete_file(l1_file_name);
+                LOG(WARNING) << "delete error l1 index file: " << l1_file_name << ", status: " << st;
             }
         }
     }
@@ -2827,8 +2825,8 @@ Status PersistentIndex::load_from_tablet(Tablet *tablet) {
     if (status.ok()) {
         EditVersion lastest_applied_version;
         RETURN_IF_ERROR(tablet->updates()->get_latest_applied_version(&lastest_applied_version));
-        auto load_index_status = try_load_from_persistent_index(tablet->tablet_id(), &index_meta,
-                                                                lastest_applied_version);
+        auto load_index_status = try_load_from_persistent_index(tablet->tablet_id(), index_meta,
+                                                                lastest_applied_version, timer);
 
         if (load_index_status.ok()) {
             return load_index_status;

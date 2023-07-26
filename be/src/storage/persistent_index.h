@@ -723,8 +723,8 @@ namespace starrocks {
         // commit index meta
         Status _build_commit(DataDir *store, PersistentIndexMetaPB &index_meta, int64_t tablet_id);
 
-        Status try_load_from_persistent_index(PersistentIndexMetaPB *index_meta, int64_t tablet_id,
-                                              EditVersion &lastest_applied_version);
+        Status try_load_from_persistent_index(PersistentIndexMetaPB& index_meta, int64_t tablet_id,
+                                              EditVersion &lastest_applied_version, MonotonicStopWatch& timer);
 
         Status init_persistent_index(const TabletSchema &tablet_schema, PersistentIndexMetaPB &index_meta,
                                      const EditVersion &apply_version);
