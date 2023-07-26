@@ -106,6 +106,7 @@ namespace starrocks::lake {
                 itr->close();
             }
         }
+        return Status::OK();
 
     }
 
@@ -155,7 +156,7 @@ namespace starrocks::lake {
         size_t total_segments = 0;
         size_t total_rows = 0;
         std::unique_ptr <Column> pk_column;
-        RETURN_IF_ERROR(_insert_rowsets(tablet, pkey_schema, base_version, std::move(pk_column), total_data_size,
+        RETURN_IF_ERROR(_insert_rowsets(tablet, pkey_schema, base_version, std::move(pk_column), meta, builder, total_data_size,
                                         total_segments, total_rows));
 
         // commit: flush _l0 and build _l1
