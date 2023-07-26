@@ -2663,6 +2663,7 @@ Status PersistentIndex::try_load_from_persistent_index(PersistentIndexMetaPB& in
     // all applied rowsets has save in existing persistent index meta
     // so we can load persistent index according to PersistentIndexMetaPB
     EditVersion version = index_meta.version();
+    Status status = Status::InternalError("version != lastest_applied_version");
     if (version == lastest_applied_version) {
         // If format version is not equal to PERSISTENT_INDEX_VERSION_2, this maybe upgrade from
         // PERSISTENT_INDEX_VERSION_2.
@@ -2700,44 +2701,11 @@ Status PersistentIndex::try_load_from_persistent_index(PersistentIndexMetaPB& in
             }
         }
     }
+    return status;
 }
 
-Status PersistentIndex::_check(Tablet *tablet) {
-    int64_t apply_version = 0;
-    std::vector <RowsetSharedPtr> rowsets;
-    std::vector <uint32_t> rowset_ids;
-    RETURN_IF_ERROR(tablet->updates()->get_apply_version_and_rowsets(&apply_version, &rowsets, &rowset_ids));
-
-    size_t total_data_size = 0;
-    size_t total_segments = 0;
-    size_t total_rows = 0;
-    for (auto &rowset: rowsets) {
-        total_data_size += rowset->data_disk_size();
-        total_segments += rowset->num_segments();
-        total_rows += rowset->num_rows();
-    }
-    size_t total_rows2 = 0;
-    size_t total_dels = 0;
-    status = tablet->updates()->get_rowsets_total_stats(rowset_ids, &total_rows2, &total_dels);
-    if (!status.ok() || total_rows2 != total_rows) {
-        LOG(WARNING) << "load primary index get_rowsets_total_stats error: " << status;
-    }
-    DCHECK(total_rows2 == total_rows);
-    if (total_data_size > 4000000000 || total_rows > 10000000 || total_segments > 400) {
-        LOG(INFO) << "load large primary index start tablet:" << tablet->tablet_id() << " version:" << apply_version
-                  << " #rowset:" << rowsets.size() << " #segment:" << total_segments << " #row:" << total_rows << " -"
-                  << total_dels << "=" << total_rows - total_dels << " bytes:" << total_data_size;
-    }
-}
-
-Status PersistentIndex::init_persistent_index(const TabletSchema &tablet_schema, PersistentIndexMetaPB &index_meta,
-                                              const EditVersion &apply_version) {
-    vector <ColumnId> pk_columns(tablet_schema.num_key_columns());
-    for (auto i = 0; i < tablet_schema.num_key_columns(); i++) {
-        pk_columns[i] = (ColumnId) i;
-    }
-    auto pkey_schema = ChunkHelper::convert_schema(tablet_schema, pk_columns);
-    size_t fix_size = PrimaryKeyEncoder::get_encoded_fixed_size(pkey_schema);
+Status PersistentIndex::init_persistent_index(PersistentIndexMetaPB &index_meta,
+                                              const EditVersion &lastest_applied_version, size_t fix_size) {
 
     // Init PersistentIndex
     _key_size = fix_size;
@@ -2799,12 +2767,6 @@ Status PersistentIndex::init_persistent_index(const TabletSchema &tablet_schema,
     data->set_offset(0);
     data->set_size(0);
 
-    if (pk_columns.size() > 1) {
-        if (!PrimaryKeyEncoder::create_column(pkey_schema, &pk_column).ok()) {
-            CHECK(false) << "create column for primary key encoder failed";
-        }
-    }
-
     return Status::OK();
 }
 
@@ -2834,9 +2796,48 @@ Status PersistentIndex::load_from_tablet(Tablet *tablet) {
     }
 
     const TabletSchema &tablet_schema = tablet->tablet_schema();
-    RETURN_IF_ERROR(init_persistent_index(tablet_schema, index_meta, latest_applied_versioin));
+    vector <ColumnId> pk_columns(tablet_schema.num_key_columns());
+    for (auto i = 0; i < tablet_schema.num_key_columns(); i++) {
+        pk_columns[i] = (ColumnId) i;
+    }
+    auto pkey_schema = ChunkHelper::convert_schema(tablet_schema, pk_columns);
+    size_t fix_size = PrimaryKeyEncoder::get_encoded_fixed_size(pkey_schema);
+    RETURN_IF_ERROR(init_persistent_index(index_meta, latest_applied_versioin, fix_size);
 
     std::unique_ptr <Column> pk_column;
+    if (tablet_schema.num_key_columns() > 1) {
+        if (!PrimaryKeyEncoder::create_column(pkey_schema, &pk_column).ok()) {
+            CHECK(false) << "create column for primary key encoder failed";
+        }
+    }
+
+    int64_t apply_version = 0;
+    std::vector <RowsetSharedPtr> rowsets;
+    std::vector <uint32_t> rowset_ids;
+    RETURN_IF_ERROR(tablet->updates()->get_apply_version_and_rowsets(&apply_version, &rowsets, &rowset_ids));
+
+    size_t total_data_size = 0;
+    size_t total_segments = 0;
+    size_t total_rows = 0;
+    for (auto &rowset: rowsets) {
+        total_data_size += rowset->data_disk_size();
+        total_segments += rowset->num_segments();
+        total_rows += rowset->num_rows();
+    }
+    size_t total_rows2 = 0;
+    size_t total_dels = 0;
+    status = tablet->updates()->get_rowsets_total_stats(rowset_ids, &total_rows2, &total_dels);
+    if (!status.ok() || total_rows2 != total_rows) {
+        LOG(WARNING) << "load primary index get_rowsets_total_stats error: " << status;
+    }
+    DCHECK(total_rows2 == total_rows);
+    if (total_data_size > 4000000000 || total_rows > 10000000 || total_segments > 400) {
+        LOG(INFO) << "load large primary index start tablet:" << tablet->tablet_id() << " version:" << apply_version
+                  << " #rowset:" << rowsets.size() << " #segment:" << total_segments << " #row:" << total_rows << " -"
+                  << total_dels << "=" << total_rows - total_dels << " bytes:" << total_data_size;
+    }
+
+
     RETURN_IF_ERROR(_insert_rowsets(tablet, rowsets, pkey_schema, apply_version, std::move(pk_column)));
     if (size() != total_rows - total_dels) {
         LOG(WARNING) << strings::Substitute("load primary index row count not match tablet:$0 index:$1 != stats:$2",
