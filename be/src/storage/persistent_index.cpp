@@ -18,6 +18,7 @@
 #include <numeric>
 #include <utility>
 
+#include "common/status.h"
 #include "fs/fs.h"
 #include "gutil/strings/substitute.h"
 #include "storage/chunk_helper.h"
@@ -2647,7 +2648,7 @@ Status PersistentIndex::_insert_rowsets(Tablet *tablet, std::vector <RowsetShare
     return Status::OK();
 }
 
-Status PersistentIndex::try_load_from_persistent_index(PersistentIndexMetaPB& index_meta, int64_t tablet_id,
+Status PersistentIndex::try_load_from_persistent_index(int64_t tablet_id, PersistentIndexMetaPB& index_meta,
                                                        EditVersion &lastest_applied_version, MonotonicStopWatch& timer) {
     // There are three conditions
     // First is we do not find PersistentIndexMetaPB in TabletMeta, it maybe the first time to
