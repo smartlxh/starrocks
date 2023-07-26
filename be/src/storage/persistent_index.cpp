@@ -2785,8 +2785,8 @@ Status PersistentIndex::load_from_tablet(Tablet *tablet) {
         return Status::InternalError("get tablet persistent index meta failed");
     }
 
+    EditVersion lastest_applied_version;
     if (status.ok()) {
-        EditVersion lastest_applied_version;
         RETURN_IF_ERROR(tablet->updates()->get_latest_applied_version(&lastest_applied_version));
         auto load_index_status = try_load_from_persistent_index(tablet->tablet_id(), index_meta,
                                                                 lastest_applied_version, timer);
