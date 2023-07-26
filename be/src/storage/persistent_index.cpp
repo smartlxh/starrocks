@@ -2789,7 +2789,7 @@ Status PersistentIndex::load_from_tablet(Tablet *tablet) {
     if (status.ok()) {
         RETURN_IF_ERROR(tablet->updates()->get_latest_applied_version(&latest_applied_version));
         auto load_index_status = try_load_from_persistent_index(tablet->tablet_id(), index_meta,
-                                                                lastest_applied_version, timer);
+                                                                latest_applied_version, timer);
 
         if (load_index_status.ok()) {
             return load_index_status;
@@ -2803,7 +2803,7 @@ Status PersistentIndex::load_from_tablet(Tablet *tablet) {
     }
     auto pkey_schema = ChunkHelper::convert_schema(tablet_schema, pk_columns);
     size_t fix_size = PrimaryKeyEncoder::get_encoded_fixed_size(pkey_schema);
-    RETURN_IF_ERROR(init_persistent_index(index_meta, latest_applied_versioin, fix_size));
+    RETURN_IF_ERROR(init_persistent_index(index_meta, latest_applied_version, fix_size));
 
     std::unique_ptr <Column> pk_column;
     if (tablet_schema.num_key_columns() > 1) {
