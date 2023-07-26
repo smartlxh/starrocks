@@ -131,9 +131,9 @@ namespace starrocks::lake {
             return Status::InternalError("get tablet persistent index meta failed");
         }
 
+        EditVersion applied_version = EditVersion(base_version, 0);
         if (status.ok()) {
-            EditVersion applied_version = EditVersion(base_version, 0);
-            auto load_index_status = try_load_from_persistent_index(tablet->id(), &index_meta, applied_version, timer);
+            auto load_index_status = try_load_from_persistent_index(tablet->id(), index_meta, applied_version, timer);
 
             if (load_index_status.ok()) {
                 return load_index_status;
@@ -149,7 +149,7 @@ namespace starrocks::lake {
         auto pkey_schema = ChunkHelper::convert_schema(*tablet_schema, pk_columns);
         size_t fix_size = PrimaryKeyEncoder::get_encoded_fixed_size(pkey_schema);
 
-        RETURN_IF_ERROR(init_persistent_index(tablet_schema, index_meta, fix_size));
+        RETURN_IF_ERROR(init_persistent_index(index_meta, applied_version, fix_size));
 
         size_t total_data_size = 0;
         size_t total_segments = 0;
