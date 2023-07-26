@@ -23,20 +23,26 @@
 
 namespace starrocks::lake {
 
-class MetaFileBuilder;
+    class MetaFileBuilder;
 
-class LakeLocalPersistentIndex : public PersistentIndex {
-public:
-    explicit LakeLocalPersistentIndex(std::string path) : PersistentIndex(path) { _path = path; }
+    class LakeLocalPersistentIndex : public PersistentIndex {
+    public:
+        explicit LakeLocalPersistentIndex(std::string path) : PersistentIndex(path) { _path = path; }
 
-    ~LakeLocalPersistentIndex() override {}
+        ~LakeLocalPersistentIndex() override {}
 
-    Status load_from_lake_tablet(starrocks::lake::Tablet* tablet, const TabletMetadata& metadata, int64_t base_version,
-                                 const MetaFileBuilder* builder);
+        Status
+        load_from_lake_tablet(starrocks::lake::Tablet *tablet, const TabletMetadata &metadata, int64_t base_version,
+                              const MetaFileBuilder *builder);
 
-private:
-    DataDir* _meta_dir = nullptr;
-    std::string _path;
-};
+    private:
+        Status _insert_rowsets(starrocks::lake::Tablet *tablet,
+                               const Schema &pkey_schema, int64_t base_version,
+                               std::unique_ptr <Column> pk_column, MetaFileBuilder *builder);
+
+    private:
+        DataDir *_meta_dir = nullptr;
+        std::string _path;
+    };
 
 } // namespace starrocks::lake

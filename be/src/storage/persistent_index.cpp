@@ -2511,7 +2511,7 @@ Status PersistentIndex::_load(const PersistentIndexMetaPB& index_meta, bool relo
     return Status::OK();
 }
 
-Status PersistentIndex::_build_commit(Tablet* tablet, PersistentIndexMetaPB& index_meta) {
+Status PersistentIndex::_build_commit(DataDir* store, PersistentIndexMetaPB& index_meta, int64_t tablet_id) {
     // commit: flush _l0 and build _l1
     // write PersistentIndexMetaPB in RocksDB
     Status status = commit(&index_meta);
@@ -2520,7 +2520,7 @@ Status PersistentIndex::_build_commit(Tablet* tablet, PersistentIndexMetaPB& ind
         return status;
     }
     // write pesistent index meta
-    status = TabletMetaManager::write_persistent_index_meta(tablet->data_dir(), tablet->tablet_id(), index_meta);
+    status = TabletMetaManager::write_persistent_index_meta(store, tablet_id, index_meta);
     if (!status.ok()) {
         LOG(WARNING) << "build persistent index failed because write persistent index meta failed: "
                      << status.to_string();
@@ -2608,20 +2608,7 @@ Status PersistentIndex::_insert_rowsets(Tablet* tablet, std::vector<RowsetShared
     return Status::OK();
 }
 
-Status PersistentIndex::load_from_tablet(Tablet* tablet) {
-    MonotonicStopWatch timer;
-    timer.start();
-    if (tablet->keys_type() != PRIMARY_KEYS) {
-        LOG(WARNING) << "tablet: " << tablet->tablet_id() << " is not primary key tablet";
-        return Status::NotSupported("Only PrimaryKey table is supported to use persistent index");
-    }
-
-    PersistentIndexMetaPB index_meta;
-    Status status = TabletMetaManager::get_persistent_index_meta(tablet->data_dir(), tablet->tablet_id(), &index_meta);
-    if (!status.ok() && !status.is_not_found()) {
-        return Status::InternalError("get tablet persistent index meta failed");
-    }
-
+Status PersistentIndex::try_load_from_persistent_index(PersistentIndexMetaPB* index_meta, int64_t tablet_id, EditVersion lastest_applied_version) {
     // There are three conditions
     // First is we do not find PersistentIndexMetaPB in TabletMeta, it maybe the first time to
     // enable persistent index
@@ -2633,8 +2620,6 @@ Status PersistentIndex::load_from_tablet(Tablet* tablet) {
     // In this case, we don't have all rowset data in persistent index files, so we also need to rebuild it
     // The last is we find PersistentIndexMetaPB and it's version is equal to latest applied version. In this case,
     // we can load from index file directly
-    EditVersion lastest_applied_version;
-    RETURN_IF_ERROR(tablet->updates()->get_latest_applied_version(&lastest_applied_version));
     if (status.ok()) {
         // all applied rowsets has save in existing persistent index meta
         // so we can load persistent index according to PersistentIndexMetaPB
@@ -2650,7 +2635,7 @@ Status PersistentIndex::load_from_tablet(Tablet* tablet) {
                 status = load(index_meta);
             }
             if (status.ok()) {
-                LOG(INFO) << "load persistent index tablet:" << tablet->tablet_id()
+                LOG(INFO) << "load persistent index tablet:" << tablet_id
                           << " version:" << version.to_string() << " size: " << _size
                           << " l0_size: " << (_l0 ? _l0->size() : 0) << " l0_capacity:" << (_l0 ? _l0->capacity() : 0)
                           << " #shard: " << (_has_l1 ? _l1_vec[0]->_shards.size() : 0)
@@ -2658,7 +2643,7 @@ Status PersistentIndex::load_from_tablet(Tablet* tablet) {
                           << " status: " << status.to_string() << " time:" << timer.elapsed_time() / 1000000 << "ms";
                 return status;
             } else {
-                LOG(WARNING) << "load persistent index failed, tablet: " << tablet->tablet_id()
+                LOG(WARNING) << "load persistent index failed, tablet: " << tablet_id
                              << ", status: " << status;
                 if (index_meta.has_l0_meta()) {
                     EditVersion l0_version = index_meta.l0_meta().snapshot().version();
@@ -2677,8 +2662,37 @@ Status PersistentIndex::load_from_tablet(Tablet* tablet) {
             }
         }
     }
+}
 
-    const TabletSchema& tablet_schema = tablet->tablet_schema();
+Status PersistentIndex::check(Tablet* tablet) {
+    int64_t apply_version = 0;
+    std::vector<RowsetSharedPtr> rowsets;
+    std::vector<uint32_t> rowset_ids;
+    RETURN_IF_ERROR(tablet->updates()->get_apply_version_and_rowsets(&apply_version, &rowsets, &rowset_ids));
+
+    size_t total_data_size = 0;
+    size_t total_segments = 0;
+    size_t total_rows = 0;
+    for (auto& rowset : rowsets) {
+        total_data_size += rowset->data_disk_size();
+        total_segments += rowset->num_segments();
+        total_rows += rowset->num_rows();
+    }
+    size_t total_rows2 = 0;
+    size_t total_dels = 0;
+    status = tablet->updates()->get_rowsets_total_stats(rowset_ids, &total_rows2, &total_dels);
+    if (!status.ok() || total_rows2 != total_rows) {
+        LOG(WARNING) << "load primary index get_rowsets_total_stats error: " << status;
+    }
+    DCHECK(total_rows2 == total_rows);
+    if (total_data_size > 4000000000 || total_rows > 10000000 || total_segments > 400) {
+        LOG(INFO) << "load large primary index start tablet:" << tablet->tablet_id() << " version:" << apply_version
+                  << " #rowset:" << rowsets.size() << " #segment:" << total_segments << " #row:" << total_rows << " -"
+                  << total_dels << "=" << total_rows - total_dels << " bytes:" << total_data_size;
+    }
+}
+
+Status PersistentIndex::init_persistent_index(const TabletSchema& tablet_schema, PersistentIndexMetaPB& index_meta) {
     vector<ColumnId> pk_columns(tablet_schema.num_key_columns());
     for (auto i = 0; i < tablet_schema.num_key_columns(); i++) {
         pk_columns[i] = (ColumnId)i;
@@ -2719,7 +2733,7 @@ Status PersistentIndex::load_from_tablet(Tablet* tablet) {
                                                        0LL, [](size_t s, const auto& e) { return s + e->usage(); });
         if (auto [_, inserted] =
                     _usage_and_size_by_key_length.insert({key_size, {l0_kv_pairs_usage, l0_kv_pairs_size}});
-            !inserted) {
+                !inserted) {
             std::string msg = strings::Substitute(
                     "load persistent index from tablet failed, insert usage and size by key size failed, key_size: $0",
                     key_size);
@@ -2746,43 +2760,49 @@ Status PersistentIndex::load_from_tablet(Tablet* tablet) {
     data->set_offset(0);
     data->set_size(0);
 
-    int64_t apply_version = 0;
-    std::vector<RowsetSharedPtr> rowsets;
-    std::vector<uint32_t> rowset_ids;
-    RETURN_IF_ERROR(tablet->updates()->get_apply_version_and_rowsets(&apply_version, &rowsets, &rowset_ids));
-
-    size_t total_data_size = 0;
-    size_t total_segments = 0;
-    size_t total_rows = 0;
-    for (auto& rowset : rowsets) {
-        total_data_size += rowset->data_disk_size();
-        total_segments += rowset->num_segments();
-        total_rows += rowset->num_rows();
-    }
-    size_t total_rows2 = 0;
-    size_t total_dels = 0;
-    status = tablet->updates()->get_rowsets_total_stats(rowset_ids, &total_rows2, &total_dels);
-    if (!status.ok() || total_rows2 != total_rows) {
-        LOG(WARNING) << "load primary index get_rowsets_total_stats error: " << status;
-    }
-    DCHECK(total_rows2 == total_rows);
-    if (total_data_size > 4000000000 || total_rows > 10000000 || total_segments > 400) {
-        LOG(INFO) << "load large primary index start tablet:" << tablet->tablet_id() << " version:" << apply_version
-                  << " #rowset:" << rowsets.size() << " #segment:" << total_segments << " #row:" << total_rows << " -"
-                  << total_dels << "=" << total_rows - total_dels << " bytes:" << total_data_size;
-    }
-    std::unique_ptr<Column> pk_column;
     if (pk_columns.size() > 1) {
         if (!PrimaryKeyEncoder::create_column(pkey_schema, &pk_column).ok()) {
             CHECK(false) << "create column for primary key encoder failed";
         }
     }
+
+    return Status::OK();
+}
+
+Status PersistentIndex::load_from_tablet(Tablet* tablet) {
+    MonotonicStopWatch timer;
+    timer.start();
+    if (tablet->keys_type() != PRIMARY_KEYS) {
+        LOG(WARNING) << "tablet: " << tablet->tablet_id() << " is not primary key tablet";
+        return Status::NotSupported("Only PrimaryKey table is supported to use persistent index");
+    }
+
+    PersistentIndexMetaPB index_meta;
+    Status status = TabletMetaManager::get_persistent_index_meta(tablet->data_dir(), tablet->tablet_id(), &index_meta);
+    if (!status.ok() && !status.is_not_found()) {
+        return Status::InternalError("get tablet persistent index meta failed");
+    }
+
+    if (status.ok()) {
+        EditVersion lastest_applied_version;
+        RETURN_IF_ERROR(tablet->updates()->get_latest_applied_version(&lastest_applied_version));
+        auto load_index_status = try_load_from_persistent_index(tablet->tablet_id(), &index_meta, lastest_applied_version);
+
+        if (load_index_status.ok()) {
+            return load_index_status;
+        }
+    }
+
+    const TabletSchema& tablet_schema = tablet->tablet_schema();
+    RETURN_IF_ERROR(init_persistent_index(tablet_schema, index_meta));
+
+    std::unique_ptr<Column> pk_column;
     RETURN_IF_ERROR(_insert_rowsets(tablet, rowsets, pkey_schema, apply_version, std::move(pk_column)));
     if (size() != total_rows - total_dels) {
         LOG(WARNING) << strings::Substitute("load primary index row count not match tablet:$0 index:$1 != stats:$2",
                                             tablet->tablet_id(), size(), total_rows - total_dels);
     }
-    RETURN_IF_ERROR(_build_commit(tablet, index_meta));
+    RETURN_IF_ERROR(_build_commit(tablet->data_dir(), index_meta, tablet->tablet_id()));
     LOG(INFO) << "build persistent index finish tablet: " << tablet->tablet_id() << " version:" << apply_version
               << " #rowset:" << rowsets.size() << " #segment:" << total_segments << " data_size:" << total_data_size
               << " size: " << _size << " l0_size: " << _l0->size() << " l0_capacity:" << _l0->capacity()
