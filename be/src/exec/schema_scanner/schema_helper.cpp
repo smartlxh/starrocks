@@ -16,6 +16,7 @@
 
 #include <sstream>
 
+#include "agent/master_info.h"
 #include "runtime/client_cache.h"
 #include "runtime/exec_env.h"
 #include "runtime/runtime_state.h"
@@ -30,6 +31,13 @@ Status SchemaHelper::_call_rpc(const SchemaScannerState& state,
     DCHECK(state.param);
     SCOPED_TIMER((state.param)->_rpc_timer);
     return ThriftRpcHelper::rpc<FrontendServiceClient>(state.ip, state.port, callback, state.timeout_ms);
+}
+
+Status SchemaHelper::_call_rpc(const SchemaScannerState& state, const std::string& ip, const int32_t port,
+                               std::function<void(ClientConnection<FrontendServiceClient>&)> callback) {
+    DCHECK(state.param);
+    SCOPED_TIMER((state.param)->_rpc_timer);
+    return ThriftRpcHelper::rpc<FrontendServiceClient>(ip, port, callback, state.timeout_ms);
 }
 
 Status SchemaHelper::get_db_names(const SchemaScannerState& state, const TGetDbsParams& request,
@@ -150,30 +158,38 @@ Status SchemaHelper::get_task_runs(const SchemaScannerState& state, const TGetTa
 
 Status SchemaHelper::get_loads(const SchemaScannerState& state, const TGetLoadsParams& var_params,
                                TGetLoadsResult* var_result) {
-    return _call_rpc(state, [&var_params, &var_result](FrontendServiceConnection& client) {
-        client->getLoads(*var_result, var_params);
-    });
+    TNetworkAddress network_address = get_master_address();
+    return _call_rpc(state, network_address.hostname, network_address.port,
+                     [&var_params, &var_result](FrontendServiceConnection& client) {
+                         client->getLoads(*var_result, var_params);
+                     });
 }
 
 Status SchemaHelper::get_tracking_loads(const SchemaScannerState& state, const TGetLoadsParams& var_params,
                                         TGetTrackingLoadsResult* var_result) {
-    return _call_rpc(state, [&var_params, &var_result](FrontendServiceConnection& client) {
-        client->getTrackingLoads(*var_result, var_params);
-    });
+    TNetworkAddress network_address = get_master_address();
+    return _call_rpc(state, network_address.hostname, network_address.port,
+                     [&var_params, &var_result](FrontendServiceConnection& client) {
+                         client->getTrackingLoads(*var_result, var_params);
+                     });
 }
 
 Status SchemaHelper::get_routine_load_jobs(const SchemaScannerState& state, const TGetLoadsParams& var_params,
                                            TGetRoutineLoadJobsResult* var_result) {
-    return _call_rpc(state, [&var_params, &var_result](FrontendServiceConnection& client) {
-        client->getRoutineLoadJobs(*var_result, var_params);
-    });
+    TNetworkAddress network_address = get_master_address();
+    return _call_rpc(state, network_address.hostname, network_address.port,
+                     [&var_params, &var_result](FrontendServiceConnection& client) {
+                         client->getRoutineLoadJobs(*var_result, var_params);
+                     });
 }
 
 Status SchemaHelper::get_stream_loads(const SchemaScannerState& state, const TGetLoadsParams& var_params,
                                       TGetStreamLoadsResult* var_result) {
-    return _call_rpc(state, [&var_params, &var_result](FrontendServiceConnection& client) {
-        client->getStreamLoads(*var_result, var_params);
-    });
+    TNetworkAddress network_address = get_master_address();
+    return _call_rpc(state, network_address.hostname, network_address.port,
+                     [&var_params, &var_result](FrontendServiceConnection& client) {
+                         client->getStreamLoads(*var_result, var_params);
+                     });
 }
 
 Status SchemaHelper::get_tablet_schedules(const SchemaScannerState& state, const TGetTabletScheduleRequest& request,

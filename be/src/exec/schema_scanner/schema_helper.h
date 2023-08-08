@@ -109,6 +109,9 @@ public:
 private:
     static Status _call_rpc(const SchemaScannerState& state,
                             std::function<void(ClientConnection<FrontendServiceClient>&)> callback);
+
+    static Status _call_rpc(const SchemaScannerState& state, const std::string& ip, const int32_t port,
+                            std::function<void(ClientConnection<FrontendServiceClient>&)> callback);
 };
 
 template <LogicalType SlotType>
