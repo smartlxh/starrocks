@@ -78,6 +78,7 @@ import com.starrocks.http.rest.QueryDetailAction;
 import com.starrocks.http.rest.QueryDumpAction;
 import com.starrocks.http.rest.RowCountAction;
 import com.starrocks.http.rest.SetConfigAction;
+import com.starrocks.http.rest.ShowBeTabletsAction;
 import com.starrocks.http.rest.ShowDataAction;
 import com.starrocks.http.rest.ShowMetaInfoAction;
 import com.starrocks.http.rest.ShowProcAction;
@@ -171,6 +172,7 @@ public class HttpServer {
         GetSmallFileAction.registerAction(controller);
         RowCountAction.registerAction(controller);
         CheckDecommissionAction.registerAction(controller);
+        ShowBeTabletsAction.registerAction(controller);
         MetaReplayerCheckAction.registerAction(controller);
         ColocateMetaService.BucketSeqAction.registerAction(controller);
         ColocateMetaService.ColocateMetaAction.registerAction(controller);
