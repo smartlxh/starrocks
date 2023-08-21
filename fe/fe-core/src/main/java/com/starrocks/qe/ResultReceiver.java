@@ -34,6 +34,7 @@
 
 package com.starrocks.qe;
 
+import com.starrocks.authentication.AuthenticationMgr;
 import com.starrocks.common.Status;
 import com.starrocks.common.util.DebugUtil;
 import com.starrocks.metric.MetricRepo;
@@ -152,6 +153,11 @@ public class ResultReceiver {
                     ConnectContext.get().getSessionVariable().getQueryTimeoutS()));
             if (MetricRepo.hasInit) {
                 MetricRepo.COUNTER_QUERY_TIMEOUT.increase(1L);
+                boolean isRoot = ConnectContext.get().getCurrentUserIdentity() != null &&
+                        ConnectContext.get().getCurrentUserIdentity().getUser().equals(AuthenticationMgr.ROOT_USER);
+                if (isRoot) {
+                    MetricRepo.COUNTER_ROOT_QUERY_TIMEOUT.increase(1L);
+                }
             }
         } finally {
             synchronized (this) {
