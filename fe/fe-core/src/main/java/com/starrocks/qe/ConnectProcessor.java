@@ -38,6 +38,7 @@ import com.google.common.base.Strings;
 import com.starrocks.analysis.Expr;
 import com.starrocks.analysis.LiteralExpr;
 import com.starrocks.analysis.NullLiteral;
+import com.starrocks.authentication.AuthenticationMgr;
 import com.starrocks.catalog.Column;
 import com.starrocks.catalog.Database;
 import com.starrocks.catalog.Table;
@@ -168,6 +169,8 @@ public class ConnectProcessor {
     }
 
     public void auditAfterExec(String origStmt, StatementBase parsedStmt, PQueryStatistics statistics) {
+        boolean isRoot = ctx.getCurrentUserIdentity() != null &&
+                ctx.getCurrentUserIdentity().getUser().equals(AuthenticationMgr.ROOT_USER);
         // slow query
         long endTime = System.currentTimeMillis();
         long elapseMs = endTime - ctx.getStartTime();
@@ -208,19 +211,31 @@ public class ConnectProcessor {
 
         if (ctx.getState().isQuery()) {
             MetricRepo.COUNTER_QUERY_ALL.increase(1L);
+            if (isRoot) {
+                MetricRepo.COUNTER_ROOT_QUERY_ALL.increase(1L);
+            }
             ResourceGroupMetricMgr.increaseQuery(ctx, 1L);
             if (ctx.getState().getStateType() == QueryState.MysqlStateType.ERR) {
                 // err query
                 MetricRepo.COUNTER_QUERY_ERR.increase(1L);
+                if (isRoot) {
+                    MetricRepo.COUNTER_ROOT_QUERY_ERR.increase(1L);
+                }
                 ResourceGroupMetricMgr.increaseQueryErr(ctx, 1L);
             } else {
                 // ok query
                 MetricRepo.COUNTER_QUERY_SUCCESS.increase(1L);
+                if (isRoot) {
+                    MetricRepo.COUNTER_ROOT_QUERY_SUCCESS.increase(1L);
+                }
                 MetricRepo.HISTO_QUERY_LATENCY.update(elapseMs);
                 ResourceGroupMetricMgr.updateQueryLatency(ctx, elapseMs);
                 if (elapseMs > Config.qe_slow_log_ms || ctx.getSessionVariable().isEnableSQLDigest()) {
                     if (elapseMs > Config.qe_slow_log_ms) {
                         MetricRepo.COUNTER_SLOW_QUERY.increase(1L);
+                        if (isRoot) {
+                            MetricRepo.COUNTER_ROOT_SLOW_QUERY.increase(1L);
+                        }
                     }
                     ctx.getAuditEventBuilder().setDigest(computeStatementDigest(parsedStmt));
                 }
@@ -271,7 +286,12 @@ public class ConnectProcessor {
 
     // process COM_QUERY statement,
     protected void handleQuery() {
+        boolean isRoot = ctx.getCurrentUserIdentity() != null &&
+                ctx.getCurrentUserIdentity().getUser().equals(AuthenticationMgr.ROOT_USER);
         MetricRepo.COUNTER_REQUEST_ALL.increase(1L);
+        if (isRoot) {
+            MetricRepo.COUNTER_ROOT_REQUEST_ALL.increase(1L);
+        }
         // convert statement to Java string
         String originStmt = null;
         byte[] bytes = packetBuf.array();
