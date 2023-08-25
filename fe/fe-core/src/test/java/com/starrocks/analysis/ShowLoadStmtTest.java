@@ -60,7 +60,7 @@ public class ShowLoadStmtTest {
         ShowLoadStmt stmt = (ShowLoadStmt) analyzeSuccess("SHOW LOAD FROM test");
         ShowResultSetMetaData metaData = stmt.getMetaData();
         Assert.assertNotNull(metaData);
-        Assert.assertEquals(20, metaData.getColumnCount());
+        Assert.assertEquals(22, metaData.getColumnCount());
         Assert.assertEquals("JobId", metaData.getColumn(0).getName());
         Assert.assertEquals("Label", metaData.getColumn(1).getName());
         Assert.assertEquals("DatabaseName", metaData.getColumn(2).getName());
