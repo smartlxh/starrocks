@@ -66,6 +66,8 @@ import java.util.Map;
 public class ShowMetaInfoAction extends RestBaseAction {
     private enum Action {
         SHOW_DB_SIZE,
+        // show db size with all replicas included
+        SHOW_FULL_DB_SIZE,
         SHOW_HA,
         INVALID;
 
@@ -97,7 +99,10 @@ public class ShowMetaInfoAction extends RestBaseAction {
 
         switch (Action.getAction(action.toUpperCase())) {
             case SHOW_DB_SIZE:
-                response.getContent().append(gson.toJson(getDataSize()));
+                response.getContent().append(gson.toJson(getDataSize(true)));
+                break;
+            case SHOW_FULL_DB_SIZE:
+                response.getContent().append(gson.toJson(getDataSize(false)));
                 break;
             case SHOW_HA:
                 response.getContent().append(gson.toJson(getHaInfo()));
@@ -167,7 +172,7 @@ public class ShowMetaInfoAction extends RestBaseAction {
         return feInfo;
     }
 
-    public Map<String, Long> getDataSize() {
+    public Map<String, Long> getDataSize(boolean singleReplica) {
         Map<String, Long> result = new HashMap<String, Long>();
         List<String> dbNames = GlobalStateMgr.getCurrentState().getDbNames();
 
@@ -190,7 +195,7 @@ public class ShowMetaInfoAction extends RestBaseAction {
                     for (MaterializedIndex mIndex : partition.getMaterializedIndices(IndexExtState.VISIBLE)) {
                         long indexSize = 0;
                         for (Tablet tablet : mIndex.getTablets()) {
-                            indexSize += tablet.getDataSize(true);
+                            indexSize += tablet.getDataSize(singleReplica);
                         } // end for tablets
                         partitionSize += indexSize;
                     } // end for tables
