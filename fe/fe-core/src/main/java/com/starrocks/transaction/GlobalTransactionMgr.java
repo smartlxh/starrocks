@@ -302,7 +302,7 @@ public class GlobalTransactionMgr implements Writable {
             throw new AnalysisException("disable_load_job is set to true, all load jobs are prevented");
         }
 
-        if (GlobalStateMgr.getCurrentState().isSafeMode()) {
+        if (GlobalStateMgr.getCurrentState().isSafeMode() && !label.contains("delete")) {
             throw new AnalysisException(String.format("The cluster is under safe mode state," +
                     " all load jobs are rejected."));
         }
