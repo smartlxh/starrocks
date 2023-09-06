@@ -80,7 +80,7 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
 
     @SerializedName(value = "commitVersionMap")
     // Mapping from partition id to commit version
-    private Map<Long, Long> commitVersionMap;
+    private Map<Long, Long> commitVersionMap = new HashMap<>();
 
     public LakeTableAlterMetaJob(long jobId, long dbId, long tableId, String tableName,
                                  long timeoutMs, TTabletMetaType metaType, boolean metaValue) {
@@ -153,7 +153,7 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
             throw new AlterCancelException("table does not exist, tableId:" + tableId);
         }
         try {
-            commitVersionMap = new HashMap<>();
+            commitVersionMap.clear();
             for (long partitionId : partitionIndexMap.rowKeySet()) {
                 Partition partition = table.getPartition(partitionId);
                 Preconditions.checkNotNull(partition, partitionId);
@@ -386,7 +386,6 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
             return false;
         }
         db.writeLock();
-        ;
 
         LakeTable table = (LakeTable) db.getTable(tableId);
         // table has been dropped
@@ -465,6 +464,17 @@ public class LakeTableAlterMetaJob extends AlterJobV2 {
             db.writeUnlock();
         }
     }
+
+    // for test
+    public Table<Long, Long, MaterializedIndex> getPartitionIndexMap() {
+        return partitionIndexMap;
+    }
+
+    // for test
+    public  Map<Long, Long> getCommitVersionMap() {
+        return commitVersionMap;
+    }
+
 
     @Override
     public Optional<Long> getTransactionId() {

@@ -14,6 +14,7 @@
 
 package com.starrocks.alter;
 
+import com.google.common.collect.Table;
 import com.staros.proto.FileCacheInfo;
 import com.staros.proto.FilePathInfo;
 import com.staros.proto.FileStoreInfo;
@@ -43,7 +44,9 @@ import com.starrocks.lake.LakeTablet;
 import com.starrocks.lake.StarOSAgent;
 import com.starrocks.lake.Utils;
 import com.starrocks.persist.EditLog;
+import com.starrocks.persist.ModifyTablePropertyOperationLog;
 import com.starrocks.qe.ConnectContext;
+import com.starrocks.rpc.RpcException;
 import com.starrocks.server.GlobalStateMgr;
 import com.starrocks.sql.ast.AlterClause;
 import com.starrocks.sql.ast.ModifyTablePropertiesClause;
@@ -62,6 +65,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
+import javax.validation.constraints.NotNull;
 
 public class LakeTableAlterMetaJobTest {
     private static final int NUM_BUCKETS = 4;
@@ -97,8 +101,19 @@ public class LakeTableAlterMetaJobTest {
             public void logSaveNextId(long nextId) {
 
             }
+
             @Mock
             public void logAlterJob(AlterJobV2 alterJob) {
+
+            }
+
+            @Mock
+            public void logSaveTransactionId(long transactionId) {
+
+            }
+
+            @Mock
+            public void logModifyEnablePersistentIndex(ModifyTablePropertyOperationLog info) {
 
             }
         };
@@ -165,7 +180,7 @@ public class LakeTableAlterMetaJobTest {
         SchemaChangeHandler schemaChangeHandler = new SchemaChangeHandler();
 
         List<AlterClause> alterList = Collections.singletonList(modify);
-        alterMetaJob  = (LakeTableAlterMetaJob) schemaChangeHandler.analyzeAndCreateJob(alterList, db, table);
+        alterMetaJob = (LakeTableAlterMetaJob) schemaChangeHandler.createAlterMetaJob(alterList, db, table);
         table.setState(OlapTable.OlapTableState.SCHEMA_CHANGE);
     }
 
@@ -185,7 +200,89 @@ public class LakeTableAlterMetaJobTest {
         Assert.assertEquals(alterMetaJob.jobState, AlterJobV2.JobState.PENDING);
         alterMetaJob.runPendingJob();
         Assert.assertEquals(alterMetaJob.jobState, AlterJobV2.JobState.RUNNING);
+        Assert.assertNotEquals(alterMetaJob.getTransactionId().get().longValue(), -1L);
 
+    }
+
+    @Test
+    public void testCancelPendingJob() {
+        alterMetaJob.cancel("cancel test");
+        Assert.assertEquals(AlterJobV2.JobState.CANCELLED, alterMetaJob.getJobState());
+
+        // test cancel again
+        Assert.assertFalse(alterMetaJob.cancel("test"));
+    }
+
+    @Test
+    public void testDropTableBeforeCancel() {
+        new MockUp<Utils>() {
+            @Mock
+            public Long chooseBackend(LakeTablet tablet) {
+                return 1L;
+            }
+        };
+
+        db.dropTable(table.getName());
+        Assert.assertTrue(alterMetaJob.cancel("test"));
+        Assert.assertEquals(AlterJobV2.JobState.CANCELLED, alterMetaJob.getJobState());
+    }
+
+    @Test
+    public void testRunningJob() throws AlterCancelException {
+        new MockUp<Utils>() {
+            @Mock
+            public Long chooseBackend(LakeTablet tablet) {
+                return 1L;
+            }
+        };
+
+        alterMetaJob.runPendingJob();
+        Assert.assertEquals(AlterJobV2.JobState.RUNNING, alterMetaJob.getJobState());
+
+        Table<Long, Long, MaterializedIndex> partitionIndexMap = alterMetaJob.getPartitionIndexMap();
+        Map<Long, Long> commitVersionMap = alterMetaJob.getCommitVersionMap();
+        Assert.assertEquals(1, partitionIndexMap.size());
+        Assert.assertEquals(0, commitVersionMap.size());
+
+        alterMetaJob.runRunningJob();
+        for (long partitionId : partitionIndexMap.rowKeySet()) {
+            Partition partition = table.getPartition(partitionId);
+            Assert.assertEquals(commitVersionMap.get(partitionId).longValue(), partition.getCommittedVersion());
+        }
+        Assert.assertEquals(AlterJobV2.JobState.FINISHED_REWRITING, alterMetaJob.getJobState());
+    }
+
+    @Test
+    public void testFinishedRewritingJob() throws AlterCancelException {
+        new MockUp<Utils>() {
+            @Mock
+            public Long chooseBackend(LakeTablet tablet) {
+                return 1L;
+            }
+
+            @Mock
+            public void publishVersion(@NotNull List<Tablet> tablets, long txnId, long baseVersion, long newVersion) throws
+                    RpcException {
+            }
+        };
+
+        alterMetaJob.runPendingJob();
+        Assert.assertEquals(AlterJobV2.JobState.RUNNING, alterMetaJob.getJobState());
+
+        alterMetaJob.runRunningJob();
+        Assert.assertEquals(AlterJobV2.JobState.FINISHED_REWRITING, alterMetaJob.getJobState());
+
+        alterMetaJob.runFinishedRewritingJob();
+        Assert.assertEquals(AlterJobV2.JobState.FINISHED, alterMetaJob.getJobState());
+
+        Table<Long, Long, MaterializedIndex> partitionIndexMap = alterMetaJob.getPartitionIndexMap();
+        Map<Long, Long> commitVersionMap = alterMetaJob.getCommitVersionMap();
+        for (long partitionId : partitionIndexMap.rowKeySet()) {
+            Partition partition = table.getPartition(partitionId);
+            Assert.assertEquals(commitVersionMap.get(partitionId).longValue(), partition.getVisibleVersion());
+        }
+
+        Assert.assertTrue(table.enablePersistentIndex());
     }
 
 }
