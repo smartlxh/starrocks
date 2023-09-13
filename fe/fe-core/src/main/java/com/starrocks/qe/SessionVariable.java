@@ -538,6 +538,8 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
 
     public static final String CHOOSE_EXECUTE_INSTANCES_MODE = "choose_execute_instances_mode";
 
+    public static final String AUDIT_EXECUTE_STMT = "audit_execute_stmt";
+
     public static final List<String> DEPRECATED_VARIABLES = ImmutableList.<String>builder()
             .add(CODEGEN_LEVEL)
             .add(MAX_EXECUTION_TIME)
@@ -1357,6 +1359,9 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
 
     @VarAttr(name = ENABLE_EXPR_PRUNE_PARTITION, flag = VariableMgr.INVISIBLE)
     private boolean enableExprPrunePartition = true;
+
+    @VariableMgr.VarAttr(name = AUDIT_EXECUTE_STMT)
+    private boolean auditExecuteStmt = false;
 
     private int exprChildrenLimit = -1;
 
@@ -2659,6 +2664,10 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
 
     public boolean getEnableIcebergIdentityColumnOptimize() {
         return enableIcebergIdentityColumnOptimize;
+    }
+
+    public boolean isAuditExecuteStmt() {
+        return auditExecuteStmt;
     }
 
     // Serialize to thrift object
