@@ -37,6 +37,7 @@ import com.starrocks.catalog.TabletMeta;
 import com.starrocks.catalog.Type;
 import com.starrocks.common.DdlException;
 import com.starrocks.common.FeConstants;
+import com.starrocks.common.MarkedCountDownLatch;
 import com.starrocks.common.util.PropertyAnalyzer;
 import com.starrocks.lake.DataCacheInfo;
 import com.starrocks.lake.LakeTable;
@@ -65,6 +66,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import javax.validation.constraints.NotNull;
 
 public class LakeTableAlterMetaJobTest {
@@ -202,6 +204,26 @@ public class LakeTableAlterMetaJobTest {
         Assert.assertEquals(alterMetaJob.jobState, AlterJobV2.JobState.RUNNING);
         Assert.assertNotEquals(alterMetaJob.getTransactionId().get().longValue(), -1L);
 
+    }
+
+    @Test
+    public void testUpdatePartitonMetaFailed() throws AlterCancelException {
+        FeConstants.runningUnitTest = false;
+        new MockUp<Utils>() {
+            @Mock
+            public Long chooseBackend(LakeTablet tablet) {
+                return 1L;
+            }
+        };
+
+        Assert.assertEquals(alterMetaJob.jobState, AlterJobV2.JobState.PENDING);
+        try {
+            alterMetaJob.runPendingJob();
+        } catch (AlterCancelException e) {
+            System.out.println(e.getMessage());
+        }
+
+        Assert.assertEquals(alterMetaJob.jobState, AlterJobV2.JobState.PENDING);
     }
 
     @Test
