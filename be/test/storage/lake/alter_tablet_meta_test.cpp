@@ -48,19 +48,22 @@ protected:
 
 TEST_F(AlterTabletMetaTest, test_write_txn_log_success) {
     lake::SchemaChangeHandler handler(_tablet_mgr.get());
-    TUpdateTabletMetaInfoReq updateTabletMetaInfoReq;
-    updateTabletMetaInfoReq.txn_id = 1;
+    TUpdateTabletMetaInfoReq update_tablet_meta_req;
+    int64_t txn_id = 1;
+    update_tablet_meta_req.txn_id = txn_id;
 
-    TTabletMetaInfo tabletMetaInfo;
-    tabletMetaInfo.tablet_id = _tablet_metadata->tablet_id;
-    tabletMetaInfo.meta_type = TTabletMetaType::ENABLE_PERSISTENT_INDEX;
-    tabletMetaInfo.enable_persistent_index = true;
+    TTabletMetaInfo tablet_meta_info;
+    auto tablet_id = _tablet_metadata->tablet_id;
+    tablet_meta_info.tablet_id = tablet_id;
+    tablet_meta_info.meta_type = TTabletMetaType::ENABLE_PERSISTENT_INDEX;
+    tablet_meta_info.enable_persistent_index = true;
 
-    updateTabletMetaInfoReq.tabletMetaInfos.push_back(tabletMetaInfo);
+    update_tablet_meta_req.tabletMetaInfos.push_back(tablet_meta_info);
     ASSERT_OK(handler.process_update_tablet_meta(update_tablet_meta_req));
 
-    auto status = _tablet_mgr.get_tablet(_tablet_metadata->tablet_id);
-    ASSERT_OK(status.get_txn_log(1));
+    ASSERT_OK(_tablet_mgr->publish_version(tablet_id, 1, 2, &txn_id, 1));
+
 }
+
 
 } // namespace starrocks::lake
