@@ -69,8 +69,9 @@ TEST_F(AlterTabletMetaTest, test_alter_enable_persistent_index) {
     ASSERT_OK(new_tablet_meta.status());
     ASSERT_EQ(true, new_tablet_meta.value()->enable_persistent_index());
 
+    int64_t txn_id2 = txn_id + 1;
     TUpdateTabletMetaInfoReq update_tablet_meta_req2;
-    update_tablet_meta_req2.__set_txn_id(txn_id + 1);
+    update_tablet_meta_req2.__set_txn_id(txn_id2);
 
     TTabletMetaInfo tablet_meta_info2;
     tablet_meta_info2.__set_tablet_id(tablet_id);
@@ -80,7 +81,7 @@ TEST_F(AlterTabletMetaTest, test_alter_enable_persistent_index) {
     update_tablet_meta_req2.tabletMetaInfos.push_back(tablet_meta_info2);
     ASSERT_OK(handler.process_update_tablet_meta(update_tablet_meta_req2));
 
-    auto new_tablet_meta2 = _tablet_mgr->publish_version(tablet_id, 1, 2, &txn_id, 1);
+    auto new_tablet_meta2 = _tablet_mgr->publish_version(tablet_id, 2, 3, &txn_id2, 1);
     ASSERT_OK(new_tablet_meta2.status());
     ASSERT_EQ(false, new_tablet_meta2.value()->enable_persistent_index());
 }
