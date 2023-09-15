@@ -31,7 +31,7 @@ public:
         _tablet_metadata->set_id(next_id());
         _tablet_metadata->set_version(1);
 
-        auto base_schema = _base_tablet_metadata->mutable_schema();
+        auto base_schema = _tablet_metadata->mutable_schema();
         base_schema->set_id(next_id());
         base_schema->set_keys_type(KeysType::PRIMARY_KEYS);
     }
