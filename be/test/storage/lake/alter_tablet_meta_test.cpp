@@ -15,7 +15,9 @@
 #include <gtest/gtest.h>
 
 #include "fs/fs_util.h"
+#include "storage/lake/schema_change.h"
 #include "storage/lake/tablet_manager.h"
+#include "storage/lake/tablet_metadata.h"
 #include "test_util.h"
 
 namespace starrocks::lake {
@@ -43,5 +45,22 @@ protected:
 
     std::unique_ptr<TabletMetadata> _tablet_metadata;
 };
+
+TEST_F(AlterTabletMetaTest, test_write_txn_log_success) {
+    lake::SchemaChangeHandler handler(_tablet_mgr.get());
+    TUpdateTabletMetaInfoReq updateTabletMetaInfoReq;
+    updateTabletMetaInfoReq.txn_id = 1;
+
+    TTabletMetaInfo tabletMetaInfo;
+    tabletMetaInfo.tablet_id = _tablet_metadata->tablet_id;
+    tabletMetaInfo.meta_type = TTabletMetaType::ENABLE_PERSISTENT_INDEX;
+    tabletMetaInfo.enable_persistent_index = true;
+
+    updateTabletMetaInfoReq.tabletMetaInfos.push_back(tabletMetaInfo);
+    ASSERT_OK(handler.process_update_tablet_meta(update_tablet_meta_req));
+
+    auto status = _tablet_mgr.get_tablet(_tablet_metadata->tablet_id);
+    ASSERT_OK(status.get_txn_log(1));
+}
 
 } // namespace starrocks::lake
