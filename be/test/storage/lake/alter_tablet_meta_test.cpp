@@ -61,7 +61,7 @@ TEST_F(AlterTabletMetaTest, test_write_txn_log_success) {
     update_tablet_meta_req.tabletMetaInfos.push_back(tablet_meta_info);
     ASSERT_OK(handler.process_update_tablet_meta(update_tablet_meta_req));
 
-    ASSERT_OK(_tablet_mgr->publish_version(tablet_id, 1, 2, &txn_id, 1));
+    ASSERT_OK(_tablet_mgr->publish_version(tablet_id, 1, 2, &txn_id, 1).status());
 
 }
 
