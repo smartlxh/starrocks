@@ -720,6 +720,7 @@ StatusOr<TabletMetadataPtr> publish(TabletManager* tablet_mgr, Tablet* tablet, i
         return new_version_metadata_or_error(res.status());
     }
 
+    std::cout << "ddd";
     if (!res.ok()) {
         LOG(WARNING) << "Fail to get " << tablet->metadata_location(base_version) << ": " << res.status();
         return res.status();
@@ -741,6 +742,7 @@ StatusOr<TabletMetadataPtr> publish(TabletManager* tablet_mgr, Tablet* tablet, i
         new_metadata->set_prev_garbage_version(base_metadata->version());
     }
 
+    std::cout << "ggggg";
     auto init_st = log_applier->init();
     if (!init_st.ok()) {
         if (init_st.is_already_exist()) {
@@ -750,6 +752,7 @@ StatusOr<TabletMetadataPtr> publish(TabletManager* tablet_mgr, Tablet* tablet, i
         }
     }
 
+    std::cout << "mmmm";
     // Apply txn logs
     int64_t alter_version = -1;
     for (int i = 0; i < txns_size; i++) {
@@ -776,7 +779,7 @@ StatusOr<TabletMetadataPtr> publish(TabletManager* tablet_mgr, Tablet* tablet, i
             return st;
         }
     }
-
+    std::cout << "mnnnnn";
     // Apply vtxn logs for schema change
     // Should firstly apply schema change txn log, then apply txn version logs,
     // because the rowsets in txn log are older.
@@ -803,7 +806,7 @@ StatusOr<TabletMetadataPtr> publish(TabletManager* tablet_mgr, Tablet* tablet, i
 
     // Save new metadata
     RETURN_IF_ERROR(log_applier->finish());
-
+    std::cout << "mhhhhhhh";
     // collect trash files, and remove them by background threads
     auto trash_files = log_applier->trash_files();
 

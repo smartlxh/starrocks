@@ -68,6 +68,7 @@ public:
     }
 
     Status apply(const TxnLogPB& log) override {
+        std::cout << "apply";
         _max_txn_id = std::max(_max_txn_id, log.txn_id());
         LOG(INFO) << "txn_id" << log.txn_id();
         if (log.has_op_write()) {
@@ -81,6 +82,7 @@ public:
         }
         if (log.has_op_alter_meta()) {
             LOG(INFO) << "op_alter_meta";
+            std::cout << "alter meta";
             RETURN_IF_ERROR(apply_alter_meta_log(log.op_alter_meta()));
         }
         return Status::OK();
