@@ -70,7 +70,7 @@ TEST_F(AlterTabletMetaTest, test_alter_enable_persistent_index) {
     ASSERT_EQ(true, new_tablet_meta.value()->enable_persistent_index());
 
     TUpdateTabletMetaInfoReq update_tablet_meta_req2;
-    update_tablet_meta_req.__set_txn_id(txn_id + 1);
+    update_tablet_meta_req2.__set_txn_id(txn_id + 1);
 
     TTabletMetaInfo tablet_meta_info2;
     tablet_meta_info.__set_tablet_id(tablet_id);
@@ -98,10 +98,7 @@ TEST_F(AlterTabletMetaTest, test_alter_not_persistent_index) {
     tablet_meta_info.__set_meta_type(TTabletMetaType::INMEMORY);
 
     update_tablet_meta_req.tabletMetaInfos.push_back(tablet_meta_info);
-    ASSERT_OK(handler.process_update_tablet_meta(update_tablet_meta_req));
-
-    auto new_tablet_meta = _tablet_mgr->publish_version(tablet_id, 1, 2, &txn_id, 1);
-    ASSERT_ERROR(new_tablet_meta.status());
+    ASSERT_ERROR(handler.process_update_tablet_meta(update_tablet_meta_req));
 }
 
 } // namespace starrocks::lake
