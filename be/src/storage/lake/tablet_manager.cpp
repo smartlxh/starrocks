@@ -755,6 +755,9 @@ StatusOr<TabletMetadataPtr> publish(TabletManager* tablet_mgr, Tablet* tablet, i
     std::cout << "mmmm";
     // Apply txn logs
     int64_t alter_version = -1;
+    std::cout << "txns_size" << txns_size;
+    std::cout << "base version" << base_version;
+    std::cout << "new version" << new_version;
     for (int i = 0; i < txns_size; i++) {
         auto txn_id = txns[i];
         auto txn_log_st = tablet->get_txn_log(txn_id);
@@ -773,6 +776,7 @@ StatusOr<TabletMetadataPtr> publish(TabletManager* tablet_mgr, Tablet* tablet, i
             alter_version = txn_log->op_schema_change().alter_version();
         }
 
+        std::cout << "lalalal";
         auto st = log_applier->apply(*txn_log);
         if (!st.ok()) {
             LOG(WARNING) << "Fail to apply " << tablet->txn_log_location(txn_id) << ": " << st;
