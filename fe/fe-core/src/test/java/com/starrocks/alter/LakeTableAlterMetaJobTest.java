@@ -215,12 +215,11 @@ public class LakeTableAlterMetaJobTest {
         };
 
         Assert.assertEquals(alterMetaJob.jobState, AlterJobV2.JobState.PENDING);
-        try {
+        Exception exception = Assert.assertThrows(AlterCancelException.class, () -> {
             alterMetaJob.runPendingJob();
-        } catch (AlterCancelException e) {
-            System.out.println(e.getMessage());
-        }
+        });
 
+        Assert.assertTrue(exception.getMessage().contains("Failed to update partition"));
         Assert.assertEquals(alterMetaJob.jobState, AlterJobV2.JobState.PENDING);
     }
 
