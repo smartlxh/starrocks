@@ -17,7 +17,6 @@
 #include "fs/fs_util.h"
 #include "storage/lake/schema_change.h"
 #include "storage/lake/tablet_manager.h"
-#include "storage/lake/tablet_metadata.h"
 #include "test_util.h"
 #include "testutil/id_generator.h"
 
