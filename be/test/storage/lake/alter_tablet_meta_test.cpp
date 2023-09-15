@@ -50,18 +50,20 @@ TEST_F(AlterTabletMetaTest, test_write_txn_log_success) {
     lake::SchemaChangeHandler handler(_tablet_mgr.get());
     TUpdateTabletMetaInfoReq update_tablet_meta_req;
     int64_t txn_id = 1;
-    update_tablet_meta_req.txn_id = txn_id;
+    update_tablet_meta_req.__set_txn_id(txn_id);
 
     TTabletMetaInfo tablet_meta_info;
     auto tablet_id = _tablet_metadata->id();
-    tablet_meta_info.tablet_id = tablet_id;
-    tablet_meta_info.meta_type = TTabletMetaType::ENABLE_PERSISTENT_INDEX;
-    tablet_meta_info.enable_persistent_index = true;
+    tablet_meta_info.__set_tablet_id(tablet_id);
+    tablet_meta_info.__set_meta_type(TTabletMetaType::ENABLE_PERSISTENT_INDEX);
+    tablet_meta_info.__set_enable_persistent_index(true);
 
     update_tablet_meta_req.tabletMetaInfos.push_back(tablet_meta_info);
     ASSERT_OK(handler.process_update_tablet_meta(update_tablet_meta_req));
 
-    ASSERT_OK(_tablet_mgr->publish_version(tablet_id, 1, 2, &txn_id, 1).status());
+    auto new_tablet_meta = _tablet_mgr->publish_version(tablet_id, 1, 2, &txn_id, 1);
+    ASSERT_OK(new_tablet_meta.status());
+    ASSERT_EQ(true, new_tablet_meta.value()->enable_persistent_index());
 
 }
 
