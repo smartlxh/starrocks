@@ -19,6 +19,7 @@
 #include "storage/lake/tablet_manager.h"
 #include "storage/lake/tablet_metadata.h"
 #include "test_util.h"
+#include "testutil/id_generator.h"
 
 namespace starrocks::lake {
 
@@ -53,7 +54,7 @@ TEST_F(AlterTabletMetaTest, test_write_txn_log_success) {
     update_tablet_meta_req.txn_id = txn_id;
 
     TTabletMetaInfo tablet_meta_info;
-    auto tablet_id = _tablet_metadata->tablet_id;
+    auto tablet_id = _tablet_metadata->id();
     tablet_meta_info.tablet_id = tablet_id;
     tablet_meta_info.meta_type = TTabletMetaType::ENABLE_PERSISTENT_INDEX;
     tablet_meta_info.enable_persistent_index = true;
