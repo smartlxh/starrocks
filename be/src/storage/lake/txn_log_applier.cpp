@@ -157,6 +157,7 @@ private:
         DCHECK_EQ(_base_version + 1, _new_version);
         switch (op_alter_meta.table_meta_type()) {
         case TabletMetaTypePB::ENABLE_PERSISTENT_INDEX:
+            std::cout << "apply_alter_meta_log" << op_alter_meta.enable_persistent_index();
             _metadata->set_enable_persistent_index(op_alter_meta.enable_persistent_index());
 
             // Try remove index from index cache

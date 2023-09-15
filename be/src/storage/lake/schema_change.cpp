@@ -370,6 +370,7 @@ Status SchemaChangeHandler ::do_process_update_tablet_meta(const TTabletMetaInfo
     } else {
         op_alter_meta->set_table_meta_type(TabletMetaTypePB::ENABLE_PERSISTENT_INDEX);
         op_alter_meta->set_enable_persistent_index(tablet_meta_info.enable_persistent_index);
+        std::cout << "do_process_update_tablet_meta " << tablet_meta_info.enable_persistent_index;
     }
 
     LOG(INFO) << "update lake tablet:" << tablet_id
