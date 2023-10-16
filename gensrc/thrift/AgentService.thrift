@@ -343,6 +343,7 @@ enum TTabletMetaType {
     REPLICATED_STORAGE,
     DISABLE_BINLOG,
     BINLOG_CONFIG
+    STORAGE_TYPE
 }
 
 struct TTabletMetaInfo {

@@ -788,6 +788,9 @@ void run_update_meta_info_task(const std::shared_ptr<UpdateTabletMetaInfoAgentTa
                 auto manager = StorageEngine::instance()->update_manager();
                 manager->index_cache().try_remove_by_key(tablet->tablet_id());
                 break;
+            case TTabletMetaType::STORAGE_TYPE:
+                LOG(INFO) << "change storage_type not supported";
+                break;
             }
         }
         tablet->save_meta();
