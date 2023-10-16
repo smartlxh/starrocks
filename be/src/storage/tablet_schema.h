@@ -283,6 +283,10 @@ public:
 
     Schema* schema() const;
 
+    explicit TabletSchema(TabletSchema& ts) {
+
+    }
+
 private:
     friend class SegmentReaderWriterTest;
     FRIEND_TEST(SegmentReaderWriterTest, estimate_segment_size);
