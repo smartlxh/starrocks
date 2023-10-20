@@ -14,6 +14,7 @@
 
 #include "exec/spill/spill_components.h"
 
+#include "common/config.h"
 #include "exec/spill/executor.h"
 #include "exec/spill/serde.h"
 #include "exec/spill/spiller.h"
