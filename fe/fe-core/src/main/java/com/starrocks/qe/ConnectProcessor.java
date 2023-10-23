@@ -48,6 +48,7 @@ import com.starrocks.common.ErrorCode;
 import com.starrocks.common.ErrorReport;
 import com.starrocks.common.profile.Tracers;
 import com.starrocks.common.util.AuditStatisticsUtil;
+import com.starrocks.common.util.DebugUtil;
 import com.starrocks.common.util.LogUtil;
 import com.starrocks.common.util.UUIDUtil;
 import com.starrocks.connector.exception.StarRocksConnectorException;
@@ -79,6 +80,7 @@ import com.starrocks.sql.parser.SqlParser;
 import com.starrocks.thrift.TMasterOpRequest;
 import com.starrocks.thrift.TMasterOpResult;
 import com.starrocks.thrift.TQueryOptions;
+import com.starrocks.thrift.TWorkGroup;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -94,6 +96,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Process one mysql connection, receive one pakcet, process, send one packet.
@@ -282,6 +285,80 @@ public class ConnectProcessor {
         } catch (NoSuchAlgorithmException e) {
             return "";
         }
+    }
+
+    private boolean containsComment(String sql) {
+        return (sql.contains("--")) || sql.contains("#");
+    }
+
+    protected void addFinishedQueryDetail() {
+        if (!Config.enable_collect_query_detail_info && !ctx.getSessionVariable().isEnableRecaptureProfile()) {
+            return;
+        }
+        QueryDetail queryDetail = ctx.getQueryDetail();
+        if (queryDetail == null || !queryDetail.getQueryId().equals(DebugUtil.printId(ctx.getQueryId()))) {
+            return;
+        }
+
+        long endTime = System.currentTimeMillis();
+        long elapseMs = endTime - ctx.getStartTime();
+
+        if (ctx.getState().getStateType() == QueryState.MysqlStateType.ERR) {
+            queryDetail.setState(QueryDetail.QueryMemState.FAILED);
+            queryDetail.setErrorMessage(ctx.getState().getErrorMessage());
+        } else {
+            queryDetail.setState(QueryDetail.QueryMemState.FINISHED);
+        }
+        queryDetail.setEndTime(endTime);
+        queryDetail.setLatency(elapseMs);
+        queryDetail.setResourceGroupName(ctx.getResourceGroup() != null ? ctx.getResourceGroup().getName() : "");
+        // add execution statistics into queryDetail
+        queryDetail.setReturnRows(ctx.getReturnRows());
+        queryDetail.setDigest(ctx.getAuditEventBuilder().build().digest);
+        PQueryStatistics statistics = executor.getQueryStatisticsForAuditLog();
+        if (statistics != null) {
+            queryDetail.setScanBytes(statistics.scanBytes);
+            queryDetail.setScanRows(statistics.scanRows);
+            queryDetail.setCpuCostNs(statistics.cpuCostNs == null ? -1 : statistics.cpuCostNs);
+            queryDetail.setMemCostBytes(statistics.memCostBytes == null ? -1 : statistics.memCostBytes);
+            queryDetail.setSpillBytes(statistics.spillBytes == null ? -1 : statistics.spillBytes);
+        }
+
+        if (Config.enable_collect_query_detail_info) {
+            QueryDetailQueue.addQueryDetail(queryDetail);
+        } else if (ctx.getSessionVariable().isEnableRecaptureProfile()) {
+            QueryDetailQueue.addAndRemoveTimeoutReCaptureQueryDetail(queryDetail);
+        }
+    }
+
+    protected void addRunningQueryDetail(StatementBase parsedStmt) {
+        if (!Config.enable_collect_query_detail_info &&
+                !ctx.getSessionVariable().isEnableRecaptureProfile()) {
+            return;
+        }
+        String sql;
+        if (!ctx.getState().isQuery() && parsedStmt.needAuditEncryption()) {
+            sql = AstToSQLBuilder.toSQL(parsedStmt);
+        } else {
+            sql = parsedStmt.getOrigStmt().originStmt;
+        }
+
+        boolean isQuery = parsedStmt instanceof QueryStatement;
+        QueryDetail queryDetail = new QueryDetail(
+                DebugUtil.printId(ctx.getQueryId()),
+                isQuery,
+                ctx.connectionId,
+                ctx.getMysqlChannel() != null ?
+                        ctx.getMysqlChannel().getRemoteIp() : "System",
+                ctx.getStartTime(), -1, -1,
+                QueryDetail.QueryMemState.RUNNING,
+                ctx.getDatabase(),
+                sql,
+                ctx.getQualifiedUser(),
+                Optional.ofNullable(ctx.getResourceGroup()).map(TWorkGroup::getName).orElse(""));
+        ctx.setQueryDetail(queryDetail);
+        // copy queryDetail, cause some properties can be changed in future
+        QueryDetailQueue.addQueryDetail(queryDetail.copy());
     }
 
     // process COM_QUERY statement,

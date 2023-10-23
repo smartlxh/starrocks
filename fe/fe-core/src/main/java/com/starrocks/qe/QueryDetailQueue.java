@@ -37,6 +37,7 @@ package com.starrocks.qe;
 import com.google.common.collect.Lists;
 import com.starrocks.common.Config;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executors;
@@ -48,10 +49,16 @@ import java.util.concurrent.atomic.AtomicLong;
 // It's used to collect queries for monitor.
 public class QueryDetailQueue {
     private static final ConcurrentLinkedDeque<QueryDetail> TOTAL_QUERIES = new ConcurrentLinkedDeque<>();
+    private static final ConcurrentLinkedDeque<QueryDetail> RECAPTURE_QUERIES = new ConcurrentLinkedDeque<>();
     private static final ScheduledExecutorService SCHEDULED = Executors.newSingleThreadScheduledExecutor();
 
     private static final AtomicLong LATEST_MS = new AtomicLong();
     private static final AtomicLong LATEST_MS_CNT = new AtomicLong();
+
+    //starrocks-manager pull queries every 1 second
+    //metrics calculate query latency every 15 second
+    //do not set cacheTime lower than these time
+    private static final long CACHE_TIME_NS = 30000000000L;
 
     static {
         SCHEDULED.scheduleAtFixedRate(QueryDetailQueue::removeExpiredQueryDetails, 0, 5, TimeUnit.SECONDS);
@@ -70,7 +77,25 @@ public class QueryDetailQueue {
         }
     }
 
-    public static List<QueryDetail> getQueryDetailsAfterTime(long eventTime) {
+    public static synchronized void addAndRemoveTimeoutReCaptureQueryDetail(QueryDetail queryDetail) {
+        //set event time here to guarantee order
+        long now = getCurrentTimeNS();
+        queryDetail.setEventTime(now);
+        RECAPTURE_QUERIES.add(queryDetail);
+
+        Iterator<QueryDetail> it = RECAPTURE_QUERIES.iterator();
+        long deleteTime = now - CACHE_TIME_NS;
+        while (it.hasNext()) {
+            QueryDetail detail = it.next();
+            if (detail.getEventTime() < deleteTime) {
+                it.remove();
+            } else {
+                break;
+            }
+        }
+    }
+
+    public static synchronized List<QueryDetail> getQueryDetailsAfterTime(long eventTime) {
         List<QueryDetail> results = Lists.newArrayList();
         for (QueryDetail queryDetail : TOTAL_QUERIES) {
             if (queryDetail.getEventTime() > eventTime) {
@@ -80,7 +105,17 @@ public class QueryDetailQueue {
         return results;
     }
 
-    public static long getTotalQueriesCount() {
+    public static synchronized List<QueryDetail> getRecaptureQueryDetailsAfterTime(long eventTime) {
+        List<QueryDetail> results = Lists.newArrayList();
+        for (QueryDetail queryDetail : RECAPTURE_QUERIES) {
+            if (queryDetail.getEventTime() > eventTime) {
+                results.add(queryDetail);
+            }
+        }
+        return results;
+    }
+
+    public static synchronized long getTotalQueriesCount() {
         return TOTAL_QUERIES.size();
     }
 
