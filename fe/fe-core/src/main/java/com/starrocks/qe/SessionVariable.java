@@ -115,6 +115,9 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
     public static final String IS_REPORT_SUCCESS = "is_report_success";
     public static final String ENABLE_PROFILE = "enable_profile";
 
+    // Used by product like starrocks manager not by users
+    public static final String ENABLE_RECAPTURE_PROFILE = "enable_recapture_profile";
+
     public static final String ENABLE_LOAD_PROFILE = "enable_load_profile";
     public static final String PROFILING = "profiling";
     public static final String SQL_MODE = "sql_mode";
@@ -681,6 +684,10 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
     // if true, will generate profile when load finished
     @VariableMgr.VarAttr(name = ENABLE_LOAD_PROFILE)
     private boolean enableLoadProfile = false;
+
+    // if true, need record query detail for this session.
+    @VariableMgr.VarAttr(name = ENABLE_RECAPTURE_PROFILE)
+    private boolean enableRecaptureProfile = false;
 
     // Default sqlMode is ONLY_FULL_GROUP_BY
     @VariableMgr.VarAttr(name = SQL_MODE_STORAGE_NAME, alias = SQL_MODE, show = SQL_MODE)
@@ -1652,6 +1659,10 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
 
     public void setEnableLoadProfile(boolean enableLoadProfile) {
         this.enableLoadProfile = enableLoadProfile;
+    }
+
+    public boolean isEnableRecaptureProfile() {
+        return enableRecaptureProfile;
     }
 
     public int getWaitTimeoutS() {
