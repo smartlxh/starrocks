@@ -35,8 +35,12 @@
 package com.starrocks.http.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+<<<<<<< HEAD
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
+=======
+import com.starrocks.common.Config;
+>>>>>>> 78e0c4f1a5 ([EMR][BugFix] Use fe's ip when redirecting rest actions to leader in k8s env )
 import com.starrocks.common.DdlException;
 import com.starrocks.common.ErrorCode;
 import com.starrocks.common.Pair;
@@ -54,12 +58,18 @@ import com.starrocks.sql.ast.UserIdentity;
 import com.starrocks.thrift.TNetworkAddress;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import org.apache.commons.validator.routines.InetAddressValidator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+<<<<<<< HEAD
 import java.util.List;
+=======
+import java.net.UnknownHostException;
+>>>>>>> 78e0c4f1a5 ([EMR][BugFix] Use fe's ip when redirecting rest actions to leader in k8s env )
 
 public class RestBaseAction extends BaseAction {
     protected static final String CATALOG_KEY = "catalog";
@@ -192,6 +202,20 @@ public class RestBaseAction extends BaseAction {
             return false;
         }
         Pair<String, Integer> leaderIpAndPort = globalStateMgr.getLeaderIpAndHttpPort();
+
+        String redirectHost = leaderIpAndPort.first;
+        if (Config.stream_load_force_use_ip) {
+            InetAddressValidator validator = InetAddressValidator.getInstance();
+            if (!validator.isValidInet4Address(redirectHost) && !validator.isValidInet6Address(redirectHost)) {
+                try {
+                    InetAddress ipAddress = InetAddress.getByName(redirectHost);
+                    redirectHost = ipAddress.getHostAddress();
+                } catch (UnknownHostException ex) {
+                    LOG.warn("get redirect host for leader {} failed!", redirectHost);
+                }
+            }
+        }
+
         redirectTo(request, response,
                 new TNetworkAddress(leaderIpAndPort.first, leaderIpAndPort.second));
         return true;
