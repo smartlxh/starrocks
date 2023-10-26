@@ -38,11 +38,11 @@ class TabletSchema;
 class ColumnPredicate;
 class DeletePredicates;
 struct RowidRangeOption;
-struct ShortKeyRangeOption;
+struct ShortKeyRangesOption;
 
 class RowsetReadOptions {
     using RowidRangeOptionPtr = std::shared_ptr<RowidRangeOption>;
-    using ShortKeyRangeOptionPtr = std::shared_ptr<ShortKeyRangeOption>;
+    using ShortKeyRangesOptionPtr = std::shared_ptr<ShortKeyRangesOption>;
     using PredicateList = std::vector<const ColumnPredicate*>;
 
 public:
@@ -75,7 +75,7 @@ public:
     const std::unordered_set<uint32_t>* unused_output_column_ids = nullptr;
 
     RowidRangeOptionPtr rowid_range_option = nullptr;
-    std::vector<ShortKeyRangeOptionPtr> short_key_ranges;
+    ShortKeyRangesOptionPtr short_key_ranges_option = nullptr;
 
     OlapRuntimeScanRangePruner runtime_range_pruner;
 
