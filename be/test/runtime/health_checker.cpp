@@ -41,7 +41,7 @@ TEST_F(MonitorManagerTest, monitor_manager) {
             .set_idle_timeout(MonoDelta::FromMilliseconds(2000))
             .build(&thread_pool_test);
 
-    thread_pool_checker->register_thread_pool("thread_pool_test", thread_pool_test.get());
+    (void)thread_pool_checker->register_thread_pool("thread_pool_test", thread_pool_test.get());
 
     monitor_manager_ptr->register_monitor(thread_pool_checker->get_name(), thread_pool_checker.get());
     monitor_manager_ptr->start_all_monitors();
