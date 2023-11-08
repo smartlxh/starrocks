@@ -4355,12 +4355,12 @@ Status TabletUpdates::get_column_values(const std::vector<uint32_t>& column_ids,
             full_row_column->reset_column();
             full_row_column->reserve(rowids.size());
             ASSIGN_OR_RETURN(auto col_iter,
-                             (*segment)->new_column_iterator(_tablet.tablet_schema()->num_columns() - 1));
+                             (*segment)->new_column_iterator(_tablet.tablet_schema().num_columns() - 1));
 
             RETURN_IF_ERROR(col_iter->init(iter_opts));
             RETURN_IF_ERROR(col_iter->fetch_values_by_rowid(rowids.data(), rowids.size(), full_row_column.get()));
             auto row_encoder = RowStoreEncoderFactory::instance()->get_or_create_encoder(SIMPLE);
-            row_encoder->decode_columns_from_full_row_column(*(_tablet.tablet_schema()->schema()), *full_row_column,
+            row_encoder->decode_columns_from_full_row_column(*(_tablet.tablet_schema().schema()), *full_row_column,
                                                              column_ids, columns);
         } else {
             for (auto i = 0; i < column_ids.size(); ++i) {
