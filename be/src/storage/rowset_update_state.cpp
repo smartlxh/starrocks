@@ -697,7 +697,8 @@ Status RowsetUpdateState::apply(Tablet* tablet, Rowset* rowset, uint32_t rowset_
                                                         read_column_ids_without_full_row, index));
         }
         if (tablet->is_column_with_row_store()) {
-            append_full_row_column(tschema, _partial_update_value_column_ids, read_column_ids_without_full_row,
+            Schema base_schema = ChunkHelper::convert_schema(tschema)
+            append_full_row_column(base_schema, _partial_update_value_column_ids, read_column_ids_without_full_row,
                                    _partial_update_states[segment_id]);
         }
     }

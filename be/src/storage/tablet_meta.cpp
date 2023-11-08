@@ -58,13 +58,8 @@ Status TabletMeta::create(const TCreateTabletReq& request, const TabletUid& tabl
             request.tablet_schema, next_unique_id,
             request.__isset.enable_persistent_index ? request.enable_persistent_index : false, col_ordinal_to_unique_id,
             tablet_uid, request.__isset.tablet_type ? request.tablet_type : TTabletType::TABLET_TYPE_DISK,
-<<<<<<< HEAD
-            request.__isset.compression_type ? request.compression_type : TCompressionType::LZ4_FRAME);
-=======
             request.__isset.compression_type ? request.compression_type : TCompressionType::LZ4_FRAME,
-            request.__isset.primary_index_cache_expire_sec ? request.primary_index_cache_expire_sec : 0,
             request.tablet_schema.storage_type);
->>>>>>> e6ee6cd774 ([Feature] Add column_with_row store type for PK table and optimize read amplification of partialupdate (#28559))
 
     if (request.__isset.binlog_config) {
         BinlogConfig binlog_config;
