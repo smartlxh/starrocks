@@ -22,6 +22,7 @@ import com.starrocks.proto.PCancelPlanFragmentResult;
 import com.starrocks.proto.PCollectQueryStatisticsResult;
 import com.starrocks.proto.PExecBatchPlanFragmentsResult;
 import com.starrocks.proto.PExecPlanFragmentResult;
+import com.starrocks.proto.PExecShortCircuitResult;
 import com.starrocks.proto.PFetchDataResult;
 import com.starrocks.proto.PGetFileSchemaResult;
 import com.starrocks.proto.PMVMaintenanceTaskResult;
@@ -75,5 +76,9 @@ public interface PBackendService {
 
     @ProtobufRPC(serviceName = "PBackendService", methodName = "execute_command", onceTalkTimeout = 60000)
     Future<ExecuteCommandResultPB> executeCommandAsync(ExecuteCommandRequestPB request);
+
+    @ProtobufRPC(serviceName = "PBackendService", methodName = "exec_short_circuit",
+            attachmentHandler = ThriftClientAttachmentHandler.class, onceTalkTimeout = 60000)
+    Future<PExecShortCircuitResult> execShortCircuit(PExecShortCircuitRequest request);
 }
 

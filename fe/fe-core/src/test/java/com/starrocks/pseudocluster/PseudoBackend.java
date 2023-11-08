@@ -45,6 +45,7 @@ import com.starrocks.proto.PCancelPlanFragmentResult;
 import com.starrocks.proto.PCollectQueryStatisticsResult;
 import com.starrocks.proto.PExecBatchPlanFragmentsResult;
 import com.starrocks.proto.PExecPlanFragmentResult;
+import com.starrocks.proto.PExecShortCircuitResult;
 import com.starrocks.proto.PFetchDataResult;
 import com.starrocks.proto.PGetFileSchemaResult;
 import com.starrocks.proto.PMVMaintenanceTaskResult;
@@ -81,6 +82,7 @@ import com.starrocks.proto.VacuumResponse;
 import com.starrocks.rpc.LakeService;
 import com.starrocks.rpc.PBackendService;
 import com.starrocks.rpc.PExecBatchPlanFragmentsRequest;
+import com.starrocks.rpc.PExecShortCircuitRequest;
 import com.starrocks.rpc.PGetFileSchemaRequest;
 import com.starrocks.rpc.PMVMaintenanceTaskRequest;
 import com.starrocks.system.Backend;
@@ -1028,6 +1030,11 @@ public class PseudoBackend {
                 throw new org.apache.commons.lang3.NotImplementedException("TODO");
             }
             return CompletableFuture.completedFuture(result);
+        }
+
+        @Override
+        public Future<PExecShortCircuitResult> execShortCircuit(PExecShortCircuitRequest request) {
+            return null;
         }
     }
 
