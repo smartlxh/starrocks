@@ -640,7 +640,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& vs) {
     return os;
 }
 
-static void append_full_row_column(const Schema& tschema, const std::vector<uint32_t>& partial_update_value_column_ids,
+static void append_full_row_column(const Schema&& tschema, const std::vector<uint32_t>& partial_update_value_column_ids,
                                    const std::vector<uint32_t>& read_column_ids, PartialUpdateState& state) {
     CHECK(state.write_columns.size() == read_column_ids.size());
     size_t input_column_size = tschema.num_fields() - tschema.num_key_fields() - 1;
