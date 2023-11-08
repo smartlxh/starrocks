@@ -785,8 +785,7 @@ void run_update_meta_info_task(const std::shared_ptr<UpdateTabletMetaInfoAgentTa
                 // If tablet is doing apply rowset right now, remove primary index from index cache may be failed
                 // because the primary index is available in cache
                 // But it will be remove from index cache after apply is finished
-                auto manager = StorageEngine::instance()->update_manager();
-                manager->index_cache().try_remove_by_key(tablet->tablet_id());
+                StorageEngine::instance()->update_manager()->index_cache().try_remove_by_key(tablet->tablet_id());
                 break;
             case TTabletMetaType::STORAGE_TYPE:
                 LOG(INFO) << "change storage_type not supported";
