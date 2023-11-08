@@ -189,9 +189,9 @@ Status DeltaWriter::_init() {
         }
     }();
 
-    size_t real_num_columns = _tablet->tablet_schema()->num_columns();
+    size_t real_num_columns = _tablet->tablet_schema().num_columns();
     if (_tablet->is_column_with_row_store()) {
-        if (_tablet->tablet_schema()->columns().back().name() != "__row") {
+        if (_tablet->tablet_schema().columns().back().name() != "__row") {
             return Status::InternalError("bad column_with_row schema, not __row column");
         }
         real_num_columns -= 1;
