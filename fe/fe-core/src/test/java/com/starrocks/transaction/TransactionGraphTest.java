@@ -177,13 +177,13 @@ public class TransactionGraphTest {
         assertEquals(txnIds.size(), 1);
         batchTxnIds = graph2.getTxnsWithTxnDependencyBatch(1, 5, txnIds.get(0));
         assertEquals(batchTxnIds.get(0).longValue(), 1);
-
+        LOG.info("nnnn");
         graph2.remove(1);
         batchTxnIds = graph2.getTxnsWithTxnDependencyBatch(1, 5, 2);
         assertEquals(batchTxnIds.size(), 2);
         assertEquals(batchTxnIds.get(0).longValue(), 2);
         assertEquals(batchTxnIds.get(1).longValue(), 3);
-
+        LOG.info("mmmmm");
         // TransactionGraph
         // table1:  ------------> txn2 -------------> txn3  ----------> txn4 -------> txn5  ------> txn7
         // table2:  --------------------------------------------------> txn4 -------> txn6  ------> txn7

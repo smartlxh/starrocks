@@ -164,17 +164,15 @@ public class TransactionGraph {
             int count = 0;
             // can not judge by ins.size()
             // for the ins.size of the txn with multi table can be one
-            while (count < maxBatchSize && node != null) {
-                if (node.writeTableIds.size() == 1) {
-                    count++;
-                    txns.add(node.txnId);
+            while (count < maxBatchSize && node != null && (node.writeTableIds.size() == 1)) {
+                count++;
+                txns.add(node.txnId);
 
-                    // the node which size of write table is one, their size of outs can not be greater than two
-                    if (node.outs != null) {
-                        node = node.outs.stream().findAny().orElse(null);
-                    } else {
-                        node = null;
-                    }
+                // the node which size of write table is one, their size of outs can not be greater than two
+                if (node.outs != null) {
+                    node = node.outs.stream().findAny().orElse(null);
+                } else {
+                    node = null;
                 }
             }
         }
