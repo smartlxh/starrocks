@@ -16,6 +16,8 @@ package com.starrocks.transaction;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -27,6 +29,7 @@ import java.util.Set;
 import static org.junit.Assert.assertEquals;
 
 public class TransactionGraphTest {
+    private static final Logger LOG = LogManager.getLogger(TransactionGraphTest.class);
     private void expectNextBatch(TransactionGraph graph, List<Long> expected) {
         List<Long> result = graph.getTxnsWithoutDependency();
         Collections.sort(result);
@@ -181,6 +184,26 @@ public class TransactionGraphTest {
         assertEquals(batchTxnIds.get(0).longValue(), 2);
         assertEquals(batchTxnIds.get(1).longValue(), 3);
 
+        // TransactionGraph
+        // table1:  ------------> txn2 -------------> txn3  ----------> txn4 -------> txn5  ------> txn7
+        // table2:  --------------------------------------------------> txn4 -------> txn6  ------> txn7
+        graph2.add(4, Lists.newArrayList(1L, 2L));
+        graph2.add(5, Lists.newArrayList(1L));
+        graph2.add(6, Lists.newArrayList(2L));
+        graph2.add(7, Lists.newArrayList(1L, 2L));
+
+        LOG.info("ddddd");
+        txnIds = graph2.getTxnsWithoutDependency();
+        assertEquals(txnIds.size(), 1);
+        batchTxnIds = graph2.getTxnsWithTxnDependencyBatch(1, 5, 2);
+        assertEquals(batchTxnIds.size(), 2);
+        graph.remove(2);
+        graph.remove(3);
+        LOG.info("ccccc");
+        txnIds = graph2.getTxnsWithoutDependency();
+        assertEquals(txnIds.size(), 1);
+        batchTxnIds = graph2.getTxnsWithTxnDependencyBatch(1, 5, 4);
+        assertEquals(batchTxnIds.size(), 1);
     }
 
     @Test
