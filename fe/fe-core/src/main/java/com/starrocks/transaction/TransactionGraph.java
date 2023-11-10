@@ -163,6 +163,7 @@ public class TransactionGraph {
             }
             int count = 0;
             // can not judge by ins.size()
+            // for the ins.size of the txn with multi table can be one
             while (count < maxBatchSize && node != null) {
                 if (node.writeTableIds.size() == 1) {
                     count++;
