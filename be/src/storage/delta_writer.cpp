@@ -198,7 +198,7 @@ Status DeltaWriter::_init() {
     }
 
     // maybe partial update, change to partial tablet schema
-    if (_tablet_schema->keys_type() == KeysType::PRIMARY_KEYS && partial_cols_num < real_num_columns) {
+    if (_tablet->tablet_schema().keys_type() == KeysType::PRIMARY_KEYS && partial_cols_num < real_num_columns) {
         writer_context.referenced_column_ids.reserve(partial_cols_num);
         for (auto i = 0; i < partial_cols_num; ++i) {
             const auto& slot_col_name = (*_opt.slots)[i]->col_name();
