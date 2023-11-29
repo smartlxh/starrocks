@@ -312,6 +312,12 @@ void start_be(const std::vector<StorePath>& paths, bool as_cn) {
     }
 #endif
 
+    // shut down abruptly
+    if (starrocks::k_starrocks_exit_quick.load()) {
+        LOG(INFO) << "BE is shutting down，will exit quickly";
+        exit(0);
+    }
+
     http_server->join();
     http_server.reset();
     LOG(INFO) << process_name << " exit step " << exit_step++ << ": http server exit successfully";
