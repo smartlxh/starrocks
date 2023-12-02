@@ -523,7 +523,7 @@ public class EtlStatus implements Writable {
                 unselectedRowsCounterTbl.put(loadStr, fragmentStr, params.unselected_rows);
                 sourceScanBytesCounterTbl.put(loadStr, fragmentStr, params.source_scan_bytes);
             }
-            if (params.load_counters.containsKey(LoadJob.PARTITION_LOADED_ROWS)) {
+            if (params.isSetLoad_counters() && params.load_counters.containsKey(LoadJob.PARTITION_LOADED_ROWS)) {
                 sinkPartitionRows.put(loadStr, fragmentStr, params.load_counters.get(LoadJob.PARTITION_LOADED_ROWS));
             }
 
