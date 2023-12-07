@@ -424,9 +424,21 @@ Status DeltaWriterImpl::finish(DeltaWriter::FinishMode mode) {
     txn_log->set_tablet_id(_tablet_id);
     txn_log->set_txn_id(_txn_id);
     auto op_write = txn_log->mutable_op_write();
+    auto files_to_size = _tablet_writer->files_to_size();
+    LOG(INFO) << "files_to_size";
+    for (auto iterator = files_to_size.begin(); iterator != files_to_size.end(); iterator++) {
+        LOG(INFO) << "file_name:" + iterator->first + "file_size: " + std::to_string(iterator->second);
+    }
+
     for (auto& f : _tablet_writer->files()) {
         if (is_segment(f)) {
+            LOG(INFO) << "segment_file:" + f;
             op_write->mutable_rowset()->add_segments(std::move(f));
+            if (files_to_size.contains(f)) {
+                LOG(INFO) << "segment_size: " + std::to_string(files_to_size.find(f)->second);
+            } else {
+                LOG(INFO) << "file not found";
+            }
         } else if (is_del(f)) {
             op_write->add_dels(std::move(f));
         } else {
@@ -436,6 +448,16 @@ Status DeltaWriterImpl::finish(DeltaWriter::FinishMode mode) {
     op_write->mutable_rowset()->set_num_rows(_tablet_writer->num_rows());
     op_write->mutable_rowset()->set_data_size(_tablet_writer->data_size());
     op_write->mutable_rowset()->set_overlapped(op_write->rowset().segments_size() > 1);
+
+    for (auto file : files_to_size) {
+        auto pos = file.first.find_last_of("/");
+        if (pos != file.first.npos) {
+            LOG(INFO) << "substr filename:" << file.first.substr(pos + 1);
+            (*(op_write->mutable_rowset()->mutable_files_to_size()))[file.first.substr(pos + 1)] = file.second;
+        } else {
+            LOG(INFO) << "invalid filename";
+        }
+    }
 
     const auto is_partial_update = (_write_schema->num_columns() < _tablet_schema->num_columns());
 

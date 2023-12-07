@@ -90,6 +90,7 @@ Status HorizontalGeneralTabletWriter::flush_segment_writer(SegmentPB* segment) {
         uint64_t footer_position = 0;
         RETURN_IF_ERROR(_seg_writer->finalize(&segment_size, &index_size, &footer_position));
         _data_size += segment_size;
+        _files_to_size.emplace(_seg_writer->segment_path(), segment_size);
         if (segment) {
             segment->set_data_size(segment_size);
             segment->set_index_size(index_size);
@@ -204,6 +205,7 @@ Status VerticalGeneralTabletWriter::finish(SegmentPB* segment) {
             return st;
         }
         _data_size += segment_size;
+        _files_to_size.emplace(segment_writer->segment_path(), segment_size);
         segment_writer.reset();
     }
     _segment_writers.clear();

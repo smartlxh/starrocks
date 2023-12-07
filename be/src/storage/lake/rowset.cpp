@@ -211,9 +211,18 @@ Status Rowset::load_segments(std::vector<SegmentPtr>* segments, bool fill_data_c
     uint32_t seg_id = 0;
     bool ignore_lost_segment = config::experimental_lake_ignore_lost_segment;
     segments->reserve(_rowset_metadata->segments().size());
+    auto files_to_size = _rowset_metadata->files_to_size();
+
     for (const auto& seg_name : _rowset_metadata->segments()) {
-        auto segment_or =
-                _tablet.load_segment(seg_name, seg_id++, &footer_size_hint, fill_data_cache, fill_metadata_cache);
+        LOG(INFO) << "seg_name: " << seg_name;
+        uint64_t segment_size = 1;
+        if (files_to_size.contains(seg_name)) {
+            segment_size = files_to_size.find(seg_name)->second;
+            LOG(INFO) << "found";
+        }
+
+        auto segment_or = _tablet.load_segment(seg_name, seg_id++, &footer_size_hint, segment_size, fill_data_cache,
+                                               fill_metadata_cache);
         if (segment_or.ok()) {
             segments->emplace_back(std::move(segment_or.value()));
         } else if (segment_or.status().is_not_found() && ignore_lost_segment) {

@@ -50,6 +50,8 @@ public:
     // PREREQUISITES: the writer has successfully `finish()`ed but not yet `close()`ed.
     std::vector<std::string> files() const { return _files; }
 
+    std::unordered_map<std::string, size_t> files_to_size() const { return _files_to_size; }
+
     // The sum of all segment file sizes, in bytes.
     int64_t data_size() const { return _data_size; }
 
@@ -109,6 +111,8 @@ protected:
     TabletSchemaCSPtr _schema;
     int64_t _txn_id;
     std::vector<std::string> _files;
+    std::unordered_map<std::string, size_t> _files_to_size;
+    std::unordered_map<uint32_t, std::string> _segment_id_to_file;
     int64_t _num_rows = 0;
     int64_t _data_size = 0;
     uint32_t _seg_id = 0;

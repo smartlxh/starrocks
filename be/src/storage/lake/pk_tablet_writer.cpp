@@ -56,6 +56,7 @@ Status HorizontalPkTabletWriter::flush_segment_writer(SegmentPB* segment) {
         partial_rowset_footer->set_position(footer_position);
         partial_rowset_footer->set_size(segment_size - footer_position);
         _data_size += segment_size;
+        _files_to_size.emplace(_seg_writer->segment_path(), segment_size);
         if (segment) {
             segment->set_data_size(segment_size);
             segment->set_index_size(index_size);

@@ -82,9 +82,12 @@ StatusOr<std::shared_ptr<Segment>> Segment::open(std::shared_ptr<FileSystem> fs,
 }
 
 Status Segment::parse_segment_footer(RandomAccessFile* read_file, SegmentFooterPB* footer, size_t* footer_length_hint,
-                                     const FooterPointerPB* partial_rowset_footer) {
+                                     const FooterPointerPB* partial_rowset_footer, uint64_t segment_size) {
     // Footer := SegmentFooterPB, FooterPBSize(4), FooterPBChecksum(4), MagicNumber(4)
     ASSIGN_OR_RETURN(auto file_size, read_file->get_size());
+
+    LOG(INFO) << "file_size from oss:" << file_size;
+    LOG(INFO) << "file_size from tablet_meta" << segment_size;
 
     if (file_size < 12) {
         return Status::Corruption(
@@ -171,10 +174,110 @@ Status Segment::parse_segment_footer(RandomAccessFile* read_file, SegmentFooterP
     return Status::OK();
 }
 
-Segment::Segment(std::shared_ptr<FileSystem> fs, std::string path, uint32_t segment_id, TabletSchemaCSPtr tablet_schema,
+Status Segment::parse_segment_footer(RandomAccessFile* read_file, SegmentFooterPB* footer, size_t* footer_length_hint,
+                                     const FooterPointerPB* partial_rowset_footer) {
+    // Footer := SegmentFooterPB, FooterPBSize(4), FooterPBChecksum(4), MagicNumber(4)
+    ASSIGN_OR_RETURN(auto file_size, read_file->get_size());
+    if (file_size < 12) {
+        return Status::Corruption(
+                strings::Substitute("Bad segment file $0: file size $1 < 12", read_file->filename(), file_size));
+    }
+
+    size_t hint_size = footer_length_hint ? *footer_length_hint : 4096;
+    size_t footer_read_size = std::min<size_t>(hint_size, file_size);
+
+    if (partial_rowset_footer != nullptr) {
+        if (file_size < partial_rowset_footer->position() + partial_rowset_footer->size()) {
+            return Status::Corruption(
+                    strings::Substitute("Bad partial segment file $0: file size $1 < $2", read_file->filename(),
+                                        file_size, partial_rowset_footer->position() + partial_rowset_footer->size()));
+        }
+        footer_read_size = partial_rowset_footer->size();
+    }
+    std::string buff;
+    raw::stl_string_resize_uninitialized(&buff, footer_read_size);
+    size_t read_pos = partial_rowset_footer ? partial_rowset_footer->position() : file_size - buff.size();
+
+    RETURN_IF_ERROR(read_file->read_at_fully(read_pos, buff.data(), buff.size()));
+
+    const uint32_t footer_length = UNALIGNED_LOAD32(buff.data() + buff.size() - 12);
+    const uint32_t checksum = UNALIGNED_LOAD32(buff.data() + buff.size() - 8);
+    const uint32_t magic_number = UNALIGNED_LOAD32(buff.data() + buff.size() - 4);
+
+    // validate magic number
+    if (magic_number != UNALIGNED_LOAD32(k_segment_magic)) {
+        return Status::Corruption(
+                strings::Substitute("Bad segment file $0: magic number not match", read_file->filename()));
+    }
+
+    if (file_size < 12 + footer_length) {
+        return Status::Corruption(strings::Substitute("Bad segment file $0: file size $1 < $2", read_file->filename(),
+                                                      file_size, 12 + footer_length));
+    }
+
+    if (footer_length_hint != nullptr && footer_length > *footer_length_hint) {
+        *footer_length_hint = footer_length + 128 /* allocate slightly more bytes next time*/;
+    }
+
+    buff.resize(buff.size() - 12); // Remove the last 12 bytes.
+
+    uint32_t actual_checksum = 0;
+    if (footer_length <= buff.size()) {
+        g_open_segments << 1;
+        g_open_segments_io << 1;
+
+        std::string_view buf_footer(buff.data() + buff.size() - footer_length, footer_length);
+        actual_checksum = crc32c::Value(buf_footer.data(), buf_footer.size());
+        if (!footer->ParseFromArray(buf_footer.data(), buf_footer.size())) {
+            return Status::Corruption(
+                    strings::Substitute("Bad segment file $0: failed to parse footer", read_file->filename()));
+        }
+    } else { // Need read file again.
+        g_open_segments << 1;
+        g_open_segments_io << 2;
+
+        int left_size = (int)footer_length - buff.size();
+        std::string buff_2;
+        raw::stl_string_resize_uninitialized(&buff_2, left_size);
+        RETURN_IF_ERROR(read_file->read_at_fully(file_size - footer_length - 12, buff_2.data(), buff_2.size()));
+        actual_checksum = crc32c::Extend(actual_checksum, buff_2.data(), buff_2.size());
+        actual_checksum = crc32c::Extend(actual_checksum, buff.data(), buff.size());
+
+        ::google::protobuf::io::ArrayInputStream stream1(buff_2.data(), buff_2.size());
+        ::google::protobuf::io::ArrayInputStream stream2(buff.data(), buff.size());
+        ::google::protobuf::io::ZeroCopyInputStream* streams[2] = {&stream1, &stream2};
+        ::google::protobuf::io::ConcatenatingInputStream concatenating_stream(streams, 2);
+        if (!footer->ParseFromZeroCopyStream(&concatenating_stream)) {
+            return Status::Corruption(
+                    strings::Substitute("Bad segment file $0: failed to parse footer", read_file->filename()));
+        }
+    }
+
+    // validate footer PB's checksum
+    if (actual_checksum != checksum) {
+        return Status::Corruption(
+                strings::Substitute("Bad segment file $0: footer checksum not match, actual=$1 vs expect=$2",
+                                    read_file->filename(), actual_checksum, checksum));
+    }
+
+    return Status::OK();
+}
+
+Segment::Segment(std::shared_ptr<FileSystem> fs, std::string path, uint64_t segment_id, TabletSchemaCSPtr tablet_schema,
                  lake::TabletManager* tablet_manager)
         : _fs(std::move(fs)),
           _fname(std::move(path)),
+          _tablet_schema(std::move(tablet_schema)),
+          _segment_id(segment_id),
+          _tablet_manager(tablet_manager) {
+    MEM_TRACKER_SAFE_CONSUME(GlobalEnv::GetInstance()->segment_metadata_mem_tracker(), _basic_info_mem_usage());
+}
+
+Segment::Segment(std::shared_ptr<FileSystem> fs, std::string path, uint64_t segment_id, size_t segment_size,
+                 TabletSchemaCSPtr tablet_schema, lake::TabletManager* tablet_manager)
+        : _fs(std::move(fs)),
+          _fname(std::move(path)),
+          _segment_size(segment_size),
           _tablet_schema(std::move(tablet_schema)),
           _segment_id(segment_id),
           _tablet_manager(tablet_manager) {
@@ -208,7 +311,8 @@ Status Segment::_open(size_t* footer_length_hint, const FooterPointerPB* partial
     SegmentFooterPB footer;
     RandomAccessFileOptions opts{.skip_fill_local_cache = skip_fill_local_cache};
     ASSIGN_OR_RETURN(auto read_file, _fs->new_random_access_file(opts, _fname));
-    RETURN_IF_ERROR(Segment::parse_segment_footer(read_file.get(), &footer, footer_length_hint, partial_rowset_footer));
+    RETURN_IF_ERROR(Segment::parse_segment_footer(read_file.get(), &footer, footer_length_hint, partial_rowset_footer,
+                                                  _segment_size));
     RETURN_IF_ERROR(_create_column_readers(&footer));
     _num_rows = footer.num_rows();
     _short_key_index_page = PagePointer(footer.short_key_index_page());

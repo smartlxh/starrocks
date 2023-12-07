@@ -56,6 +56,7 @@ message RowsetMetadataPB {
     optional DeletePredicatePB delete_predicate = 6;
     // approximate, BE upgrade from old version can't get exact number of dels
     optional int64 num_dels = 7;
+    map<string, uint64> files_to_size = 8;
 }
 
 
