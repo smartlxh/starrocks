@@ -136,7 +136,9 @@ Status UpdateManager::publish_primary_key_tablet(const TxnLogPB_OpWrite& op_writ
     // 2. rewrite segment file if it is partial update
     std::vector<std::string> orphan_files;
     std::map<int, std::string> replace_segments;
-    RETURN_IF_ERROR(state.rewrite_segment(op_write, metadata, tablet, &replace_segments, &orphan_files));
+    std::map<std::string, uint64_t> replace_segments_file_size;
+    RETURN_IF_ERROR(state.rewrite_segment(op_write, metadata, tablet, &replace_segments, &orphan_files,
+                                          &replace_segments_file_size));
     PrimaryIndex::DeletesMap new_deletes;
     for (uint32_t i = 0; i < op_write.rowset().segments_size(); i++) {
         new_deletes[rowset_id + i] = {};
