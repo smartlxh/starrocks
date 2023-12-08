@@ -771,10 +771,11 @@ Status RowsetUpdateState::apply(Tablet* tablet, const TabletSchemaCSPtr& tablet_
                 src_path, dest_path, _tablet_schema, _auto_increment_partial_update_states[segment_id], read_column_ids,
                 _partial_update_states.size() != 0 ? &_partial_update_states[segment_id].write_columns : nullptr));
     } else if (_partial_update_states.size() != 0) {
+        uint64_t segment_size = 1;
         FooterPointerPB partial_rowset_footer = txn_meta.partial_rowset_footers(segment_id);
         RETURN_IF_ERROR(SegmentRewriter::rewrite(src_path, dest_path, _tablet_schema, read_column_ids,
                                                  _partial_update_states[segment_id].write_columns, segment_id,
-                                                 partial_rowset_footer));
+                                                 partial_rowset_footer, &segment_size));
     }
     int64_t t_rewrite_end = MonotonicMillis();
     LOG(INFO) << strings::Substitute("apply partial segment tablet:$0 rowset:$1 seg:$2 #column:$3 #rewrite:$4ms",

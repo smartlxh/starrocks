@@ -495,7 +495,7 @@ Status RowsetUpdateState::rewrite_segment(const TxnLogPB_OpWrite& op_write, cons
                     _auto_increment_partial_update_states[i], read_column_ids,
                     _partial_update_states.size() != 0 ? &_partial_update_states[i].write_columns : nullptr, op_write,
                     tablet, &segment_size));
-            segments_size[dest_path] = segment_size;
+            (*segments_size)[dest_path] = segment_size;
         } else if (_partial_update_states.size() != 0) {
             const FooterPointerPB& partial_rowset_footer = txn_meta.partial_rowset_footers(i);
 
@@ -504,7 +504,7 @@ Status RowsetUpdateState::rewrite_segment(const TxnLogPB_OpWrite& op_write, cons
             RETURN_IF_ERROR(SegmentRewriter::rewrite(
                     tablet->segment_location(src_path), tablet->segment_location(dest_path), tablet_schema,
                     read_column_ids, _partial_update_states[i].write_columns, i, partial_rowset_footer, &segment_size));
-            segments_size[dest_path] = segment_size;
+            (*segments_size)[dest_path] = segment_size;
         } else {
             need_rename[i] = false;
         }
