@@ -193,6 +193,20 @@ Status DirectSchemaChange::process(RowsetPtr rowset, RowsetMetadata* new_rowset_
     for (auto& f : writer->files()) {
         new_rowset_metadata->add_segments(std::move(f));
     }
+    auto files_to_size = writer->files_to_size();
+    LOG(INFO) << "files_to_size in direct schema change";
+    for (auto iterator = files_to_size.begin(); iterator != files_to_size.end(); iterator++) {
+        LOG(INFO) << "file_name:" + iterator->first + "file_size: " + std::to_string(iterator->second);
+    }
+    for (auto file : files_to_size) {
+        auto pos = file.first.find_last_of("/");
+        if (pos != file.first.npos) {
+            LOG(INFO) << "substr filename:" << file.first.substr(pos + 1);
+            (*(new_rowset_metadata->mutable_files_to_size()))[file.first.substr(pos + 1)] = file.second;
+        } else {
+            LOG(INFO) << "invalid filename";
+        }
+    }
     new_rowset_metadata->set_id(_next_rowset_id);
     new_rowset_metadata->set_num_rows(writer->num_rows());
     new_rowset_metadata->set_data_size(writer->data_size());
@@ -274,6 +288,20 @@ Status SortedSchemaChange::process(RowsetPtr rowset, RowsetMetadata* new_rowset_
     // update new rowset meta
     for (auto& f : writer->files()) {
         new_rowset_metadata->add_segments(std::move(f));
+    }
+    auto files_to_size = writer->files_to_size();
+    LOG(INFO) << "files_to_size in direct schema change";
+    for (auto iterator = files_to_size.begin(); iterator != files_to_size.end(); iterator++) {
+        LOG(INFO) << "file_name:" + iterator->first + "file_size: " + std::to_string(iterator->second);
+    }
+    for (auto file : files_to_size) {
+        auto pos = file.first.find_last_of("/");
+        if (pos != file.first.npos) {
+            LOG(INFO) << "substr filename:" << file.first.substr(pos + 1);
+            (*(new_rowset_metadata->mutable_files_to_size()))[file.first.substr(pos + 1)] = file.second;
+        } else {
+            LOG(INFO) << "invalid filename";
+        }
     }
     new_rowset_metadata->set_id(_next_rowset_id);
     new_rowset_metadata->set_num_rows(writer->num_rows());
