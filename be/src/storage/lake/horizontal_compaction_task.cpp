@@ -105,17 +105,8 @@ Status HorizontalCompactionTask::execute(Progress* progress, CancelFunc cancel_f
         op_compaction->mutable_output_rowset()->add_segments(file);
     }
 
-    for (auto file : files_to_size) {
-        auto pos = file.first.find_last_of("/");
-        if (pos != file.first.npos) {
-            LOG(INFO) << "substr filename:" << file.first.substr(pos + 1);
-            (*(op_compaction->mutable_output_rowset()->mutable_files_to_size()))[file.first.substr(pos + 1)] =
-                    file.second;
-        } else {
-            // This shouldn't happen
-            LOG(INFO) << "invalid filename";
-        }
-    }
+    // record segment file size to rowset metadata
+    RETURN_IF_ERROR(writer->file_sizes_to_PB(op_compaction->mutable_output_rowset()));
 
     op_compaction->mutable_output_rowset()->set_num_rows(writer->num_rows());
     op_compaction->mutable_output_rowset()->set_data_size(writer->data_size());

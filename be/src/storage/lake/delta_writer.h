@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "common/statusor.h"
+#include "gen_cpp/lake_types.pb.h"
 #include "gutil/macros.h"
 
 namespace starrocks {
@@ -88,6 +89,8 @@ public:
 
     // Return the map between files and size created by this DeltaWriter.
     std::unordered_map<std::string, size_t> files_to_size() const;
+
+    Status file_sizes_to_PB(RowsetMetadataPB* rowset_metadata) const;
 
     // The sum of all segment file sizes, in bytes.
     // NOTE: Do NOT invoke this function after `close()`, otherwise may get unexpected result.

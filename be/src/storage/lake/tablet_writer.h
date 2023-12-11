@@ -52,6 +52,20 @@ public:
 
     std::unordered_map<std::string, size_t> files_to_size() const { return _files_to_size; }
 
+    Status file_sizes_to_PB(RowsetMetadataPB* rowset_metadata) {
+        for (auto file : _files_to_size) {
+            auto pos = file.first.find_last_of("/");
+            if (pos != file.first.npos) {
+                (*(rowset_metadata->mutable_files_to_size()))[file.first.substr(pos + 1)] = file.second;
+            } else {
+                // This shouldn't happen
+                LOG(WARNING) << "invalid segment filename:" << file.first;
+                return Status::InternalError("invalid segment filename: " + file.first);
+            }
+        }
+        return Status::OK();
+    }
+
     // The sum of all segment file sizes, in bytes.
     int64_t data_size() const { return _data_size; }
 

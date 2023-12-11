@@ -120,6 +120,8 @@ public:
 
     std::unordered_map<std::string, size_t> files_to_size() const;
 
+    Status file_sizes_to_PB(RowsetMetadataPB* rowset_metadata) const;
+
     int64_t data_size() const;
 
     int64_t num_rows() const;
@@ -441,15 +443,8 @@ Status DeltaWriterImpl::finish(DeltaWriter::FinishMode mode) {
     op_write->mutable_rowset()->set_data_size(_tablet_writer->data_size());
     op_write->mutable_rowset()->set_overlapped(op_write->rowset().segments_size() > 1);
 
-    for (auto file : files_to_size) {
-        auto pos = file.first.find_last_of("/");
-        if (pos != file.first.npos) {
-            (*(op_write->mutable_rowset()->mutable_files_to_size()))[file.first.substr(pos + 1)] = file.second;
-        } else {
-            // This shouldn't happen
-            LOG(WARNING) << "invalid filename";
-        }
-    }
+    // record segment file size to rowset metadata
+    RETURN_IF_ERROR(_tablet_writer->file_sizes_to_PB(op_write->mutable_rowset()));
 
     const auto is_partial_update = (_write_schema->num_columns() < _tablet_schema->num_columns());
 
@@ -608,6 +603,10 @@ std::unordered_map<std::string, size_t> DeltaWriterImpl::files_to_size() const {
     return (_tablet_writer != nullptr) ? _tablet_writer->files_to_size() : std::unordered_map<std::string, size_t>();
 }
 
+Status DeltaWriterImpl::file_sizes_to_PB(RowsetMetadataPB* rowset_metadata) const {
+    return _tablet_writer->file_sizes_to_PB(rowset_metadata);
+}
+
 int64_t DeltaWriterImpl::data_size() const {
     return (_tablet_writer != nullptr) ? _tablet_writer->data_size() : 0;
 }
@@ -679,8 +678,12 @@ std::vector<std::string> DeltaWriter::files() const {
     return _impl->files();
 }
 
-std::unordered_map<std::string, size_t > DeltaWriter::files_to_size() const {
+std::unordered_map<std::string, size_t> DeltaWriter::files_to_size() const {
     return _impl->files_to_size();
+}
+
+Status DeltaWriter::file_sizes_to_PB(RowsetMetadataPB* rowset_metadata) const {
+    return _impl->file_sizes_to_PB(rowset_metadata);
 }
 
 const int64_t DeltaWriter::queueing_memtable_num() const {

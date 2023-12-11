@@ -499,7 +499,7 @@ Status RowsetUpdateState::rewrite_segment(const TxnLogPB_OpWrite& op_write, cons
         } else if (_partial_update_states.size() != 0) {
             const FooterPointerPB& partial_rowset_footer = txn_meta.partial_rowset_footers(i);
 
-            uint64_t segment_size = -1;
+            int64_t segment_size = -1;
             // if rewrite fail, let segment gc to clean dest segment file
             RETURN_IF_ERROR(SegmentRewriter::rewrite(
                     tablet->segment_location(src_path), tablet->segment_location(dest_path), tablet_schema,
