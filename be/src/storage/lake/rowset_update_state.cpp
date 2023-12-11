@@ -489,7 +489,7 @@ Status RowsetUpdateState::rewrite_segment(const TxnLogPB_OpWrite& op_write, cons
         int64_t t_rewrite_start = MonotonicMillis();
         if (op_write.txn_meta().has_auto_increment_partial_update_column_id() &&
             !_auto_increment_partial_update_states[i].skip_rewrite) {
-            uint64_t segment_size = 1;
+            int64_t segment_size = -1;
             RETURN_IF_ERROR(SegmentRewriter::rewrite(
                     tablet->segment_location(src_path), tablet->segment_location(dest_path), tablet_schema,
                     _auto_increment_partial_update_states[i], read_column_ids,
@@ -499,7 +499,7 @@ Status RowsetUpdateState::rewrite_segment(const TxnLogPB_OpWrite& op_write, cons
         } else if (_partial_update_states.size() != 0) {
             const FooterPointerPB& partial_rowset_footer = txn_meta.partial_rowset_footers(i);
 
-            uint64_t segment_size = 1;
+            uint64_t segment_size = -1;
             // if rewrite fail, let segment gc to clean dest segment file
             RETURN_IF_ERROR(SegmentRewriter::rewrite(
                     tablet->segment_location(src_path), tablet->segment_location(dest_path), tablet_schema,
