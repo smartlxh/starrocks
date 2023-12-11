@@ -94,13 +94,7 @@ Status VerticalCompactionTask::execute(Progress* progress, CancelFunc cancel_fun
     }
 
     auto files_to_size = writer->files_to_size();
-    LOG(INFO) << "files_to_size in vertical compaction task";
-    for (auto iterator = files_to_size.begin(); iterator != files_to_size.end(); iterator++) {
-        LOG(INFO) << "file_name:" + iterator->first + "file_size: " + std::to_string(iterator->second);
-    }
-
     for (auto& file : writer->files()) {
-        LOG(INFO) << "segment_file:" + file;
         op_compaction->mutable_output_rowset()->add_segments(file);
     }
     for (auto file : files_to_size) {
@@ -109,9 +103,10 @@ Status VerticalCompactionTask::execute(Progress* progress, CancelFunc cancel_fun
             LOG(INFO) << "substr filename:" << file.first.substr(pos + 1);
             (*(op_compaction->mutable_output_rowset()->mutable_files_to_size()))[file.first.substr(pos + 1)] = file.second;
         } else {
-            LOG(INFO) << "invalid filename";
+            LOG(WARNING) << "invalid filename";
         }
     }
+
     op_compaction->mutable_output_rowset()->set_num_rows(writer->num_rows());
     op_compaction->mutable_output_rowset()->set_data_size(writer->data_size());
     op_compaction->mutable_output_rowset()->set_overlapped(false);

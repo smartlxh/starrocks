@@ -86,6 +86,9 @@ public:
     // NOTE: Do NOT invoke this function after `close()`, otherwise may get unexpected result.
     std::vector<std::string> files() const;
 
+    // Return the map between files and size created by this DeltaWriter.
+    std::unordered_map<std::string, uint32_t> files_to_size() const;
+
     // The sum of all segment file sizes, in bytes.
     // NOTE: Do NOT invoke this function after `close()`, otherwise may get unexpected result.
     int64_t data_size() const;

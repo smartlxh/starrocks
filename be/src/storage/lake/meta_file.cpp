@@ -67,7 +67,6 @@ void MetaFileBuilder::apply_opwrite(const TxnLogPB_OpWrite& op_write,
         // when handle partial update, replace old segments with new rewrite segments
         rowset->set_segments(replace_seg.first, replace_seg.second);
         // update new rewrite segments
-        LOG(INFO) << "apply_opwrite:" << replace_seg.second << " " << replace_segments_file_size[replace_seg.second];
         (*(rowset->mutable_files_to_size()))[replace_seg.second] = replace_segments_file_size[replace_seg.second];
     }
     rowset->set_id(_tablet_meta->next_rowset_id());

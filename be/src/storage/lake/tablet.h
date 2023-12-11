@@ -99,7 +99,7 @@ public:
     StatusOr<std::vector<RowsetPtr>> get_rowsets(const TabletMetadata& metadata);
 
     StatusOr<SegmentPtr> load_segment(std::string_view segment_name, int seg_id, size_t* footer_size_hint,
-                                      uint64_t segment_size, bool fill_data_cache, bool fill_metadata_cache);
+                                      int64_t segment_size, bool fill_data_cache, bool fill_metadata_cache);
 
     [[nodiscard]] std::string metadata_location(int64_t version) const;
 

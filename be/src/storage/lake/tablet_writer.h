@@ -112,7 +112,6 @@ protected:
     int64_t _txn_id;
     std::vector<std::string> _files;
     std::unordered_map<std::string, size_t> _files_to_size;
-    std::unordered_map<uint32_t, std::string> _segment_id_to_file;
     int64_t _num_rows = 0;
     int64_t _data_size = 0;
     uint32_t _seg_id = 0;

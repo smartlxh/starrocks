@@ -118,6 +118,8 @@ public:
 
     std::vector<std::string> files() const;
 
+    std::unordered_map<std::string, size_t> files_to_size() const;
+
     int64_t data_size() const;
 
     int64_t num_rows() const;
@@ -425,20 +427,10 @@ Status DeltaWriterImpl::finish(DeltaWriter::FinishMode mode) {
     txn_log->set_txn_id(_txn_id);
     auto op_write = txn_log->mutable_op_write();
     auto files_to_size = _tablet_writer->files_to_size();
-    LOG(INFO) << "files_to_size";
-    for (auto iterator = files_to_size.begin(); iterator != files_to_size.end(); iterator++) {
-        LOG(INFO) << "file_name:" + iterator->first + "file_size: " + std::to_string(iterator->second);
-    }
 
     for (auto& f : _tablet_writer->files()) {
         if (is_segment(f)) {
-            LOG(INFO) << "segment_file:" + f;
             op_write->mutable_rowset()->add_segments(std::move(f));
-            if (files_to_size.contains(f)) {
-                LOG(INFO) << "segment_size: " + std::to_string(files_to_size.find(f)->second);
-            } else {
-                LOG(INFO) << "file not found";
-            }
         } else if (is_del(f)) {
             op_write->add_dels(std::move(f));
         } else {
@@ -452,10 +444,10 @@ Status DeltaWriterImpl::finish(DeltaWriter::FinishMode mode) {
     for (auto file : files_to_size) {
         auto pos = file.first.find_last_of("/");
         if (pos != file.first.npos) {
-            LOG(INFO) << "substr filename:" << file.first.substr(pos + 1);
             (*(op_write->mutable_rowset()->mutable_files_to_size()))[file.first.substr(pos + 1)] = file.second;
         } else {
-            LOG(INFO) << "invalid filename";
+            // This shouldn't happen
+            LOG(WARNING) << "invalid filename";
         }
     }
 
@@ -612,6 +604,10 @@ std::vector<std::string> DeltaWriterImpl::files() const {
     return (_tablet_writer != nullptr) ? _tablet_writer->files() : std::vector<std::string>();
 }
 
+std::unordered_map<std::string, size_t> DeltaWriterImpl::files_to_size() const {
+    return (_tablet_writer != nullptr) ? _tablet_writer->files_to_size() : std::unordered_map<std::string, size_t>();
+}
+
 int64_t DeltaWriterImpl::data_size() const {
     return (_tablet_writer != nullptr) ? _tablet_writer->data_size() : 0;
 }
@@ -681,6 +677,10 @@ Status DeltaWriter::flush_async() {
 
 std::vector<std::string> DeltaWriter::files() const {
     return _impl->files();
+}
+
+std::unordered_map<std::string, uint32_t> DeltaWriter::files_to_size() const {
+    return _impl->files_to_size();
 }
 
 const int64_t DeltaWriter::queueing_memtable_num() const {
