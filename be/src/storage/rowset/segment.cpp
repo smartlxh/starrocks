@@ -176,8 +176,8 @@ Status Segment::parse_segment_footer(RandomAccessFile* read_file, SegmentFooterP
     return Status::OK();
 }
 
-Segment::Segment(std::shared_ptr<FileSystem> fs, std::string path, uint64_t segment_id,
-                 TabletSchemaCSPtr tablet_schema, lake::TabletManager* tablet_manager, int64_t segment_size)
+Segment::Segment(std::shared_ptr<FileSystem> fs, std::string path, uint64_t segment_id, TabletSchemaCSPtr tablet_schema,
+                 lake::TabletManager* tablet_manager, int64_t segment_size)
         : _fs(std::move(fs)),
           _fname(std::move(path)),
           _segment_size(segment_size),

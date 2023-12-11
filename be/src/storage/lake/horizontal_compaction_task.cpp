@@ -109,7 +109,8 @@ Status HorizontalCompactionTask::execute(Progress* progress, CancelFunc cancel_f
         auto pos = file.first.find_last_of("/");
         if (pos != file.first.npos) {
             LOG(INFO) << "substr filename:" << file.first.substr(pos + 1);
-            (*(op_compaction->mutable_output_rowset()->mutable_files_to_size()))[file.first.substr(pos + 1)] = file.second;
+            (*(op_compaction->mutable_output_rowset()->mutable_files_to_size()))[file.first.substr(pos + 1)] =
+                    file.second;
         } else {
             // This shouldn't happen
             LOG(INFO) << "invalid filename";

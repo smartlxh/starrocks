@@ -101,7 +101,8 @@ Status VerticalCompactionTask::execute(Progress* progress, CancelFunc cancel_fun
         auto pos = file.first.find_last_of("/");
         if (pos != file.first.npos) {
             LOG(INFO) << "substr filename:" << file.first.substr(pos + 1);
-            (*(op_compaction->mutable_output_rowset()->mutable_files_to_size()))[file.first.substr(pos + 1)] = file.second;
+            (*(op_compaction->mutable_output_rowset()->mutable_files_to_size()))[file.first.substr(pos + 1)] =
+                    file.second;
         } else {
             LOG(WARNING) << "invalid filename";
         }
