@@ -29,7 +29,7 @@ public:
     static Status rewrite(const std::string& src, const std::string& dest,
                           const std::shared_ptr<const TabletSchema>& tschema, std::vector<uint32_t>& column_ids,
                           std::vector<std::unique_ptr<Column>>& columns, uint32_t segment_id,
-                          const FooterPointerPB& partial_rowseet_footer, int64_t* file_size);
+                          const FooterPointerPB& partial_rowseet_footer, int64_t* file_size = nullptr);
     // this funciton will append write_column to src_file and rebuild segment footer
     static Status rewrite(const std::string& src, const TabletSchemaCSPtr& tschema, std::vector<uint32_t>& column_ids,
                           std::vector<std::unique_ptr<Column>>& columns, uint32_t segment_id,
@@ -41,7 +41,7 @@ public:
                           starrocks::lake::AutoIncrementPartialUpdateState& auto_increment_partial_update_state,
                           std::vector<uint32_t>& column_ids, std::vector<std::unique_ptr<Column>>* columns,
                           const starrocks::lake::TxnLogPB_OpWrite& op_write, starrocks::lake::Tablet* tablet,
-                          int64_t* file_size);
+                          int64_t* file_size = nullptr);
 };
 
 } // namespace starrocks

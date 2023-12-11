@@ -63,7 +63,10 @@ Status SegmentRewriter::rewrite(const std::string& src_path, const std::string& 
     RETURN_IF_ERROR(writer.append_chunk(*chunk));
     RETURN_IF_ERROR(writer.finalize_columns(&index_size));
     RETURN_IF_ERROR(writer.finalize_footer(&segment_file_size));
-    *file_size = segment_file_size;
+
+    if (file_size != nullptr) {
+        *file_size = segment_file_size;
+    }
 
     return Status::OK();
 }
@@ -246,7 +249,10 @@ Status SegmentRewriter::rewrite(const std::string& src_path, const std::string& 
     RETURN_IF_ERROR(writer.append_chunk(*chunk));
     RETURN_IF_ERROR(writer.finalize_columns(&index_size));
     RETURN_IF_ERROR(writer.finalize_footer(&segment_file_size));
-    *file_size = segment_file_size;
+
+    if (file_size != nullptr) {
+        *file_size = segment_file_size;
+    }
 
     return Status::OK();
 }
