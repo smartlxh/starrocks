@@ -679,7 +679,7 @@ std::vector<std::string> DeltaWriter::files() const {
     return _impl->files();
 }
 
-std::unordered_map<std::string, uint32_t> DeltaWriter::files_to_size() const {
+std::unordered_map<std::string, size_t > DeltaWriter::files_to_size() const {
     return _impl->files_to_size();
 }
 
