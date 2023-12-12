@@ -4194,7 +4194,7 @@ public class LocalMetastore implements ConnectorMetadata, MVRepairHandler {
                 }
             }
         } catch (Exception ex) {
-            LOG.warn("The replay log failed and this log was ignored.", ex);
+            LOG.warn("The replay log failed and this log was ignored, opCode = {}, info = {}", opCode, info, ex);
         } finally {
             db.writeUnlock();
         }
