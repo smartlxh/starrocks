@@ -71,6 +71,11 @@ public class ModifyTablePropertyOperationLog implements Writable {
     }
 
     @Override
+    public String toString() {
+        return String.format("dbId = %s, tableId = %s, properties = %s", dbId, tableId, properties);
+    }
+
+    @Override
     public void write(DataOutput out) throws IOException {
         Text.writeString(out, GsonUtils.GSON.toJson(this));
     }
