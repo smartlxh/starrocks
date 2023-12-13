@@ -14,6 +14,8 @@
 
 #include "storage/lake/rowset.h"
 
+#include <future>
+
 #include "storage/chunk_helper.h"
 #include "storage/delete_predicates.h"
 #include "storage/lake/tablet.h"
@@ -211,18 +213,34 @@ Status Rowset::load_segments(std::vector<SegmentPtr>* segments, bool fill_data_c
     uint32_t seg_id = 0;
     bool ignore_lost_segment = config::experimental_lake_ignore_lost_segment;
     segments->reserve(_rowset_metadata->segments().size());
+
+    std::vector<std::future<StatusOr<SegmentPtr>>> segment_futures;
+    auto load_segment_thread_pool = ExecEnv::GetInstance()->load_segment_thread_pool();
+
     for (const auto& seg_name : _rowset_metadata->segments()) {
-        auto segment_or =
-                _tablet.load_segment(seg_name, seg_id++, &footer_size_hint, fill_data_cache, fill_metadata_cache);
+        auto task = std::make_shared<std::packaged_task<StatusOr<SegmentPtr>()>>([&]() {
+            return _tablet.load_segment(seg_name, seg_id++, &footer_size_hint, fill_data_cache, fill_metadata_cache);
+        });
+
+        auto packaged_func = [task]() { (*task)(); };
+        if (auto st = load_segment_thread_pool->submit_func(std::move(packaged_func)); !st.ok()) {
+            return st;
+        }
+        segment_futures.push_back(task->get_future());
+    }
+
+    for (auto& fut : segment_futures) {
+        auto segment_or = fut.get();
         if (segment_or.ok()) {
             segments->emplace_back(std::move(segment_or.value()));
         } else if (segment_or.status().is_not_found() && ignore_lost_segment) {
-            LOG(WARNING) << "Ignored lost segment " << seg_name;
+            LOG(WARNING) << "Ignored lost segment";
             continue;
         } else {
             return segment_or.status();
         }
     }
+
     return Status::OK();
 }
 

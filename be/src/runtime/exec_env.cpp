@@ -323,6 +323,16 @@ Status ExecEnv::init(const std::vector<StorePath>& store_paths, bool as_cn) {
                     .build(&streaming_load_pool));
     _streaming_load_thread_pool = streaming_load_pool.release();
 
+    std::unique_ptr<ThreadPool> load_segment_pool;
+    RETURN_IF_ERROR(ThreadPoolBuilder("load_segment")
+                            .set_min_threads(config::load_segment_thread_pool_num_min)
+                            .set_max_threads(config::load_segment_thread_pool_num_max)
+                            .set_max_queue_size(config::load_segment_thread_pool_queue_size)
+                            .set_idle_timeout(MonoDelta::FromMilliseconds(2000))
+                            .build(&load_segment_pool));
+
+    _load_segment_thread_pool = load_segment_pool.release();
+
     _udf_call_pool = new PriorityThreadPool("udf", config::udf_thread_pool_size, config::udf_thread_pool_size);
     _fragment_mgr = new FragmentMgr(this);
 
@@ -610,6 +620,7 @@ void ExecEnv::destroy() {
     SAFE_DELETE(_connector_scan_executor);
     SAFE_DELETE(_thread_pool);
     SAFE_DELETE(_streaming_load_thread_pool);
+    SAFE_DELETE(_load_segment_thread_pool);
 
     if (_lake_tablet_manager != nullptr) {
         _lake_tablet_manager->prune_metacache();

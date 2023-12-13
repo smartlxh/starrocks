@@ -14,6 +14,7 @@
 
 #include "storage/lake/tablet_reader.h"
 
+#include <future>
 #include <utility>
 
 #include "column/datum_convert.h"
@@ -152,6 +153,28 @@ Status TabletReader::get_segment_iterators(const TabletReaderParams& params, std
     for (auto& rowset : _rowsets) {
         ASSIGN_OR_RETURN(auto seg_iters, enhance_error_prompt(rowset->read(schema(), rs_opts)));
         iters->insert(iters->end(), seg_iters.begin(), seg_iters.end());
+    }
+
+    std::vector<std::future<StatusOr<std::vector<ChunkIteratorPtr>>>> futures;
+    auto load_segment_thread_pool = ExecEnv::GetInstance()->load_segment_thread_pool();
+
+    for (auto& rowset : _rowsets) {
+        auto task = std::make_shared<std::packaged_task<StatusOr<std::vector<ChunkIteratorPtr>>()>>(
+                [&, rowset]() { return enhance_error_prompt(rowset->read(schema(), rs_opts)); });
+
+        auto packaged_func = [task]() { (*task)(); };
+        if (auto st = load_segment_thread_pool->submit_func(std::move(packaged_func)); !st.ok()) {
+            return st;
+        }
+        futures.push_back(task->get_future());
+    }
+
+    for (auto& future : futures) {
+        auto seg_iters_or = future.get();
+        if (!seg_iters_or.ok()) {
+            return seg_iters_or.status();
+        }
+        iters->insert(iters->end(), seg_iters_or.value().begin(), seg_iters_or.value().end());
     }
     return Status::OK();
 }

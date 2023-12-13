@@ -253,6 +253,7 @@ public:
 
     PriorityThreadPool* thread_pool() { return _thread_pool; }
     ThreadPool* streaming_load_thread_pool() { return _streaming_load_thread_pool; }
+    ThreadPool* load_segment_thread_pool() { return _load_segment_thread_pool; }
     workgroup::ScanExecutor* scan_executor() { return _scan_executor; }
     workgroup::ScanExecutor* connector_scan_executor() { return _connector_scan_executor; }
 
@@ -328,6 +329,8 @@ private:
 
     PriorityThreadPool* _thread_pool = nullptr;
     ThreadPool* _streaming_load_thread_pool = nullptr;
+
+    ThreadPool* _load_segment_thread_pool = nullptr;
 
     workgroup::ScanExecutor* _scan_executor = nullptr;
     workgroup::ScanExecutor* _connector_scan_executor = nullptr;
