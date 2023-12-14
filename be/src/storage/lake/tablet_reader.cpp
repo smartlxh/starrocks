@@ -150,10 +150,6 @@ Status TabletReader::get_segment_iterators(const TabletReaderParams& params, std
     }
 
     SCOPED_RAW_TIMER(&_stats.create_segment_iter_ns);
-    for (auto& rowset : _rowsets) {
-        ASSIGN_OR_RETURN(auto seg_iters, enhance_error_prompt(rowset->read(schema(), rs_opts)));
-        iters->insert(iters->end(), seg_iters.begin(), seg_iters.end());
-    }
 
     std::vector<std::future<StatusOr<std::vector<ChunkIteratorPtr>>>> futures;
     auto load_segment_thread_pool = ExecEnv::GetInstance()->load_segment_thread_pool();
