@@ -150,7 +150,8 @@ Status TabletReader::get_segment_iterators(const TabletReaderParams& params, std
     }
 
     SCOPED_RAW_TIMER(&_stats.create_segment_iter_ns);
-
+    auto start = time(nullptr);
+    LOG(INFO) << "create_segment_iter start:" << start;
     std::vector<std::future<StatusOr<std::vector<ChunkIteratorPtr>>>> futures;
     auto load_segment_thread_pool = ExecEnv::GetInstance()->load_segment_thread_pool();
 
@@ -158,13 +159,17 @@ Status TabletReader::get_segment_iterators(const TabletReaderParams& params, std
         auto task = std::make_shared<std::packaged_task<StatusOr<std::vector<ChunkIteratorPtr>>()>>(
                 [&, rowset]() { return enhance_error_prompt(rowset->read(schema(), rs_opts)); });
 
-        auto packaged_func = [task]() { (*task)(); };
+        auto packaged_func = [task]() {
+            (*task)();
+            LOG(INFO) << "doing reading rowset";
+        };
         if (auto st = load_segment_thread_pool->submit_func(std::move(packaged_func)); !st.ok()) {
             return st;
         }
         futures.push_back(task->get_future());
     }
 
+    LOG(INFO) << "wait future";
     for (auto& future : futures) {
         auto seg_iters_or = future.get();
         if (!seg_iters_or.ok()) {
@@ -172,6 +177,8 @@ Status TabletReader::get_segment_iterators(const TabletReaderParams& params, std
         }
         iters->insert(iters->end(), seg_iters_or.value().begin(), seg_iters_or.value().end());
     }
+    auto end = time(nullptr);
+    LOG(INFO) << "create_segment_iter end:" << end << "cost:" << end - start;
     return Status::OK();
 }
 

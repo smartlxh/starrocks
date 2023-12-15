@@ -40,6 +40,7 @@ Rowset::~Rowset() = default;
 // TODO: support
 //  1. rowid range and short key range
 StatusOr<std::vector<ChunkIteratorPtr>> Rowset::read(const Schema& schema, const RowsetReadOptions& options) {
+    LOG(INFO) << "rowset::read";
     SegmentReadOptions seg_options;
     ASSIGN_OR_RETURN(seg_options.fs, FileSystem::CreateSharedFromString(_tablet.root_location()));
     seg_options.stats = options.stats;
@@ -87,6 +88,7 @@ StatusOr<std::vector<ChunkIteratorPtr>> Rowset::read(const Schema& schema, const
 
     std::vector<ChunkIteratorPtr> segment_iterators;
     segment_iterators.reserve(num_segments());
+    LOG(INFO) << "segment size: " << num_segments();
     if (options.stats) {
         options.stats->segments_read_count += num_segments();
     }
@@ -216,19 +218,25 @@ Status Rowset::load_segments(std::vector<SegmentPtr>* segments, bool fill_data_c
 
     std::vector<std::future<StatusOr<SegmentPtr>>> segment_futures;
     auto load_segment_thread_pool = ExecEnv::GetInstance()->load_segment_thread_pool();
-
+    LOG(INFO) << "load_segments";
+    auto start = time(nullptr);
+    LOG(INFO) << "start load segment, start:" << start;
     for (const auto& seg_name : _rowset_metadata->segments()) {
         auto task = std::make_shared<std::packaged_task<StatusOr<SegmentPtr>()>>([&]() {
             return _tablet.load_segment(seg_name, seg_id++, &footer_size_hint, fill_data_cache, fill_metadata_cache);
         });
 
-        auto packaged_func = [task]() { (*task)(); };
+        auto packaged_func = [task]() {
+            (*task)();
+            LOG(INFO) << "load_segment";
+        };
         if (auto st = load_segment_thread_pool->submit_func(std::move(packaged_func)); !st.ok()) {
             return st;
         }
         segment_futures.push_back(task->get_future());
     }
 
+    LOG("wait future in load segment");
     for (auto& fut : segment_futures) {
         auto segment_or = fut.get();
         if (segment_or.ok()) {
@@ -240,6 +248,8 @@ Status Rowset::load_segments(std::vector<SegmentPtr>* segments, bool fill_data_c
             return segment_or.status();
         }
     }
+    auto end = time(nullptr);
+    LOG(INFO) << "start load segment, end:" << end << " costs:" << end - time;
 
     return Status::OK();
 }
