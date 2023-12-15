@@ -236,7 +236,7 @@ Status Rowset::load_segments(std::vector<SegmentPtr>* segments, bool fill_data_c
         segment_futures.push_back(task->get_future());
     }
 
-    LOG("wait future in load segment");
+    LOG(INFO) << "wait future in load segment";
     for (auto& fut : segment_futures) {
         auto segment_or = fut.get();
         if (segment_or.ok()) {
