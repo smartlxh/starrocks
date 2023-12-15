@@ -249,7 +249,7 @@ Status Rowset::load_segments(std::vector<SegmentPtr>* segments, bool fill_data_c
         }
     }
     auto end = time(nullptr);
-    LOG(INFO) << "start load segment, end:" << end << " costs:" << end - time;
+    LOG(INFO) << "start load segment, end:" << end << " costs:" << end - start;
 
     return Status::OK();
 }
