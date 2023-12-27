@@ -964,6 +964,10 @@ under the License.
                     <artifactId>elasticsearch</artifactId>
                     <groupId>org.elasticsearch</groupId>
                 </exclusion>
+                <exclusion>
+                    <groupId>org.apache.kafka</groupId>
+                    <artifactId>kafka-clients</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 
