@@ -110,7 +110,10 @@ public class ExpressionConverter extends AstVisitor<Expression, Void> {
         if (columnName == null) {
             return null;
         }
-        Column column = tableSchema.column(columnName);
+        Column column = getColumn(columnName);
+        if (column == null) {
+            return null;
+        }
         if (node.isNotNull()) {
             return new IsNotNull(column);
         } else {
@@ -124,7 +127,10 @@ public class ExpressionConverter extends AstVisitor<Expression, Void> {
         if (columnName == null) {
             return null;
         }
-        Column column = tableSchema.column(columnName);
+        Column column = getColumn(columnName);
+        if (column == null) {
+            return null;
+        }
         Literal literal = getLiteral(node.getChild(1), column.dataType());
         if (literal == null) {
             return null;
@@ -153,7 +159,10 @@ public class ExpressionConverter extends AstVisitor<Expression, Void> {
         if (columnName == null) {
             return null;
         }
-        Column column = tableSchema.column(columnName);
+        Column column = getColumn(columnName);
+        if (column == null) {
+            return null;
+        }
         List<Expr> valuesExprList = node.getListChildren();
         List<Literal> literalValues = new ArrayList<>(valuesExprList.size());
         for (Expr valueExpr : valuesExprList) {
@@ -170,7 +179,15 @@ public class ExpressionConverter extends AstVisitor<Expression, Void> {
         }
     }
 
-    private static Literal getLiteral(Expr expr, DataType dataType) {
+    private Column getColumn(String columnName) {
+        try {
+            return tableSchema.column(columnName);
+        } catch (UnsupportedOperationException e) {
+            return null;
+        }
+    }
+
+    public static Literal getLiteral(Expr expr, DataType dataType) {
         if (!(expr instanceof LiteralExpr)) {
             return null;
         }
