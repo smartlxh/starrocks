@@ -180,6 +180,7 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
     public static final String MAX_PARALLEL_SCAN_INSTANCE_NUM = "max_parallel_scan_instance_num";
     public static final String ENABLE_INSERT_STRICT = "enable_insert_strict";
     public static final String ENABLE_SPILL = "enable_spill";
+    public static final String ENABLE_TABLET_SCAN_STAT = "enable_tablet_scan_stat";
     public static final String SPILLABLE_OPERATOR_MASK = "spillable_operator_mask";
     // spill mode: auto, force
     public static final String SPILL_MODE = "spill_mode";
@@ -1003,6 +1004,9 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
 
     @VariableMgr.VarAttr(name = ENABLE_SPILL)
     private boolean enableSpill = false;
+
+    @VariableMgr.VarAttr(name = ENABLE_TABLET_SCAN_STAT)
+    private boolean enableTabletScanStat = true;
 
     // this is used to control which operators can spill, only meaningful when enable_spill=true
     // it uses a bit to identify whether the spill of each operator is in effect, 0 means no, 1 means yes
@@ -2290,6 +2294,14 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
         this.enableSpill = enableSpill;
     }
 
+    public boolean getEnableTabletScanStat() {
+        return enableTabletScanStat;
+    }
+
+    public void setEnableTabletScanStat(boolean enableTabletScanStat) {
+        this.enableTabletScanStat = enableTabletScanStat;
+    }
+
     public void setSpillMode(String spillMode) {
         this.spillMode = spillMode;
     }
@@ -3529,6 +3541,7 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
         tResult.setEnable_profile(enableProfile);
         tResult.setBig_query_profile_threshold(TimeValue.parseTimeValue(bigQueryProfileThreshold).getMillis());
         tResult.setBig_query_profile_threshold_unit(TTimeUnit.MILLISECOND);
+        tResult.setEnable_tablet_scan_stat(enableTabletScanStat);
         tResult.setRuntime_profile_report_interval(runtimeProfileReportInterval);
         tResult.setBatch_size(chunkSize);
         tResult.setLoad_mem_limit(loadMemLimit);

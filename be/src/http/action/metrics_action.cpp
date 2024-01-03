@@ -32,6 +32,7 @@
 #include "http/http_headers.h"
 #include "http/http_request.h"
 #include "util/metrics.h"
+#include "util/timer_metrics.h"
 
 #ifdef USE_STAROS
 #include "metrics/metrics.h"
@@ -62,6 +63,8 @@ public:
     std::string to_string() const { return _ss.str(); }
 
     std::ostream& output_stream() { return _ss; }
+
+    void _visit_timer_metric();
 
 private:
     // 6 is the number of bvars in LatencyRecorder that indicating percentiles
@@ -157,6 +160,10 @@ void PrometheusMetricsVisitor::_visit_simple_metric(const std::string& name, con
         _ss << "}";
     }
     _ss << " " << metric->to_string() << "\n";
+}
+
+void PrometheusMetricsVisitor::_visit_timer_metric() {
+    _ss << std::move(TimerMetrics::instance()->timer_result);
 }
 
 bool PrometheusMetricsVisitor::dump(const std::string& name, const butil::StringPiece& desc) {
@@ -337,6 +344,9 @@ void MetricsAction::handle(HttpRequest* req) {
         _metrics->collect(&visitor);
         if (config::dump_metrics_with_bvar) {
             bvar::Variable::dump_exposed(&visitor, nullptr);
+        }
+        if (config::timer_metrics_interval > 0) {
+            visitor._visit_timer_metric();
         }
 #ifdef USE_STAROS
 #ifdef BE_TEST

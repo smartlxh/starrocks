@@ -86,6 +86,7 @@ set(UTIL_FILES
   threadpool.cpp
   trace.cpp
   trace_metrics.cpp
+  timer_metrics.cpp
   timezone_utils.cpp
   easy_json.cc
   mustache/mustache.cc
