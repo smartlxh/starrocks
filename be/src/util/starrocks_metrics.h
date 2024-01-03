@@ -34,12 +34,15 @@
 
 #pragma once
 
+#include <gen_cpp/Types_types.h>
+
 #include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "util/metrics.h"
+#include "util/phmap/phmap.h"
 #include "util/system_metrics.h"
 
 namespace starrocks {
@@ -276,6 +279,9 @@ public:
     IntGaugeMetricsMap disks_avail_capacity;
     IntGaugeMetricsMap disks_data_used_capacity;
     IntGaugeMetricsMap disks_state;
+
+    phmap::parallel_flat_hash_map<TTabletId, int64_t> tablet_scan_bytes = {};
+    phmap::parallel_flat_hash_map<TTabletId, int64_t> tablet_scan_nums = {};
 
     // Compaction Task Metric
     // the max compaction score of all tablets.
