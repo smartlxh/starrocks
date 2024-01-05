@@ -20,10 +20,10 @@ namespace starrocks {
 
 SegmentRewriter::SegmentRewriter() = default;
 
-Status SegmentRewriter::rewrite(const std::string& src_path, const std::string& dest_path,
+StatusOr<int64_t> SegmentRewriter::rewrite(const std::string& src_path, const std::string& dest_path,
                                 const std::shared_ptr<const TabletSchema>& tschema, std::vector<uint32_t>& column_ids,
                                 std::vector<std::unique_ptr<Column>>& columns, uint32_t segment_id,
-                                const FooterPointerPB& partial_rowset_footer, uint64_t* file_size) {
+                                const FooterPointerPB& partial_rowset_footer) {
     ASSIGN_OR_RETURN(auto fs, FileSystem::CreateSharedFromString(dest_path));
     WritableFileOptions wopts{.sync_on_close = true, .mode = FileSystem::CREATE_OR_OPEN_WITH_TRUNCATE};
     ASSIGN_OR_RETURN(auto wfile, fs->new_writable_file(wopts, dest_path));
@@ -163,12 +163,11 @@ Status SegmentRewriter::rewrite(const std::string& src_path, const std::string& 
 // This function is used when the auto-increment column is not specified in partial update.
 // In this function, we use the segment iterator to read the old data, replace the old auto
 // increment column, and rewrite the full segment file through SegmentWriter.
-Status SegmentRewriter::rewrite(const std::string& src_path, const std::string& dest_path,
+StatusOr<int64_t> SegmentRewriter::rewrite(const std::string& src_path, const std::string& dest_path,
                                 const TabletSchemaCSPtr& tschema,
                                 starrocks::lake::AutoIncrementPartialUpdateState& auto_increment_partial_update_state,
                                 std::vector<uint32_t>& column_ids, std::vector<std::unique_ptr<Column>>* columns,
-                                const starrocks::lake::TxnLogPB_OpWrite& op_write, starrocks::lake::Tablet* tablet,
-                                uint64_t* file_size) {
+                                const starrocks::lake::TxnLogPB_OpWrite& op_write, starrocks::lake::Tablet* tablet) {
     if (column_ids.size() == 0) {
         DCHECK_EQ(columns, nullptr);
     }

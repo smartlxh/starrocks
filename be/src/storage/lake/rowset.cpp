@@ -235,11 +235,12 @@ Status Rowset::load_segments(std::vector<SegmentPtr>* segments, bool fill_data_c
     bool ignore_lost_segment = config::experimental_lake_ignore_lost_segment;
 
     // RowsetMetaData upgrade from old version may not have the field of segment_size
-    bool has_segment_size = metadata().segment_size_size() != 0;
-    if (has_segment_size) {
-        DCHECK(metadata().segments_size() == metadata().segment_size_size());
-    }
-    auto files_to_size = metadata().segment_size();
+    auto segment_size_size = metadata().segment_size_size();
+    auto segment_file_size = metadata().segments_size();
+    bool has_segment_size = segment_size_size == segment_file_size;
+    LOG_IF(ERROR, segment_size_size > 0 && segment_size_size != segment_file_size) << "xxxx";
+
+    const auto& files_to_size = metadata().segment_size();
     int index = 0;
 
     for (const auto& seg_name : metadata().segments()) {
