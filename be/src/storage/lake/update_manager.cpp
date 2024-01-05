@@ -223,7 +223,7 @@ Status UpdateManager::publish_primary_key_tablet(const TxnLogPB_OpWrite& op_writ
     for (auto&& each : new_del_vecs) {
         builder->append_delvec(each.second, each.first);
     }
-    builder->apply_opwrite(op_write, replace_segments, orphan_files, replace_segments_file_size);
+    builder->apply_opwrite(op_write, replace_segments, orphan_files);
     RETURN_IF_ERROR(builder->update_num_del_stat(segment_id_to_add_dels));
 
     TRACE_COUNTER_INCREMENT("rowsetid", rowset_id);
