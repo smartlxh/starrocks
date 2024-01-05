@@ -504,11 +504,11 @@ Status RowsetUpdateState::rewrite_segment(const TxnLogPB_OpWrite& op_write, cons
             (*replace_segments)[i] = file_info;
         } else if (_partial_update_states.size() != 0) {
             const FooterPointerPB& partial_rowset_footer = txn_meta.partial_rowset_footers(i);
-            FileInfo file_info{tablet->segment_location(dest_path)}
+            FileInfo file_info{tablet->segment_location(dest_path)};
             // if rewrite fail, let segment gc to clean dest segment file
             RETURN_IF_ERROR(SegmentRewriter::rewrite(
                     tablet->segment_location(src_path), file_info, tablet_schema,
-                    read_column_ids, _partial_update_states[i].write_columns, i, partial_rowset_footer, &segment_size));
+                    read_column_ids, _partial_update_states[i].write_columns, i, partial_rowset_footer));
             file_info.path = dest_path;
             (*replace_segments)[i] = file_info;
         } else {
