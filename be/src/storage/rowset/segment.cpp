@@ -83,14 +83,9 @@ StatusOr<std::shared_ptr<Segment>> Segment::open(std::shared_ptr<FileSystem> fs,
 }
 
 Status Segment::parse_segment_footer(RandomAccessFile* read_file, SegmentFooterPB* footer, size_t* footer_length_hint,
-                                     const FooterPointerPB* partial_rowset_footer, uint64_t segment_size) {
+                                     const FooterPointerPB* partial_rowset_footer) {
     // Footer := SegmentFooterPB, FooterPBSize(4), FooterPBChecksum(4), MagicNumber(4)
-    uint64_t file_size;
-    if (segment_size != 0) {
-        file_size = segment_size;
-    } else {
-        ASSIGN_OR_RETURN(file_size, read_file->get_size());
-    }
+    ASSIGN_OR_RETURN(auto file_size, read_file->get_size());
 
     if (file_size < 12) {
         return Status::Corruption(
@@ -181,7 +176,6 @@ Segment::Segment(std::shared_ptr<FileSystem> fs, FileInfo segment_file_info, uin
                  TabletSchemaCSPtr tablet_schema, lake::TabletManager* tablet_manager)
         : _fs(std::move(fs)),
           _segment_file_info(std::move(segment_file_info)),
-          _segment_size(segment_size),
           _tablet_schema(std::move(tablet_schema)),
           _segment_id(segment_id),
           _tablet_manager(tablet_manager) {
@@ -215,10 +209,8 @@ Status Segment::_open(size_t* footer_length_hint, const FooterPointerPB* partial
     SegmentFooterPB footer;
     RandomAccessFileOptions opts{.skip_fill_local_cache = skip_fill_local_cache};
 
-    std::unique_ptr<RandomAccessFile> read_file;
     ASSIGN_OR_RETURN(auto read_file, _fs->new_random_access_file(opts, _segment_file_info));
-    RETURN_IF_ERROR(Segment::parse_segment_footer(read_file.get(), &footer, footer_length_hint, partial_rowset_footer,
-                                                  _segment_size));
+    RETURN_IF_ERROR(Segment::parse_segment_footer(read_file.get(), &footer, footer_length_hint, partial_rowset_footer);
     RETURN_IF_ERROR(_create_column_readers(&footer));
     _num_rows = footer.num_rows();
     _short_key_index_page = PagePointer(footer.short_key_index_page());

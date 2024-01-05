@@ -91,8 +91,7 @@ public:
 
     [[nodiscard]] static Status parse_segment_footer(RandomAccessFile* read_file, SegmentFooterPB* footer,
                                                      size_t* footer_length_hint,
-                                                     const FooterPointerPB* partial_rowset_footer,
-                                                     uint64_t segment_size = 0);
+                                                     const FooterPointerPB* partial_rowset_footer);
 
     Segment(std::shared_ptr<FileSystem> fs, FileInfo segment_file_info, uint32_t segment_id,
             TabletSchemaCSPtr tablet_schema, lake::TabletManager* tablet_manager);
@@ -267,8 +266,6 @@ private:
 
     std::shared_ptr<FileSystem> _fs;
     FileInfo _segment_file_info;
-    // 0 indicates tablet meta data do not contain the info of segment size
-    uint64_t _segment_size;
     TabletSchemaWrapper _tablet_schema;
     uint32_t _segment_id = 0;
     uint32_t _num_rows = 0;
