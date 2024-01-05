@@ -198,7 +198,8 @@ Status SegmentRewriter::rewrite(const std::string& src_path, const std::string& 
     auto fill_cache = false;
     auto tablet_mgr = tablet->tablet_mgr();
     auto segment_path = tablet->segment_location(op_write.rowset().segments(segment_id));
-    ASSIGN_OR_RETURN(auto segment, tablet_mgr->load_segment(segment_path, segment_id, &footer_sine_hint, fill_cache,
+    auto segment_info = FileInfo{segment_path};
+    ASSIGN_OR_RETURN(auto segment, tablet_mgr->load_segment(segment_info, segment_id, &footer_sine_hint, fill_cache,
                                                             fill_cache, tschema));
     uint32_t num_rows = segment->num_rows();
 

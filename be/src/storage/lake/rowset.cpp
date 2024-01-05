@@ -250,7 +250,8 @@ Status Rowset::load_segments(std::vector<SegmentPtr>* segments, bool fill_data_c
         index++;
 
         auto segment_path = _tablet_mgr->segment_location(tablet_id(), seg_name);
-        auto segment_or = _tablet_mgr->load_segment(segment_path, seg_id++, &footer_size_hint, fill_data_cache,
+        auto segment_info = FileInfo{segment_path};
+        auto segment_or = _tablet_mgr->load_segment(segment_info, seg_id++, &footer_size_hint, fill_data_cache,
                                                     fill_metadata_cache, _tablet_schema, segment_size);
         if (segment_or.ok()) {
             segments->emplace_back(std::move(segment_or.value()));

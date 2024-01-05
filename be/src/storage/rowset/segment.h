@@ -82,7 +82,7 @@ using ChunkIteratorPtr = std::shared_ptr<ChunkIterator>;
 class Segment : public std::enable_shared_from_this<Segment> {
 public:
     // Like above but share the ownership of |unsafe_tablet_schema_ref|.
-    static StatusOr<std::shared_ptr<Segment>> open(std::shared_ptr<FileSystem> fs, const std::string& path,
+    static StatusOr<std::shared_ptr<Segment>> open(std::shared_ptr<FileSystem> fs, FileInfo segment_file_info,
                                                    uint32_t segment_id, TabletSchemaCSPtr tablet_schema,
                                                    size_t* footer_length_hint = nullptr,
                                                    const FooterPointerPB* partial_rowset_footer = nullptr,
@@ -94,8 +94,8 @@ public:
                                                      const FooterPointerPB* partial_rowset_footer,
                                                      uint64_t segment_size = 0);
 
-    Segment(std::shared_ptr<FileSystem> fs, std::string path, uint32_t segment_id, TabletSchemaCSPtr tablet_schema,
-            lake::TabletManager* tablet_manager, uint64_t segment_size = 0);
+    Segment(std::shared_ptr<FileSystem> fs, FileInfo segment_file_info, uint32_t segment_id,
+            TabletSchemaCSPtr tablet_schema, lake::TabletManager* tablet_manager);
 
     ~Segment();
 
@@ -181,7 +181,7 @@ public:
 
     const TabletSchemaCSPtr tablet_schema_share_ptr() { return _tablet_schema.schema(); }
 
-    const std::string& file_name() const { return _fname; }
+    const std::string& file_name() const { return _segment_file_info.path; }
 
     uint32_t num_rows() const { return _num_rows; }
 
@@ -194,12 +194,11 @@ public:
 
     size_t mem_usage() const;
 
-    int64_t get_data_size() {
-        auto res = _fs->get_file_size(_fname);
-        if (res.ok()) {
-            return res.value();
+    int64_t get_data_size() const {
+        if (_segment_file_info.size.has_value()) {
+            return _segment_file_info.size.value();
         }
-        return 0;
+        return _fs->get_file_size(_segment_file_info.path).value_or(0);
     }
 
     // read short_key_index, for data check, just used in unit test now
@@ -244,7 +243,7 @@ private:
 
     void _reset();
 
-    size_t _basic_info_mem_usage() const { return sizeof(Segment) + _fname.size(); }
+    size_t _basic_info_mem_usage() const { return sizeof(Segment) + _segment_file_info.path.size(); }
 
     size_t _short_key_index_mem_usage() const {
         size_t size = _sk_index_handle.mem_usage();
@@ -267,7 +266,7 @@ private:
     friend class SegmentIterator;
 
     std::shared_ptr<FileSystem> _fs;
-    std::string _fname;
+    FileInfo _segment_file_info;
     // 0 indicates tablet meta data do not contain the info of segment size
     uint64_t _segment_size;
     TabletSchemaWrapper _tablet_schema;
