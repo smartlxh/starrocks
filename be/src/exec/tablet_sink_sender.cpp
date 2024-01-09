@@ -58,6 +58,7 @@ Status TabletSinkSender::send_chunk(const OlapTableSchemaParam* schema,
                 uint16_t selection = validate_select_idx[j];
                 index_id_partition_id[index->index_id].emplace(partitions[selection]->id);
                 _tablet_ids[selection] = partitions[selection]->indexes[i].tablets[tablet_indexes[selection]];
+                _update_partition_rows(partitions[selection]->id);
             }
             RETURN_IF_ERROR(_send_chunk_by_node(chunk, _channels[i], validate_select_idx));
         }
@@ -254,6 +255,9 @@ Status TabletSinkSender::try_close(RuntimeState* state) {
             });
         }
     }
+
+    // update the info of partition num rows
+    state->update_partition_num_rows(_partition_to_num_rows);
 
     // when enable replicated storage, we only send to primary replica, one node channel lead to indicate whole load fail
     if (intolerable_failure || (_enable_replicated_storage && !err_st.ok())) {
