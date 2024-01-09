@@ -27,6 +27,7 @@
 #include "storage/lake/types_fwd.h"
 
 namespace starrocks {
+struct FileInfo;
 class Segment;
 class TabletSchemaPB;
 class TCreateTabletReq;
@@ -144,16 +145,22 @@ public:
 
     std::string tablet_metadata_lock_location(int64_t tablet_id, int64_t version, int64_t expire_time) const;
 
-    const LocationProvider* location_provider() const { return _location_provider; }
+    const LocationProvider* location_provider() const {
+        return _location_provider;
+    }
 
     UpdateManager* update_mgr();
 
-    CompactionScheduler* compaction_scheduler() { return _compaction_scheduler.get(); }
+    CompactionScheduler* compaction_scheduler() {
+        return _compaction_scheduler.get();
+    }
 
     void update_metacache_limit(size_t limit);
 
     // The return value will never be null.
-    Metacache* metacache() { return _metacache.get(); }
+    Metacache* metacache() {
+        return _metacache.get();
+    }
 
     // only for TEST purpose
     void TEST_set_global_schema_cache(int64_t index_id, TabletSchemaPtr schema);
