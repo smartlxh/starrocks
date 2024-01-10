@@ -79,13 +79,13 @@ protected:
     }
 
     void _update_partition_rows(int64_t partition_id) {
-        if (auto iterator = _partition_to_num_rows.find(partition_id);
-            iterator != _partition_to_num_rows.end()) {
+        if (auto iterator = _partition_to_num_rows.find(partition_id); iterator != _partition_to_num_rows.end()) {
             iterator->second = (iterator->second)++;
         } else {
             _partition_to_num_rows[partition_id] = 1;
         }
     }
+
 protected:
     // unique load id
     PUniqueId _load_id;
