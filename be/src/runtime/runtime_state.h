@@ -277,7 +277,22 @@ public:
 
     int64_t num_bytes_scan_from_source() const noexcept { return _num_bytes_scan_from_source.load(); }
 
-    std::map<int64_t, int64_t> partition_rows() const noexcept { return _partition_to_num_rows; };
+    const std::map<int64_t, int64_t> partition_rows() const noexcept { return _partition_to_num_rows; };
+
+    std::string partition_rows_string() {
+        std::ostringstream oss;
+        for (const auto& pair : _partition_to_num_rows) {
+            oss << pair.first << ": " << pair.second << ", ";
+        }
+
+        std::string result = oss.str();
+        if (!result.empty()) {
+            result.pop_back(); // remove colon
+            result.pop_back(); // remove comma
+        }
+
+        return result;
+    }
 
     void update_num_bytes_load_from_source(int64_t bytes_load) { _num_bytes_load_from_source.fetch_add(bytes_load); }
 
