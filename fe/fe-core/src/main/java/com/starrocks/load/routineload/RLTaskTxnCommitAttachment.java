@@ -43,6 +43,7 @@ import com.starrocks.transaction.TxnCommitAttachment;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Map;
 
 // {"progress": "", "backendId": "", "taskSignature": "", "numOfErrorData": "",
 // "numOfTotalData": "", "taskId": "", "jobId": ""}
@@ -67,6 +68,9 @@ public class RLTaskTxnCommitAttachment extends TxnCommitAttachment {
     private String errorLogUrl;
     private long loadedBytes;
 
+    @SerializedName("partitionRows")
+    private Map<Long, Long> partitionRows;
+
     public RLTaskTxnCommitAttachment() {
         super(TransactionState.LoadJobSourceType.ROUTINE_LOAD_TASK);
     }
@@ -81,6 +85,7 @@ public class RLTaskTxnCommitAttachment extends TxnCommitAttachment {
         this.receivedBytes = rlTaskTxnCommitAttachment.getReceivedBytes();
         this.loadedBytes = rlTaskTxnCommitAttachment.getLoadedBytes();
         this.taskExecutionTimeMs = rlTaskTxnCommitAttachment.getLoadCostMs();
+        this.partitionRows = rlTaskTxnCommitAttachment.getPartitionRows();
 
         switch (rlTaskTxnCommitAttachment.getLoadSourceType()) {
             case KAFKA:
