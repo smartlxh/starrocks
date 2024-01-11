@@ -17,7 +17,6 @@ package com.starrocks.load.loadv2;
 
 import com.google.gson.annotations.SerializedName;
 import com.starrocks.common.io.Text;
-import com.starrocks.persist.gson.GsonUtils;
 import com.starrocks.thrift.TManualLoadTxnCommitAttachment;
 import com.starrocks.transaction.TransactionState;
 import com.starrocks.transaction.TxnCommitAttachment;
@@ -37,7 +36,6 @@ public class ManualLoadTxnCommitAttachment extends TxnCommitAttachment {
     private long receivedBytes;
     private long loadedBytes;
 
-    @SerializedName("partitonRows")
     private Map<Long, Long> partitionRows;
     // optional
     @SerializedName("eu")
@@ -116,6 +114,11 @@ public class ManualLoadTxnCommitAttachment extends TxnCommitAttachment {
 
     @Override
     public String toString() {
-        return GsonUtils.GSON.toJson(this);
+        return "ManualLoadTxnCommitAttachment [filteredRows=" + filteredRows
+                + ", loadedRows=" + loadedRows
+                + ", loadBytes=" + loadedBytes
+                + ", partitionRows=" + partitionRows
+                + ", unselectedRows=" + unselectedRows
+                + ", receivedBytes=" + receivedBytes + "]";
     }
 }

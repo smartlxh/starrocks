@@ -59,6 +59,7 @@ Status TabletSinkSender::send_chunk(const OlapTableSchemaParam* schema,
                 index_id_partition_id[index->index_id].emplace(partitions[selection]->id);
                 _tablet_ids[selection] = partitions[selection]->indexes[i].tablets[tablet_indexes[selection]];
                 _update_partition_rows(partitions[selection]->id);
+                LOG(INFO) << "sender partition: " << partitions[selection]->id;
             }
             RETURN_IF_ERROR(_send_chunk_by_node(chunk, _channels[i], validate_select_idx));
         }

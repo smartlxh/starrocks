@@ -68,7 +68,6 @@ public class RLTaskTxnCommitAttachment extends TxnCommitAttachment {
     private String errorLogUrl;
     private long loadedBytes;
 
-    @SerializedName("partitionRows")
     private Map<Long, Long> partitionRows;
 
     public RLTaskTxnCommitAttachment() {
@@ -159,6 +158,7 @@ public class RLTaskTxnCommitAttachment extends TxnCommitAttachment {
     public String toString() {
         return "RLTaskTxnCommitAttachment [filteredRows=" + filteredRows
                 + ", loadedRows=" + loadedRows
+                + ", partitionRows=" + partitionRows
                 + ", unselectedRows=" + unselectedRows
                 + ", receivedBytes=" + receivedBytes
                 + ", taskExecutionTimeMs=" + taskExecutionTimeMs
