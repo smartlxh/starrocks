@@ -236,13 +236,16 @@ void SharedBufferedInputStream::release_to_offset(int64_t offset) {
 
 Status SharedBufferedInputStream::read_at_fully(int64_t offset, void* out, int64_t count) {
     auto st = find_shared_buffer(offset, count);
+    LOG(INFO) << "shared_buffer_stream, offset: " << offset << ", count: " << count;
     if (!st.ok()) {
+        LOG(INFO) << "shared_buffer_stream not hit direct io";
         SCOPED_RAW_TIMER(&_direct_io_timer);
         _direct_io_count += 1;
         _direct_io_bytes += count;
         RETURN_IF_ERROR(_stream->read_at_fully(offset, out, count));
         return Status::OK();
     }
+    LOG(INFO) << "shared_buffer_stream hit";
     const uint8_t* buffer = nullptr;
     RETURN_IF_ERROR(get_bytes(&buffer, offset, count));
     strings::memcpy_inlined(out, buffer, count);
