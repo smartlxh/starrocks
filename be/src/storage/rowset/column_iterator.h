@@ -107,6 +107,9 @@ public:
 
     Status convert_sparse_range_to_io_range(const SparseRange<>& range) {
         auto reader = get_column_reader();
+        if (reader == nullptr) {
+            LOG(INFO) << "column reader nullptr, filename: " << _opts.read_file->filename();
+        }
         std::vector<io::SharedBufferedInputStream::IORange> result;
         for (auto index = 0; index < range.size(); index++) {
             auto row_start = range[index].begin();
