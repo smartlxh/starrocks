@@ -106,12 +106,19 @@ public:
     }
 
     Status convert_sparse_range_to_io_range(const SparseRange<>& range) {
+        if (auto sharedBufferStream = dynamic_cast<io::SharedBufferedInputStream*>(_opts.read_file);
+            sharedBufferStream != nullptr) {
+            LOG(INFO) << "not sharedBufferStream, filename: " << _opts.read_file->filename();
+            return Status::OK();
+        }
+
         auto reader = get_column_reader();
         if (reader == nullptr) {
-            // default
+            // should't happen
             LOG(INFO) << "column reader nullptr, filename: " << _opts.read_file->filename();
             return Status::OK();
         }
+
         std::vector<io::SharedBufferedInputStream::IORange> result;
         for (auto index = 0; index < range.size(); index++) {
             auto row_start = range[index].begin();
@@ -129,13 +136,7 @@ public:
             }
         }
 
-        if (auto sharedBufferStream = dynamic_cast<io::SharedBufferedInputStream*>(_opts.read_file);
-            sharedBufferStream != nullptr) {
-            return sharedBufferStream->set_io_ranges(result);
-        } else {
-            // should't happen
-            return Status::InternalError("io coalesce failed");
-        }
+        return dynamic_cast<io::SharedBufferedInputStream*>(_opts.read_file)->set_io_ranges(result);
     }
 
     virtual ordinal_t get_current_ordinal() const = 0;
