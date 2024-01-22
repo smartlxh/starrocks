@@ -210,6 +210,8 @@ public class StorageVolume implements Writable, GsonPostProcessable {
         params.computeIfPresent(CloudConfigurationConstants.AWS_S3_SECRET_KEY, (key, value) -> CREDENTIAL_MASK);
         params.computeIfPresent(CloudConfigurationConstants.AZURE_BLOB_SHARED_KEY, (key, value) -> CREDENTIAL_MASK);
         params.computeIfPresent(CloudConfigurationConstants.AZURE_BLOB_SAS_TOKEN, (key, value) -> CREDENTIAL_MASK);
+        params.computeIfPresent(CloudConfigurationConstants.ALIYUN_OSS_ACCESS_KEY, (key, value) -> CREDENTIAL_MASK);
+        params.computeIfPresent(CloudConfigurationConstants.ALIYUN_OSS_SECRET_KEY, (key, value) -> CREDENTIAL_MASK);
     }
 
     public void getProcNodeData(BaseProcResult result) {

@@ -109,7 +109,9 @@ public class CreateStorageVolumeStmt extends DdlStmt {
         if (properties.containsKey(CloudConfigurationConstants.AWS_S3_ACCESS_KEY) ||
                 properties.containsKey(CloudConfigurationConstants.AWS_S3_SECRET_KEY) ||
                 properties.containsKey(CloudConfigurationConstants.AZURE_BLOB_SHARED_KEY) ||
-                properties.containsKey(CloudConfigurationConstants.AZURE_BLOB_SAS_TOKEN)) {
+                properties.containsKey(CloudConfigurationConstants.AZURE_BLOB_SAS_TOKEN) ||
+                properties.containsKey(CloudConfigurationConstants.ALIYUN_OSS_ACCESS_KEY) ||
+                properties.containsKey(CloudConfigurationConstants.ALIYUN_OSS_SECRET_KEY)) {
             return true;
         }
         return false;
