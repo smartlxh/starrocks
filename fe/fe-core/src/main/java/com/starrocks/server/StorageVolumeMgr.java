@@ -72,6 +72,8 @@ public abstract class StorageVolumeMgr implements Writable, GsonPostProcessable 
 
     private static final String HDFS = "hdfs";
 
+    private static final String OSS = "oss";
+
     @SerializedName("defaultSVId")
     protected String defaultStorageVolumeId = "";
 
@@ -339,6 +341,7 @@ public abstract class StorageVolumeMgr implements Writable, GsonPostProcessable 
                 String scheme = uri.getScheme().toLowerCase();
                 switch (svType.toLowerCase()) {
                     case S3:
+                    case OSS:
                     case AZBLOB:
                         if (!scheme.equalsIgnoreCase(svType)) {
                             throw new DdlException("Invalid location " + location);
