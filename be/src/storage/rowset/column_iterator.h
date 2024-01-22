@@ -123,11 +123,11 @@ public:
         for (auto index = 0; index < range.size(); index++) {
             auto row_start = range[index].begin();
             auto row_end = range[index].end() - 1;
-            OrdinalPageIndexIterator* iter_start = nullptr;
-            OrdinalPageIndexIterator* iter_end = nullptr;
-            RETURN_IF_ERROR(reader->seek_at_or_before(row_start, iter_start));
-            RETURN_IF_ERROR(reader->seek_at_or_before(row_end, iter_end));
-            for (auto j = iter_start->page_index(); j < iter_end->page_index(); j++) {
+            OrdinalPageIndexIterator iter_start;
+            OrdinalPageIndexIterator iter_end;
+            RETURN_IF_ERROR(reader->seek_at_or_before(row_start, &iter_start));
+            RETURN_IF_ERROR(reader->seek_at_or_before(row_end, &iter_end));
+            for (auto j = iter_start.page_index(); j < iter_end.page_index(); j++) {
                 OrdinalPageIndexIterator* iter = nullptr;
                 RETURN_IF_ERROR(reader->seek_by_page_index(j, iter));
                 auto page_pointer = iter->page();

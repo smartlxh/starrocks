@@ -116,6 +116,7 @@ Status SharedBufferedInputStream::_set_io_ranges_all_columns(const std::vector<I
 
     _merge_small_ranges(small_ranges);
     _update_estimated_mem_usage();
+    print_shared_buffer();
     return Status::OK();
 }
 
@@ -181,6 +182,7 @@ Status SharedBufferedInputStream::_set_io_ranges_active_and_lazy_columns(const s
     }
 
     _update_estimated_mem_usage();
+    print_shared_buffer();
     return Status::OK();
 }
 
