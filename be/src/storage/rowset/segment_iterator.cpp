@@ -279,6 +279,7 @@ private:
     std::unordered_map<std::string, std::shared_ptr<Segment>> _dcg_segments;
     SegmentReadOptions _opts;
     RawColumnIterators _column_iterators;
+    std::vector<int> _io_coalesce_column_index;
     ColumnDecoders _column_decoders;
     std::vector<BitmapIndexIterator*> _bitmap_index_iterators;
     // delete predicates
@@ -440,12 +441,8 @@ Status SegmentIterator::_init() {
 
     _range_iter = _scan_range.new_iterator();
 
-    // _segment->lake_tabelt_manager() != nullptr means that be run in shard_data mode
-    if (config::io_coalesce_lake_read_enable && _segment->lake_tablet_manager() != nullptr) {
-        // init io::range of column iterator
-        for (auto& column_iterator : _column_iterators) {
-            RETURN_IF_ERROR(column_iterator->convert_sparse_range_to_io_range(_scan_range));
-        }
+    for (auto column_index : _io_coalesce_column_index) {
+        RETURN_IF_ERROR(_column_iterators[column_index]->convert_sparse_range_to_io_range(_scan_range));
     }
 
     return Status::OK();
@@ -558,6 +555,7 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
             shared_buffered_input_stream->set_coalesce_options(options);
             iter_opts.read_file = shared_buffered_input_stream.release();
             _column_files[cid] = std::move(rfile);
+            _io_coalesce_column_index.emplace_back(cid);
         } else {
             iter_opts.read_file = rfile.get();
             _column_files[cid] = std::move(rfile);
