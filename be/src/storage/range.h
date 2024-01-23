@@ -215,6 +215,8 @@ public:
 
     SparseRange& operator|=(const SparseRange& rhs);
 
+    const std::vector<Range<T>> get_ranges() { return _ranges; }
+
 private:
     friend class SparseRangeIterator<T>;
 
