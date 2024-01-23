@@ -96,7 +96,9 @@ void SharedBufferedInputStream::_merge_small_ranges(const std::vector<IORange>& 
 }
 
 Status SharedBufferedInputStream::_set_io_ranges_all_columns(const std::vector<IORange>& ranges) {
+    LOG(INFO) << "set_io_ranges_all_columns";
     if (ranges.size() == 0) {
+        LOG(INFO) << "ranges.size 0";
         return Status::OK();
     }
 
@@ -105,6 +107,7 @@ Status SharedBufferedInputStream::_set_io_ranges_all_columns(const std::vector<I
 
     std::vector<IORange> small_ranges;
     for (const IORange& r : check) {
+        LOG(INFO) << "IORange: " << r.offset << " " << r.size;
         if (r.size > _options.max_buffer_size) {
             SharedBuffer sb = SharedBuffer{.raw_offset = r.offset, .raw_size = r.size, .ref_count = 1};
             sb.align(_align_size, _file_size);
