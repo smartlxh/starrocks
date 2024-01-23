@@ -135,9 +135,9 @@ public:
             RETURN_IF_ERROR(reader->seek_at_or_before(row_end, &iter_end));
             LOG(INFO) << "converse range start:" << row_start << "row_end:" << row_end;
             for (auto j = iter_start.page_index(); j < iter_end.page_index(); j++) {
-                OrdinalPageIndexIterator* iter = nullptr;
-                RETURN_IF_ERROR(reader->seek_by_page_index(j, iter));
-                auto page_pointer = iter->page();
+                OrdinalPageIndexIterator iter;
+                RETURN_IF_ERROR(reader->seek_by_page_index(j, &iter));
+                auto page_pointer = iter.page();
                 LOG(INFO) << "get io_range, offset,size:" << page_pointer.offset << " " << page_pointer.size;
                 io::SharedBufferedInputStream::IORange io_range(page_pointer.offset, page_pointer.size);
                 result.emplace_back(io_range);
