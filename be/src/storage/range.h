@@ -215,7 +215,11 @@ public:
 
     SparseRange& operator|=(const SparseRange& rhs);
 
-    const std::vector<Range<T>> get_ranges() { return _ranges; }
+    void print_range() const {
+        for (auto index = 0; index < _ranges.size(); index++) {
+            LOG(INFO) << "range" << index << ", " << _ranges[index].begin() << " " << _ranges[index].end();
+        }
+    }
 
 private:
     friend class SparseRangeIterator<T>;

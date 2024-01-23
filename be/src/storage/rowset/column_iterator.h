@@ -120,14 +120,10 @@ public:
         }
 
         std::vector<io::SharedBufferedInputStream::IORange> result;
-        LOG(INFO) << "----------------------------";
+        LOG(INFO) << "reader----------------------------";
         reader->print_debug_info();
-        LOG(INFO) << "----------------------------";
-
-        auto ranges = range.get_ranges();
-        for (auto index = 0; index < ranges.size(); index++) {
-            LOG(INFO) << "range" << index << ", " << ranges[index].begin() << " " << ranges[index].end();
-        }
+        LOG(INFO) << "range----------------------------";
+        range.print_range();
         LOG(INFO) << "----------------------------";
         for (auto index = 0; index < range.size(); index++) {
             auto row_start = range[index].begin();
