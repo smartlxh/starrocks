@@ -57,7 +57,7 @@ class RandomAccessFile;
 struct ColumnIteratorOptions {
     //RandomAccessFile* read_file = nullptr;
     io::SeekableInputStream* read_file = nullptr;
-    bool is_lake = false;
+    bool is_io_coalesce = false;
     // reader statistics
     OlapReaderStatistics* stats = nullptr;
     bool use_page_cache = false;

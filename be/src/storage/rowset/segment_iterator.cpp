@@ -291,7 +291,7 @@ private:
     DeltaColumnGroupList _dcgs;
     roaring::api::roaring_uint32_iterator_t _roaring_iter;
 
-    std::unordered_map<ColumnId, std::unique_ptr<RandomAccessFile>> _column_files;
+    std::unordered_map<ColumnId, std::unique_ptr<io::SeekableInputStream>> _column_files;
 
     SparseRange<> _scan_range;
     SparseRangeIterator<> _range_iter;
@@ -553,8 +553,9 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
                     .max_dist_size = config::io_coalesce_read_max_distance_size,
                     .max_buffer_size = config::io_coalesce_read_max_buffer_size};
             shared_buffered_input_stream->set_coalesce_options(options);
-            iter_opts.read_file = shared_buffered_input_stream.release();
-            _column_files[cid] = std::move(rfile);
+            iter_opts.read_file = shared_buffered_input_stream.get();
+            iter_opts.is_io_coalesce = true;
+            _column_files[cid] = std::move(shared_buffered_input_stream);
             _io_coalesce_column_index.emplace_back(cid);
         } else {
             iter_opts.read_file = rfile.get();
