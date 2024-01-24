@@ -108,7 +108,7 @@ public:
     Status convert_sparse_range_to_io_range(const SparseRange<>& range) {
         if (auto sharedBufferStream = dynamic_cast<io::SharedBufferedInputStream*>(_opts.read_file);
             sharedBufferStream == nullptr) {
-            LOG(INFO) << "not sharedBufferStream, filename: " << _opts.read_file->filename();
+            //LOG(INFO) << "not sharedBufferStream, filename: " << _opts.read_file->filename();
             return Status::OK();
         }
 
@@ -120,25 +120,20 @@ public:
         }
 
         std::vector<io::SharedBufferedInputStream::IORange> result;
-        LOG(INFO) << "reader----------------------------";
-        reader->print_debug_info();
-        LOG(INFO) << "range----------------------------";
-        range.print_range();
-        LOG(INFO) << "----------------------------";
         for (auto index = 0; index < range.size(); index++) {
             auto row_start = range[index].begin();
             auto row_end = range[index].end() - 1;
-            LOG(INFO) << "converse range start1:" << row_start << "row_end:" << row_end;
+            //LOG(INFO) << "converse range start1:" << row_start << "row_end:" << row_end;
             OrdinalPageIndexIterator iter_start;
             OrdinalPageIndexIterator iter_end;
             RETURN_IF_ERROR(reader->seek_at_or_before(row_start, &iter_start));
             RETURN_IF_ERROR(reader->seek_at_or_before(row_end, &iter_end));
-            LOG(INFO) << "converse range start:" << row_start << "row_end:" << row_end;
+            //LOG(INFO) << "converse range start:" << row_start << "row_end:" << row_end;
             for (auto j = iter_start.page_index(); j < iter_end.page_index(); j++) {
                 OrdinalPageIndexIterator iter;
                 RETURN_IF_ERROR(reader->seek_by_page_index(j, &iter));
                 auto page_pointer = iter.page();
-                LOG(INFO) << "get io_range, offset,size:" << page_pointer.offset << " " << page_pointer.size;
+                //LOG(INFO) << "get io_range, offset,size:" << page_pointer.offset << " " << page_pointer.size;
                 io::SharedBufferedInputStream::IORange io_range(page_pointer.offset, page_pointer.size);
                 result.emplace_back(io_range);
             }
