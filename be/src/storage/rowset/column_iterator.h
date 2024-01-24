@@ -120,6 +120,7 @@ public:
         }
 
         std::vector<io::SharedBufferedInputStream::IORange> result;
+        int64_t start_ts = MonotonicMillis();
         for (auto index = 0; index < range.size(); index++) {
             auto row_start = range[index].begin();
             auto row_end = range[index].end() - 1;
@@ -129,7 +130,7 @@ public:
             RETURN_IF_ERROR(reader->seek_at_or_before(row_start, &iter_start));
             RETURN_IF_ERROR(reader->seek_at_or_before(row_end, &iter_end));
             //LOG(INFO) << "converse range start:" << row_start << "row_end:" << row_end;
-            for (auto j = iter_start.page_index(); j < iter_end.page_index(); j++) {
+            for (auto j = iter_start.page_index(); j <= iter_end.page_index(); j++) {
                 OrdinalPageIndexIterator iter;
                 RETURN_IF_ERROR(reader->seek_by_page_index(j, &iter));
                 auto page_pointer = iter.page();
@@ -138,6 +139,8 @@ public:
                 result.emplace_back(io_range);
             }
         }
+        int64_t end_ts = MonotonicMillis();
+        LOG(INFO) << "converse sparse range to io::range cost " << end_ts - start_ts << " ms";
 
         return dynamic_cast<io::SharedBufferedInputStream*>(_opts.read_file)->set_io_ranges(result);
     }
