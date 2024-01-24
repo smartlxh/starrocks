@@ -265,7 +265,7 @@ private:
     // `ucid` means unique column id, use it for searching delta column group.
     Status _init_column_iterator_by_cid(const ColumnId cid, const ColumnUID ucid, bool check_dict_enc);
 
-    void _update_stats(io::SeekableInputStream* rfile* rfile);
+    void _update_stats(io::SeekableInputStream* rfile);
 
     //  This function will search and build the segment from delta column group.
     StatusOr<std::shared_ptr<Segment>> _get_dcg_segment(uint32_t ucid);
