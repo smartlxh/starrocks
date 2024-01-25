@@ -106,6 +106,7 @@ public:
     }
 
     Status convert_sparse_range_to_io_range(const SparseRange<>& range) {
+        int64_t start_ts = MonotonicMillis();
         if (auto sharedBufferStream = dynamic_cast<io::SharedBufferedInputStream*>(_opts.read_file);
             sharedBufferStream == nullptr) {
             //LOG(INFO) << "not sharedBufferStream, filename: " << _opts.read_file->filename();
@@ -121,7 +122,6 @@ public:
 
         std::vector<io::SharedBufferedInputStream::IORange> result;
         std::vector<std::pair<int, int>> page_index;
-        //int64_t start_ts = MonotonicMillis();
         int prev_page_index = -1;
         for (auto index = 0; index < range.size(); index++) {
             auto row_start = range[index].begin();
@@ -159,8 +159,8 @@ public:
             LOG(INFO) << this << "pair index from to " << pair.first << " " << pair.second << ", offset size " << offset
                       << " " << size;
         }
-        //int64_t end_ts = MonotonicMillis();
-        //LOG(INFO) << "converse sparse range to io::range cost " << end_ts - start_ts << " ms";
+        int64_t end_ts = MonotonicMillis();
+        LOG(INFO) << "converse sparse range to io::range cost " << end_ts - start_ts << " ms";
 
         return dynamic_cast<io::SharedBufferedInputStream*>(_opts.read_file)->set_io_ranges(result);
     }
