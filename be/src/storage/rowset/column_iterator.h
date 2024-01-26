@@ -129,18 +129,19 @@ public:
             OrdinalPageIndexIterator iter_end;
             RETURN_IF_ERROR(reader->seek_at_or_before(row_start, &iter_start));
             RETURN_IF_ERROR(reader->seek_at_or_before(row_end, &iter_end));
-            //LOG(INFO) << "converse range start:" << row_start << "row_end:" << row_end;
+            LOG(INFO) << "converse range start:" << row_start << "row_end:" << row_end;
             for (auto j = iter_start.page_index(); j <= iter_end.page_index(); j++) {
                 OrdinalPageIndexIterator iter;
                 RETURN_IF_ERROR(reader->seek_by_page_index(j, &iter));
                 auto page_pointer = iter.page();
-                //LOG(INFO) << "get io_range, offset,size:" << page_pointer.offset << " " << page_pointer.size;
+                LOG(INFO) << "get io_range, page_index " << j << ", offset,size:" << page_pointer.offset << " "
+                          << page_pointer.size;
                 io::SharedBufferedInputStream::IORange io_range(page_pointer.offset, page_pointer.size);
                 result.emplace_back(io_range);
             }
         }
         int64_t end_ts = MonotonicMillis();
-        LOG(INFO) << "converse sparse range to io::range cost " << end_ts - start_ts << " ms";
+        //LOG(INFO) << "converse sparse range to io::range cost " << end_ts - start_ts << " ms";
 
         return dynamic_cast<io::SharedBufferedInputStream*>(_opts.read_file)->set_io_ranges(result);
     }

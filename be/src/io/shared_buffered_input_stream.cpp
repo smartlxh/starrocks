@@ -54,6 +54,9 @@ Status SharedBufferedInputStream::_sort_and_check_overlap(std::vector<IORange>& 
         return a.size < b.size;
     });
 
+    for (auto item : ranges) {
+        LOG(INFO) << "sort offset and size " << item.offset << " " << item.size;
+    }
     // check io range is not overlapped.
     for (size_t i = 1; i < ranges.size(); i++) {
         if (ranges[i].offset < (ranges[i - 1].offset + ranges[i - 1].size)) {
@@ -75,6 +78,8 @@ void SharedBufferedInputStream::_merge_small_ranges(const std::vector<IORange>& 
                                            .ref_count = ref_count};
             sb.align(_align_size, _file_size);
             _map.insert(std::make_pair(sb.raw_offset + sb.raw_size, sb));
+            LOG(INFO) << this << "merge " << ref_count << "range: start,end" << sb.raw_offset << " " << sb.raw_size;
+            LOG(INFO) << this << "after align" << sb.offset << " " << sb.size;
         };
 
         size_t unmerge = 0;
@@ -116,7 +121,7 @@ Status SharedBufferedInputStream::_set_io_ranges_all_columns(const std::vector<I
 
     _merge_small_ranges(small_ranges);
     _update_estimated_mem_usage();
-    //print_shared_buffer();
+    print_shared_buffer();
     return Status::OK();
 }
 
