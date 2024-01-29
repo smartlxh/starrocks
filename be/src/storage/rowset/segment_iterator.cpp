@@ -441,6 +441,7 @@ Status SegmentIterator::_init() {
 
     _range_iter = _scan_range.new_iterator();
 
+    LOG(INFO) << "scan_range size, file_name" << _segment->file_name() << _scan_range.size();
     for (auto column_index : _io_coalesce_column_index) {
         RETURN_IF_ERROR(_column_iterators[column_index]->convert_sparse_range_to_io_range(_scan_range));
     }
