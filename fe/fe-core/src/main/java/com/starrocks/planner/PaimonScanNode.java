@@ -321,14 +321,6 @@ public class PaimonScanNode extends ScanNode {
                     getExplainString(scanNodePredicates.getMinMaxConjuncts())).append("\n");
         }
 
-        List<String> partitionNames = GlobalStateMgr.getCurrentState().getMetadataMgr().listPartitionNames(
-                paimonTable.getCatalogName(), paimonTable.getDbName(), paimonTable.getTableName());
-
-        output.append(prefix).append(
-                String.format("partitions=%s/%s", scanNodePredicates.getSelectedPartitionIds().size(),
-                        partitionNames.size() == 0 ? 1 : partitionNames.size()));
-        output.append("\n");
-
         // TODO: support it in verbose
         if (detailLevel != VERBOSE) {
             output.append(prefix).append(String.format("cardinality=%s", cardinality));
