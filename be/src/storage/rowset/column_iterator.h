@@ -126,12 +126,17 @@ public:
         for (auto index = 0; index < range.size(); index++) {
             auto row_start = range[index].begin();
             auto row_end = range[index].end() - 1;
-            //LOG(INFO) << "converse range start1:" << row_start << "row_end:" << row_end;
+            LOG(INFO) << "converse range start1:" << row_start << "row_end:" << row_end;
             OrdinalPageIndexIterator iter_start;
             OrdinalPageIndexIterator iter_end;
             RETURN_IF_ERROR(reader->seek_at_or_before(row_start, &iter_start));
             RETURN_IF_ERROR(reader->seek_at_or_before(row_end, &iter_end));
-
+            auto start_page = iter_start.page();
+            auto end_page = iter_end.page();
+            LOG(INFO) << this << "start index offset size " << iter_start.page_index() << " " << start_page.offset
+                      << " " << start_page.size;
+            LOG(INFO) << this << "end index offset size " << iter_end.page_index() << " " << end_page.offset << " "
+                      << end_page.size;
             if (prev_page_index == iter_start.page_index()) {
                 // merge page index
                 page_index.back().second = iter_end.page_index();
