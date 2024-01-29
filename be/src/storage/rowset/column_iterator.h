@@ -126,7 +126,7 @@ public:
         for (auto index = 0; index < range.size(); index++) {
             auto row_start = range[index].begin();
             auto row_end = range[index].end() - 1;
-            LOG(INFO) << "converse range start1:" << row_start << "row_end:" << row_end;
+            LOG(INFO) << this << "converse range start1:" << row_start << "row_end:" << row_end;
             OrdinalPageIndexIterator iter_start;
             OrdinalPageIndexIterator iter_end;
             RETURN_IF_ERROR(reader->seek_at_or_before(row_start, &iter_start));
