@@ -136,11 +136,13 @@ Status PageIO::read_and_decompress_page(const PageReadOptions& opts, PageHandle*
 
     opts.sanity_check();
     opts.stats->total_pages_num++;
-
+    int64_t start_ts = MonotonicMillis();
     auto cache = StoragePageCache::instance();
     PageCacheHandle cache_handle;
     StoragePageCache::CacheKey cache_key(opts.read_file->filename(), opts.page_pointer.offset);
+    LOG(INFO) << "cache file" << opts.read_file->filename() << "offset " << opts.page_pointer.offset;
     if (opts.use_page_cache && cache->lookup(cache_key, &cache_handle)) {
+        LOG(INFO) << "cache file hit" << opts.read_file->filename() << "offset " << opts.page_pointer.offset;
         // we find page in cache, use it
         *handle = PageHandle(std::move(cache_handle));
         opts.stats->cached_pages_num++;
@@ -156,6 +158,8 @@ Status PageIO::read_and_decompress_page(const PageReadOptions& opts, PageHandle*
         *body = Slice(page_slice.data, page_slice.size - 4 - footer_size);
         return Status::OK();
     }
+
+    LOG(INFO) << "cache file not hit" << opts.read_file->filename() << "offset " << opts.page_pointer.offset;
 
     // every page contains 4 bytes footer length and 4 bytes checksum
     const uint32_t page_size = opts.page_pointer.size;
@@ -242,6 +246,8 @@ Status PageIO::read_and_decompress_page(const PageReadOptions& opts, PageHandle*
         *handle = PageHandle(page_slice);
     }
     page.release(); // memory now managed by handle
+    int64_t end_ts = MonotonicMillis();
+    LOG(INFO) << "page io cost " << end_ts - start_ts << "ms";
     return Status::OK();
 }
 
