@@ -560,11 +560,11 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
             iter_opts.is_io_coalesce = true;
             _column_files[cid] = std::move(shared_buffered_input_stream);
             _io_coalesce_column_index.emplace_back(cid);
-            int64_t end_ts = MonotonicMillis();
         } else {
             iter_opts.read_file = rfile.get();
             _column_files[cid] = std::move(rfile);
         }
+        int64_t end_ts = MonotonicMillis();
         LOG(INFO) << "init shared buffer stream " << _segment->file_name() << "cost " << end_ts - start_ts << " ms";
     } else {
         // create delta column iterator
