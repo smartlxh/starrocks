@@ -42,6 +42,9 @@ under the License.
         <awsv2.version>2.17.257</awsv2.version>
         <paimon.version>0.8.1</paimon.version>
         <staros.version>3.2.2</staros.version>
+        <paimon.version>0.6.0-incubating</paimon.version>
+        <paimon.ali.dlf.version>0.6-ali-5-sr-SNAPSHOT</paimon.ali.dlf.version>
+        <staros.version>3.2.1</staros.version>
         <python>python</python>
     </properties>
 
@@ -695,6 +698,30 @@ under the License.
             <groupId>org.apache.paimon</groupId>
             <artifactId>paimon-oss</artifactId>
             <version>${paimon.version}</version>
+        </dependency>
+
+        <dependency>
+            <artifactId>paimon-ali-dlf-catalog</artifactId>
+            <groupId>org.apache.paimon</groupId>
+            <version>${paimon.ali.dlf.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.aliyun.datalake</groupId>
+                    <artifactId>metastore-client-hive2</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.hive</groupId>
+                    <artifactId>hive-metastore</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.hive</groupId>
+                    <artifactId>hive-exec</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.paimon</groupId>
+                    <artifactId>paimon-core</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
