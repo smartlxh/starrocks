@@ -546,6 +546,8 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
         const auto& col = tablet_schema->column(cid);
         ASSIGN_OR_RETURN(_column_iterators[cid], _segment->new_column_iterator_or_default(col, access_path));
         ASSIGN_OR_RETURN(auto rfile, _opts.fs->new_random_access_file(opts, _segment->file_info()));
+        int64_t start_ts = MonotonicMillis();
+
         if (config::io_coalesce_lake_read_enable && !_segment->is_default_column(col) &&
             _segment->lake_tablet_manager() != nullptr) {
             auto shared_buffered_input_stream = std::make_unique<io::SharedBufferedInputStream>(
@@ -558,10 +560,12 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
             iter_opts.is_io_coalesce = true;
             _column_files[cid] = std::move(shared_buffered_input_stream);
             _io_coalesce_column_index.emplace_back(cid);
+            int64_t end_ts = MonotonicMillis();
         } else {
             iter_opts.read_file = rfile.get();
             _column_files[cid] = std::move(rfile);
         }
+        LOG(INFO) << "init shared buffer stream " << _segment->file_name() << "cost " << end_ts - start_ts << " ms";
     } else {
         // create delta column iterator
         // TODO io_coalesce
@@ -570,7 +574,10 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
         iter_opts.read_file = dcg_file.get();
         _column_files[cid] = std::move(dcg_file);
     }
+    int64_t start_ts = MonotonicMillis();
     RETURN_IF_ERROR(_column_iterators[cid]->init(iter_opts));
+    int64_t end_ts = MonotonicMillis();
+    LOG(INFO) << "init column_iterator" << _segment->file_name() << "cost " << end_ts - start_ts << " ms";
     return Status::OK();
 }
 
