@@ -155,7 +155,7 @@ public class Binder {
      */
     private GroupExpression extractGroupExpression(Pattern pattern, Group group) {
         int valueIndex = groupExpressionIndex.get(groupTraceKey);
-        if (pattern.isPatternLeaf() || pattern.isPatternMultiLeaf()) {
+        if (pattern.isPatternLeaf() || pattern.isPatternMultiLeaf() || pattern.isPatternMultiJoin()) {
             if (valueIndex > 0) {
                 groupExpressionIndex.remove(groupTraceKey);
                 return null;
