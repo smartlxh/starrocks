@@ -36,6 +36,7 @@ package com.starrocks.common.util;
 
 import com.google.common.base.Strings;
 import com.starrocks.common.Pair;
+import org.apache.commons.net.util.SubnetUtils;
 import org.apache.commons.validator.routines.InetAddressValidator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -128,5 +129,17 @@ public class NetUtils {
             LOG.warn("parsed ip for {} failed!", host);
         }
         return host;
+    }
+
+    /**
+     * check if ip in the range of subnet
+     * @param ipStr
+     * @param subnetStr
+     * @return
+     */
+    public static boolean isInRange(String ipStr, String subnetStr) {
+        SubnetUtils subnetUtils = new SubnetUtils(subnetStr);
+        subnetUtils.setInclusiveHostCount(true);
+        return subnetUtils.getInfo().isInRange(ipStr);
     }
 }
