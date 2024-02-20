@@ -16,6 +16,7 @@
 
 #include "connector/connector.h"
 #include "exec/olap_scan_prepare.h"
+#include "runtime/global_dict/parser.h"
 #include "storage/conjunctive_predicates.h"
 #include "storage/lake/tablet_manager.h"
 #include "storage/lake/tablet_reader.h"
