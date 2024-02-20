@@ -1523,7 +1523,7 @@ size_t Tablet::tablet_footprint() {
     }
 }
 
-size_t Tablet::num_rows() {
+size_t Tablet::num_rows() const {
     if (_updates) {
         return _updates->num_rows();
     } else {
