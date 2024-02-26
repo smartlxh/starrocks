@@ -167,7 +167,7 @@ public class PaimonMetadataTest {
     }
 
     @Test
-    public void testTableExists(@Mocked FileStoreTable paimonNativeTable) {
+    public void testTableExists() {
         new Expectations() {
             {
                 paimonNativeCatalog.tableExists((Identifier) any);

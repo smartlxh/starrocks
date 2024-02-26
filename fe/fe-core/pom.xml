@@ -39,11 +39,10 @@ under the License.
         <fe_ut_parallel>${env.FE_UT_PARALLEL}</fe_ut_parallel>
         <jacoco.version>0.8.7</jacoco.version>
         <iceberg.version>1.4.2</iceberg.version>
-        <paimon.version>0.8.1</paimon.version>
+        <awsv2.version>2.17.257</awsv2.version>
+        <paimon.version>0.8-20240223-e4cd14-SNAPSHOT</paimon.version>
+        <paimon.ali.dlf.version>0.8-ali-1-SNAPSHOT</paimon.ali.dlf.version>
         <staros.version>3.2.2</staros.version>
-        <paimon.version>0.6.0-incubating</paimon.version>
-        <paimon.ali.dlf.version>0.6-ali-5-sr-SNAPSHOT</paimon.ali.dlf.version>
-        <staros.version>3.2.1</staros.version>
         <python>python</python>
     </properties>
 
