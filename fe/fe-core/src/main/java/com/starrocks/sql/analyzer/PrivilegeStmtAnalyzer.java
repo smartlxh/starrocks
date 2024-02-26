@@ -268,6 +268,14 @@ public class PrivilegeStmtAnalyzer {
 
         @Override
         public Void visitGrantRevokePrivilegeStatement(BaseGrantRevokePrivilegeStmt stmt, ConnectContext session) {
+            // emr product restrictions
+            if (Config.enable_emr_product_restrictions && session.getCurrentUserIdentity() != null
+                    && !session.getCurrentUserIdentity().getUser().equals(AuthenticationMgr.ROOT_USER)) {
+                throw new SemanticException(
+                        "EMR Serverless StarRocks policies: Cannot execute GRANT statement and " +
+                                "you should manage privileges on EMR StarRocks Manager.");
+            }
+
             // validate user/role
             if (stmt.getUserIdentity() != null) {
                 analyseUser(stmt.getUserIdentity(), true);
