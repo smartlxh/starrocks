@@ -19,7 +19,7 @@ import com.starrocks.connector.ColumnTypeConverter;
 import com.starrocks.thrift.TTableDescriptor;
 import mockit.Expectations;
 import mockit.Mocked;
-import org.apache.paimon.table.FileStoreTable;
+import org.apache.paimon.table.DataTable;
 import org.apache.paimon.types.DataField;
 import org.apache.paimon.types.DataType;
 import org.apache.paimon.types.DataTypes;
@@ -35,7 +35,7 @@ import java.util.Map;
 public class PaimonTableTest {
 
     @Test
-    public void testPartitionKeys(@Mocked FileStoreTable paimonNativeTable) {
+    public void testPartitionKeys(@Mocked DataTable paimonNativeTable) {
         RowType rowType =
                 RowType.builder().field("a", DataTypes.INT()).field("b", DataTypes.INT()).field("c", DataTypes.INT())
                         .build();
@@ -71,7 +71,7 @@ public class PaimonTableTest {
     }
 
     @Test
-    public void testToThrift(@Mocked FileStoreTable paimonNativeTable) {
+    public void testToThrift(@Mocked DataTable paimonNativeTable) {
         RowType rowType =
                 RowType.builder().field("a", DataTypes.INT()).field("b", DataTypes.INT()).field("c", DataTypes.INT())
                         .build();
@@ -97,7 +97,7 @@ public class PaimonTableTest {
     }
 
     @Test
-    public void testEquals(@Mocked FileStoreTable paimonNativeTable) {
+    public void testEquals(@Mocked DataTable paimonNativeTable) {
         String dbName = "testDB";
         String tableName = "testTable";
         PaimonTable table = new PaimonTable("testCatalog", dbName, tableName, null,
