@@ -19,6 +19,7 @@ import com.starrocks.catalog.MaterializedIndex;
 import com.starrocks.catalog.OlapTable;
 import com.starrocks.catalog.Partition;
 import com.starrocks.catalog.Tablet;
+import com.starrocks.common.Config;
 import com.starrocks.common.io.DeepCopy;
 import com.starrocks.common.jmockit.Deencapsulation;
 import com.starrocks.leader.LeaderImpl;
@@ -104,6 +105,7 @@ public class ReplicationMgrTest {
         job = new ReplicationJob(null, "test_token", db.getId(), table, srcTable,
                 GlobalStateMgr.getCurrentSystemInfo());
         replicationMgr = new ReplicationMgr();
+        Config.emr_serveless_replication_enable = true;
         replicationMgr.addReplicationJob(job);
     }
 

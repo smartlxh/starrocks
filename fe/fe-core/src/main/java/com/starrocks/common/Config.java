@@ -2957,5 +2957,8 @@ public class Config extends ConfigBase {
     public static int adaptive_choose_instances_threshold = 32;
 
     @ConfField(mutable = true)
+    public static boolean emr_serveless_replication_enable = false;
+
+    @ConfField(mutable = true)
     public static String emr_serverless_full_domain = "";
 }
