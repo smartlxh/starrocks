@@ -1333,6 +1333,15 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true)
     public static int skip_whole_phase_lock_mv_limit = 5;
 
+    /**
+     * If set to true, we will only support dla analysis in this shared_data mode.
+     * Since we use shared_data mode to deploy the cluster, we should disable
+     * creation of cloud native tables by users. We did not add pure dla run mode
+     * to avoid unconsidered system exceptions.
+     */
+    @ConfField(mutable = true)
+    public static boolean enable_pure_dla_mode = false;
+
     @ConfField
     public static boolean enable_udf = false;
 
@@ -2533,7 +2542,8 @@ public class Config extends ConfigBase {
     @ConfField
     public static boolean enable_load_volume_from_conf = true;
     // remote storage related configuration
-    @ConfField(comment = "storage type for cloud native table. Available options: \"S3\", \"HDFS\", \"AZBLOB\". case-insensitive")
+    @ConfField(comment = "storage type for cloud native table. " +
+            "Available options: \"S3\", \"HDFS\", \"AZBLOB\", \"OSS\". case-insensitive")
     public static String cloud_native_storage_type = "S3";
 
     // HDFS storage configuration
@@ -2542,6 +2552,22 @@ public class Config extends ConfigBase {
      */
     @ConfField
     public static String cloud_native_hdfs_url = "";
+
+    //Oss storage configuration
+    @ConfField
+    public static String aliyun_oss_sts_file_path = "";
+    @ConfField
+    public static boolean aliyun_oss_use_default_credential = false;
+    @ConfField
+    public static String aliyun_oss_path = "";
+    @ConfField
+    public static String aliyun_oss_region = "";
+    @ConfField
+    public static String aliyun_oss_endpoint = "";
+    @ConfField
+    public static String aliyun_oss_access_key = "";
+    @ConfField
+    public static String aliyun_oss_secret_key = "";
 
     // AWS S3 storage configuration
     @ConfField
@@ -3211,6 +3237,8 @@ public class Config extends ConfigBase {
     /*
      * Replication config
      */
+    @ConfField(mutable = true)
+    public static boolean emr_serveless_replication_enable = false;
     @ConfField
     public static int replication_interval_ms = 100;
     @ConfField(mutable = true)
