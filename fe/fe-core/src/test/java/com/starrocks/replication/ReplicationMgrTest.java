@@ -106,6 +106,7 @@ public class ReplicationMgrTest {
         job = new ReplicationJob(null, "test_token", db.getId(), table, srcTable,
                 GlobalStateMgr.getCurrentSystemInfo());
         replicationMgr = new ReplicationMgr();
+        Config.emr_serveless_replication_enable = true;
         replicationMgr.addReplicationJob(job);
     }
 

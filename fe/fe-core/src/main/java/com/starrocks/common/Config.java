@@ -2727,6 +2727,9 @@ public class Config extends ConfigBase {
     public static String emr_serverless_full_domain = "";
 
     @ConfField(mutable = true)
+    public static boolean emr_serveless_replication_enable = false;
+
+    @ConfField(mutable = true)
     public static boolean profile_enable = false;
 
     /**
