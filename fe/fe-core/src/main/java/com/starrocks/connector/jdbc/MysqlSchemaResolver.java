@@ -188,7 +188,7 @@ public class MysqlSchemaResolver extends JDBCSchemaResolver {
     @Override
     public List<String> listPartitionColumns(Connection connection, String databaseName, String tableName) {
         String partitionColumnsQuery = "SELECT DISTINCT PARTITION_EXPRESSION FROM INFORMATION_SCHEMA.PARTITIONS " +
-                "WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND PARTITION_NAME IS NOT NULL";
+                "WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND PARTITION_NAME IS NOT NULL AND PARTITION_EXPRESSION IS NOT NULL";
         try (PreparedStatement ps = connection.prepareStatement(partitionColumnsQuery)) {
             ps.setString(1, databaseName);
             ps.setString(2, tableName);
