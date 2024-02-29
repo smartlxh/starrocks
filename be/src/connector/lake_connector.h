@@ -15,20 +15,7 @@
 #pragma once
 
 #include "connector/connector.h"
-#include "exec/connector_scan_node.h"
-#include "exec/olap_scan_prepare.h"
-#include "runtime/global_dict/parser.h"
-#include "storage/column_predicate_rewriter.h"
-#include "storage/conjunctive_predicates.h"
-#include "storage/lake/tablet.h"
 #include "storage/lake/tablet_manager.h"
-#include "storage/lake/tablet_reader.h"
-#include "storage/lake/versioned_tablet.h"
-#include "storage/olap_runtime_range_pruner.hpp"
-#include "storage/predicate_parser.h"
-#include "storage/projection_iterator.h"
-#include "storage/rowset/short_key_range_option.h"
-#include "util/starrocks_metrics.h"
 
 namespace starrocks::connector {
 
@@ -205,14 +192,14 @@ public:
             size_t num_total_scan_ranges) override;
 
     // for ut
-    void set_lake_tablet_manager(TabletManager* tablet_manager) { _tablet_manager = tablet_manager; }
+    void set_lake_tablet_manager(lake::TabletManager* tablet_manager) { _tablet_manager = tablet_manager; }
 
 protected:
     ConnectorScanNode* _scan_node;
     const TLakeScanNode _t_lake_scan_node;
 
     // for ut
-    TabletManager* _tablet_manager;
+    lake::TabletManager* _tablet_manager;
 
 private:
     StatusOr<bool> _could_tablet_internal_parallel(const std::vector<TScanRangeParams>& scan_ranges,

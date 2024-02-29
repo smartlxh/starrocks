@@ -161,7 +161,7 @@ TEST_F(ConnectorScanNodeTest, test_get_tablet_num_rows) {
     std::map<int32_t, std::vector<TScanRangeParams>> no_scan_ranges_per_driver_seq;
 
     auto data_source_provider = scan_node->data_source_provider();
-    dynamic_cast<connector::LakeDataSourceProvider*>(data_source_provider)->set_lake_tablet_manager(_tablet_mgr);
+    dynamic_cast<connector::LakeDataSourceProvider*>(data_source_provider)->set_lake_tablet_manager(_tablet_mgr.get());
 
     // dop is 1 and config::tablet_internal_parallel_min_splitted_scan_rows is large
     int pipeline_dop = 1;

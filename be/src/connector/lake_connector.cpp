@@ -14,7 +14,19 @@
 
 #include "connector/lake_connector.h"
 
-#include "storage/lake/tablet_manager.h"
+#include "exec/connector_scan_node.h"
+#include "exec/olap_scan_prepare.h"
+#include "runtime/global_dict/parser.h"
+#include "storage/column_predicate_rewriter.h"
+#include "storage/conjunctive_predicates.h"
+#include "storage/lake/tablet.h"
+#include "storage/lake/tablet_reader.h"
+#include "storage/lake/versioned_tablet.h"
+#include "storage/olap_runtime_range_pruner.hpp"
+#include "storage/predicate_parser.h"
+#include "storage/projection_iterator.h"
+#include "storage/rowset/short_key_range_option.h"
+#include "util/starrocks_metrics.h"
 
 namespace starrocks::connector {
 
@@ -660,10 +672,9 @@ StatusOr<bool> LakeDataSourceProvider::_could_split_tablet_physically(
         const std::vector<TScanRangeParams>& scan_ranges) const {
     // Keys type needn't merge or aggregate.
     int64_t version = std::stoll(scan_ranges[0].scan_range.internal_scan_range.version);
-    std::shared_ptr<const starrocks::TabletSchema> first_tablet_schema;
     KeysType keys_type;
 #ifdef BE_TEST
-    first_tablet_schema =
+    auto first_tablet_schema =
             _tablet_manager->get_tablet_schema(scan_ranges[0].scan_range.internal_scan_range.tablet_id, &version);
     keys_type = first_tablet_schema->keys_type();
 #else
