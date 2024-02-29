@@ -14,6 +14,8 @@
 
 #include "connector/lake_connector.h"
 
+#include "storage/lake/tablet_manager.h"
+
 namespace starrocks::connector {
 
 LakeDataSource::LakeDataSource(const LakeDataSourceProvider* provider, const TScanRange& scan_range)
