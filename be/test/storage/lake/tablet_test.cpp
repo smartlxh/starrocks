@@ -121,6 +121,7 @@ public:
             auto* rowset = _tablet_metadata->add_rowsets();
             rowset->set_overlapped(true);
             rowset->set_id(1);
+            rowset->set_num_rows(k0.size() + k1.size());
             auto* segs = rowset->mutable_segments();
             for (auto& file : writer->files()) {
                 segs->Add(std::move(file.path));

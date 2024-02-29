@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "exec/connector_scan_node.h"
-
 #include <gtest/gtest.h>
 
 #include "column/chunk.h"
@@ -22,6 +20,7 @@
 #include "column/vectorized_fwd.h"
 #include "common/logging.h"
 #include "connector/lake_connector.h"
+#include "exec/connector_scan_node.h"
 #include "storage/chunk_helper.h"
 #include "storage/lake/metacache.h"
 #include "storage/lake/tablet_manager.h"
@@ -35,9 +34,9 @@ namespace starrocks::lake {
 
 using namespace starrocks;
 
-class ConnectorScanNodeTest : public TestBase {
+class LakeScanNodeTest : public TestBase {
 public:
-    ConnectorScanNodeTest() : TestBase(kTestDirectory) {
+    LakeScanNodeTest() : TestBase(kTestDirectory) {
         _tablet_metadata = std::make_unique<TabletMetadata>();
         _tablet_metadata->set_id(next_id());
         _tablet_metadata->set_version(1);
@@ -138,14 +137,14 @@ public:
     }
 
 protected:
-    constexpr static const char* const kTestDirectory = "test_connector_scan_node";
+    constexpr static const char* const kTestDirectory = "test_lake_scan_node";
 
     std::unique_ptr<TabletMetadata> _tablet_metadata;
     std::shared_ptr<TabletSchema> _tablet_schema;
     std::shared_ptr<Schema> _schema;
 };
 
-TEST_F(ConnectorScanNodeTest, test_could_split) {
+TEST_F(LakeScanNodeTest, test_could_split) {
     create_rowsets_for_testing();
 
     std::shared_ptr<RuntimeState> runtime_state = create_runtime_state();
