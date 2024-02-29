@@ -145,7 +145,7 @@ protected:
     std::shared_ptr<Schema> _schema;
 };
 
-TEST_F(ConnectorScanNodeTest, test_get_tablet_num_rows) {
+TEST_F(ConnectorScanNodeTest, test_could_split) {
     create_rowsets_for_testing();
 
     std::shared_ptr<RuntimeState> runtime_state = create_runtime_state();
