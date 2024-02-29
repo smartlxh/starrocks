@@ -18,6 +18,7 @@
 #include <memory>
 #include <utility>
 
+#include "connector/connector.h"
 #include "fs/fs_util.h"
 #include "gutil/strings/join.h"
 #include "runtime/descriptor_helper.h"
