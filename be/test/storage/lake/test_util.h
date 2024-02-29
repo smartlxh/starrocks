@@ -20,6 +20,7 @@
 
 #include "fs/fs_util.h"
 #include "gutil/strings/join.h"
+#include "runtime/descriptor_helper.h"
 #include "runtime/exec_env.h"
 #include "runtime/mem_tracker.h"
 #include "runtime/runtime_state.h"
@@ -53,7 +54,7 @@ DescriptorTbl* create_table_desc(RuntimeState* runtime_state, const std::vector<
 
 std::shared_ptr<TPlanNode> create_tplan_node_cloud();
 
-std::vector<TScanRangeParams> create_scan_ranges_cloud1(std::vecotor<TabletMetadata*> tablet_metas);
+std::vector<TScanRangeParams> create_scan_ranges_cloud(std::vector<TabletMetadata*> tablet_metas);
 
 class TestBase : public ::testing::Test {
 public:
@@ -237,7 +238,7 @@ inline std::shared_ptr<RuntimeState> create_runtime_state(const TQueryOptions& q
     TUniqueId fragment_id;
     TQueryGlobals query_globals;
     std::shared_ptr<RuntimeState> runtime_state =
-            std::make_shared<RuntimeState>(fragment_id, query_options, query_globals, _exec_env);
+            std::make_shared<RuntimeState>(fragment_id, query_options, query_globals, ExecEnv::GetInstance());
     TUniqueId id;
     runtime_state->init_mem_trackers(id);
     return runtime_state;
@@ -281,13 +282,13 @@ inline std::shared_ptr<TPlanNode> create_tplan_node_cloud() {
     return tnode;
 }
 
-inline std::vector<TScanRangeParams> create_scan_ranges_cloud1(std::vector<TabletMetadata*>& tablet_metas) {
+inline std::vector<TScanRangeParams> create_scan_ranges_cloud(std::vector<TabletMetadata*>& tablet_metas) {
     std::vector<TScanRangeParams> scan_ranges;
 
     for (auto tablet_meta : tablet_metas) {
         TInternalScanRange internal_scan_range;
         internal_scan_range.__set_tablet_id(tablet_meta->id());
-        internal_scan_range.__set_version(tablet_meta->version());
+        internal_scan_range.__set_version(std::to_string(tablet_meta->version()));
 
         TScanRange scan_range;
         scan_range.__set_internal_scan_range(internal_scan_range);

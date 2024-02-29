@@ -167,7 +167,7 @@ TEST_F(ConnectorScanNodeTest, test_get_tablet_num_rows) {
     int pipeline_dop = 1;
     auto tablet_metas = std::vector<TabletMetadata*>();
     tablet_metas.emplace_back(_tablet_metadata.get());
-    auto scan_ranges = create_scan_ranges_cloud1(tablet_metas);
+    auto scan_ranges = create_scan_ranges_cloud(tablet_metas);
     ASSIGN_OR_ABORT(auto morsel_queue_factory,
                     scan_node->convert_scan_range_to_morsel_queue_factory(
                             scan_ranges, no_scan_ranges_per_driver_seq, scan_node->id(), pipeline_dop,

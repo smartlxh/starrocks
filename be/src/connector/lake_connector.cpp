@@ -635,8 +635,9 @@ StatusOr<bool> LakeDataSourceProvider::_could_tablet_internal_parallel(
     for (const auto& tablet_scan_range : scan_ranges) {
         int64_t version = std::stoll(scan_ranges[0].scan_range.internal_scan_range.version);
 #ifdef BE_TEST
-        auto tablet_num_rows = _tablet_manager->get_tablet_num_rows(
-                tablet_scan_range.scan_range.internal_scan_range.tablet_id, &version);
+        ASSIGN_OR_RETURN(auto tablet_num_rows,
+                         _tablet_manager->get_tablet_num_rows(
+                                 tablet_scan_range.scan_range.internal_scan_range.tablet_id, &version));
         num_table_rows += static_cast<int64_t>(tablet_num_rows);
 #else
         ASSIGN_OR_RETURN(auto tablet_num_rows,
@@ -670,8 +671,9 @@ StatusOr<bool> LakeDataSourceProvider::_could_split_tablet_physically(
     int64_t version = std::stoll(scan_ranges[0].scan_range.internal_scan_range.version);
     KeysType keys_type;
 #ifdef BE_TEST
-    auto first_tablet_schema =
-            _tablet_manager->get_tablet_schema(scan_ranges[0].scan_range.internal_scan_range.tablet_id, &version);
+    ASSIGN_OR_RETURN(
+            auto first_tablet_schema,
+            _tablet_manager()->get_tablet_schema(scan_ranges[0].scan_range.internal_scan_range.tablet_id, &version));
     keys_type = first_tablet_schema->keys_type();
 #else
     ASSIGN_OR_RETURN(auto first_tablet_schema,
