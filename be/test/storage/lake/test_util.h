@@ -55,7 +55,7 @@ DescriptorTbl* create_table_desc(RuntimeState* runtime_state, const std::vector<
 
 std::shared_ptr<TPlanNode> create_tplan_node_cloud();
 
-std::vector<TScanRangeParams> create_scan_ranges_cloud(std::vector<TabletMetadata*> tablet_metas);
+std::vector<TScanRangeParams> create_scan_ranges_cloud(std::vector<TabletMetadata*>& tablet_metas);
 
 class TestBase : public ::testing::Test {
 public:
