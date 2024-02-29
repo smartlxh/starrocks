@@ -14,21 +14,6 @@
 
 #include "connector/lake_connector.h"
 
-#include "exec/connector_scan_node.h"
-#include "exec/olap_scan_prepare.h"
-#include "runtime/global_dict/parser.h"
-#include "storage/column_predicate_rewriter.h"
-#include "storage/conjunctive_predicates.h"
-#include "storage/lake/tablet.h"
-#include "storage/lake/tablet_manager.h"
-#include "storage/lake/tablet_reader.h"
-#include "storage/lake/versioned_tablet.h"
-#include "storage/olap_runtime_range_pruner.hpp"
-#include "storage/predicate_parser.h"
-#include "storage/projection_iterator.h"
-#include "storage/rowset/short_key_range_option.h"
-#include "util/starrocks_metrics.h"
-
 namespace starrocks::connector {
 
 LakeDataSource::LakeDataSource(const LakeDataSourceProvider* provider, const TScanRange& scan_range)
