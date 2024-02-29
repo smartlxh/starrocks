@@ -49,8 +49,7 @@ std::shared_ptr<RuntimeState> create_runtime_state();
 
 std::shared_ptr<RuntimeState> create_runtime_state(const TQueryOptions& query_options);
 
-DescriptorTbl* create_table_desc(RuntimeState* runtime_state,
-                                                        const std::vector<TypeDescriptor>& types);
+DescriptorTbl* create_table_desc(RuntimeState* runtime_state, const std::vector<TypeDescriptor>& types);
 
 std::shared_ptr<TPlanNode> create_tplan_node_cloud();
 
@@ -229,7 +228,6 @@ inline std::shared_ptr<TabletMetadataPB> generate_simple_tablet_metadata(KeysTyp
     return metadata;
 }
 
-
 inline std::shared_ptr<RuntimeState> create_runtime_state() {
     TQueryOptions query_options;
     return create_runtime_state(query_options);
@@ -245,8 +243,7 @@ inline std::shared_ptr<RuntimeState> create_runtime_state(const TQueryOptions& q
     return runtime_state;
 }
 
-inline DescriptorTbl* create_table_desc(RuntimeState* runtime_state,
-                                 const std::vector<TypeDescriptor>& types) {
+inline DescriptorTbl* create_table_desc(RuntimeState* runtime_state, const std::vector<TypeDescriptor>& types) {
     /// Init DescriptorTable
     TDescriptorTableBuilder desc_tbl_builder;
     TTupleDescriptorBuilder tuple_desc_builder;
