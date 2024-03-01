@@ -520,4 +520,141 @@ TEST_F(LakeDuplicateTabletReaderWithDeleteNotInOneValueTest, test_read_success) 
     reader->close();
 }
 
+class LakeTabletReaderSpit : public TestBase {
+public:
+    LakeTabletReaderSpit() : TestBase(kTestDirectory) {
+        _tablet_metadata = generate_simple_tablet_metadata(DUP_KEYS);
+        _tablet_schema = TabletSchema::create(_tablet_metadata->schema());
+        _schema = std::make_shared<Schema>(ChunkHelper::convert_schema(_tablet_schema));
+    }
+
+    void SetUp() override {
+        clear_and_init_test_dir();
+        CHECK_OK(_tablet_mgr->put_tablet_metadata(*_tablet_metadata));
+    }
+
+    void TearDown() override { remove_test_dir_ignore_error(); }
+
+    TabletReaderParams generate_tablet_reader_params() {
+        TabletReaderParams params;
+        params.splitted_scan_rows = 4;
+        params.scan_dop = 4;
+        params.plan_node_id = 1;
+        params.start_key = std::vector<OlapTuple>();
+        params.end_key = std::vector<OlapTuple>();
+        return params;
+    }
+
+protected:
+    constexpr static const char* const kTestDirectory = "test_tablet_reader_split";
+
+    std::shared_ptr<TabletMetadata> _tablet_metadata;
+    std::shared_ptr<TabletSchema> _tablet_schema;
+    std::shared_ptr<Schema> _schema;
+};
+
+TEST_F(LakeTabletReaderSpit, test_reader_split) {
+    std::vector<int> k0{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22};
+    std::vector<int> v0{2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 41, 44};
+
+    std::vector<int> k1{30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41};
+    std::vector<int> v1{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+
+    auto c0 = Int32Column::create();
+    auto c1 = Int32Column::create();
+    auto c2 = Int32Column::create();
+    auto c3 = Int32Column::create();
+    c0->append_numbers(k0.data(), k0.size() * sizeof(int));
+    c1->append_numbers(v0.data(), v0.size() * sizeof(int));
+    c2->append_numbers(k1.data(), k1.size() * sizeof(int));
+    c3->append_numbers(v1.data(), v1.size() * sizeof(int));
+
+    Chunk chunk0({c0, c1}, _schema);
+    Chunk chunk1({c2, c3}, _schema);
+
+    const int segment_rows = chunk0.num_rows() + chunk1.num_rows();
+
+    VersionedTablet tablet(_tablet_mgr.get(), _tablet_metadata);
+
+    {
+        // write rowset 1 with 2 segments
+        int64_t txn_id = next_id();
+        ASSIGN_OR_ABORT(auto writer, tablet.new_writer(kHorizontal, txn_id));
+        ASSERT_OK(writer->open());
+
+        // write rowset data
+        // segment #1
+        ASSERT_OK(writer->write(chunk0));
+        ASSERT_OK(writer->write(chunk1));
+        ASSERT_OK(writer->finish());
+
+        // segment #2
+        ASSERT_OK(writer->write(chunk0));
+        ASSERT_OK(writer->write(chunk1));
+        ASSERT_OK(writer->finish());
+
+        auto files = writer->files();
+        ASSERT_EQ(2, files.size());
+
+        // add rowset metadata
+        auto* rowset = _tablet_metadata->add_rowsets();
+        rowset->set_overlapped(true);
+        rowset->set_id(1);
+        auto* segs = rowset->mutable_segments();
+        auto* segs_size = rowset->mutable_segment_size();
+        for (auto& file : writer->files()) {
+            segs->Add(std::move(file.path));
+            segs_size->Add(std::move(file.size.value()));
+        }
+
+        writer->close();
+    }
+
+    {
+        // write rowset 2 with 1 segment
+        int64_t txn_id = next_id();
+        ASSIGN_OR_ABORT(auto writer, tablet.new_writer(kHorizontal, txn_id));
+        ASSERT_OK(writer->open());
+
+        // write rowset data
+        // segment #1
+        ASSERT_OK(writer->write(chunk0));
+        ASSERT_OK(writer->write(chunk1));
+        ASSERT_OK(writer->finish());
+
+        auto files = writer->files();
+        ASSERT_EQ(1, files.size());
+
+        // add rowset metadata
+        auto* rowset = _tablet_metadata->add_rowsets();
+        rowset->set_overlapped(false);
+        rowset->set_id(2);
+        auto* segs = rowset->mutable_segments();
+        auto* segs_size = rowset->mutable_segment_size();
+        for (auto& file : writer->files()) {
+            segs->Add(std::move(file.path));
+            segs_size->Add(std::move(file.size.value()));
+        }
+
+        writer->close();
+    }
+
+    // write tablet metadata
+    _tablet_metadata->set_version(3);
+    CHECK_OK(_tablet_mgr->put_tablet_metadata(*_tablet_metadata));
+
+    // test reader
+    auto reader = std::make_shared<TabletReader>(_tablet_mgr.get(), _tablet_metadata, *_schema, true, true);
+    auto params = generate_tablet_reader_params();
+    ASSERT_OK(reader->prepare());
+
+    ASSERT_OK(reader->open(params));
+
+    std::vector<pipeline::ScanSplitContextPtr> split_tasks;
+    reader->get_split_tasks(&split_tasks);
+    ASSERT_GT(0, split_tasks.size());
+
+    reader->close();
+}
+
 } // namespace starrocks::lake
