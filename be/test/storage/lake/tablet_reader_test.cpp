@@ -572,9 +572,9 @@ TEST_F(LakeTabletReaderSpit, test_reader_split) {
     Chunk chunk0({c0, c1}, _schema);
     Chunk chunk1({c2, c3}, _schema);
 
-    const int segment_rows = chunk0.num_rows() + chunk1.num_rows();
+    //const int segment_rows = chunk0.num_rows() + chunk1.num_rows();
 
-    VersionedTablet tablet(_tablet_mgr.get(), _tablet_metadata);
+    //VersionedTablet tablet(_tablet_mgr.get(), _tablet_metadata);
 
     {
         // write rowset 1 with 2 segments
