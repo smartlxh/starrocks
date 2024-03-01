@@ -645,25 +645,50 @@ TEST_F(LakeTabletReaderSpit, test_reader_split) {
     _tablet_metadata->set_version(3);
     CHECK_OK(_tablet_mgr->put_tablet_metadata(*_tablet_metadata));
 
-    // test reader
-    auto reader = std::make_shared<TabletReader>(_tablet_mgr.get(), _tablet_metadata, *_schema, true, true);
+    {
+        // physical
+        auto reader = std::make_shared<TabletReader>(_tablet_mgr.get(), _tablet_metadata, *_schema, true, true);
 
-    // construct scan_range
-    TInternalScanRange internal_scan_range;
-    internal_scan_range.__set_tablet_id(_tablet_metadata->id());
-    internal_scan_range.__set_version(std::to_string(_tablet_metadata->version()));
-    TScanRange scan_range;
-    scan_range.__set_internal_scan_range(internal_scan_range);
-    auto params = generate_tablet_reader_params(&scan_range);
+        // construct scan_range
+        TInternalScanRange internal_scan_range;
+        internal_scan_range.__set_tablet_id(_tablet_metadata->id());
+        internal_scan_range.__set_version(std::to_string(_tablet_metadata->version()));
+        TScanRange scan_range;
+        scan_range.__set_internal_scan_range(internal_scan_range);
+        auto params = generate_tablet_reader_params(&scan_range);
 
-    ASSERT_OK(reader->prepare());
-    ASSERT_OK(reader->open(params));
+        ASSERT_OK(reader->prepare());
+        ASSERT_OK(reader->open(params));
 
-    std::vector<pipeline::ScanSplitContextPtr> split_tasks;
-    reader->get_split_tasks(&split_tasks);
-    ASSERT_GT(0, split_tasks.size());
+        std::vector<pipeline::ScanSplitContextPtr> split_tasks;
+        reader->get_split_tasks(&split_tasks);
+        ASSERT_GT(split_tasks.size(), 0);
 
-    reader->close();
+        reader->close();
+    }
+
+    {
+        // logical
+        auto reader = std::make_shared<TabletReader>(_tablet_mgr.get(), _tablet_metadata, *_schema, true, false);
+
+        // construct scan_range
+        TInternalScanRange internal_scan_range;
+        internal_scan_range.__set_tablet_id(_tablet_metadata->id());
+        internal_scan_range.__set_version(std::to_string(_tablet_metadata->version()));
+        TScanRange scan_range;
+        scan_range.__set_internal_scan_range(internal_scan_range);
+        auto params = generate_tablet_reader_params(&scan_range);
+
+        ASSERT_OK(reader->prepare());
+        ASSERT_OK(reader->open(params));
+
+        std::vector<pipeline::ScanSplitContextPtr> split_tasks;
+        reader->get_split_tasks(&split_tasks);
+        ASSERT_GT(split_tasks.size(), 0);
+
+        reader->close();
+    }
+
 }
 
 } // namespace starrocks::lake
