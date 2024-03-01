@@ -26,6 +26,8 @@
 #include "storage/lake/tablet_manager.h"
 #include "storage/lake/tablet_writer.h"
 #include "storage/lake/versioned_tablet.h"
+#include "storage/rowset/rowid_range_option.h"
+#include "storage/rowset/common.h"
 #include "storage/tablet_schema.h"
 #include "test_util.h"
 #include "testutil/assert.h"
@@ -646,7 +648,6 @@ TEST_F(LakeTabletReaderSpit, test_reader_split) {
     CHECK_OK(_tablet_mgr->put_tablet_metadata(*_tablet_metadata));
 
     {
-        // physical
         auto reader = std::make_shared<TabletReader>(_tablet_mgr.get(), _tablet_metadata, *_schema, true, true);
 
         // construct scan_range
@@ -668,8 +669,8 @@ TEST_F(LakeTabletReaderSpit, test_reader_split) {
     }
 
     {
-        // logical
-        auto reader = std::make_shared<TabletReader>(_tablet_mgr.get(), _tablet_metadata, *_schema, true, false);
+        // test read data
+        auto reader = std::make_shared<TabletReader>(_tablet_mgr.get(), _tablet_metadata, *_schema, false, false);
 
         // construct scan_range
         TInternalScanRange internal_scan_range;
@@ -679,19 +680,26 @@ TEST_F(LakeTabletReaderSpit, test_reader_split) {
         scan_range.__set_internal_scan_range(internal_scan_range);
         auto params = generate_tablet_reader_params(&scan_range);
 
+        // construct rowid_range_option
+        auto rowid_range_option = std::make_shared<RowidRangeOption>();
+        Rowset rowset(_tablet_mgr.get(), _tablet_metadata, 1);
+        auto segment = rowset.get_segments().back();
+        auto sparse_range = std::make_shared<SparseRange<rowid_t>>(1, 20);
+        rowid_range_option->add(&rowset, segment.get(), sparse_range, true);
+        params.rowid_range_option = rowid_range_option;
+
         ASSERT_OK(reader->prepare());
         ASSERT_OK(reader->open(params));
 
-        std::vector<pipeline::ScanSplitContextPtr> split_tasks;
-        reader->get_split_tasks(&split_tasks);
-        ASSERT_GT(split_tasks.size(), 0);
+        auto read_chunk_ptr = ChunkHelper::new_chunk(*_schema, 1024);
+        read_chunk_ptr->reset();
+        ASSERT_OK(reader->get_next(read_chunk_ptr.get()));
+        ASSERT_EQ(20, read_chunk_ptr->num_rows());
+
+        read_chunk_ptr->reset();
+        ASSERT_TRUE(reader->get_next(read_chunk_ptr.get()).is_end_of_file());
 
         reader->close();
-    }
-
-    {
-        // test read data
-
     }
 }
 
