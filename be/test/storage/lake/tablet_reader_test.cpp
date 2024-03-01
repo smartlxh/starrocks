@@ -689,6 +689,10 @@ TEST_F(LakeTabletReaderSpit, test_reader_split) {
         reader->close();
     }
 
+    {
+        // test read data
+
+    }
 }
 
 } // namespace starrocks::lake
