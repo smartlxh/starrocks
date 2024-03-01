@@ -77,7 +77,7 @@ public:
     void TearDown() override { remove_test_dir_ignore_error(); }
 
     void create_rowsets_for_testing() {
-        std::vector<int> k0{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22}; // 23 rows
+        std::vector<int> k0{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22}; // 22 rows
         std::vector<int> v0{2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 41, 44};
 
         std::vector<int> k1{30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41}; // 12 rows
@@ -152,7 +152,7 @@ TEST_F(LakeTabletTest, test_get_tablet_num_rows) {
     version = 0;
     ASSIGN_OR_ABORT(auto num_rows_without_version, _tablet_mgr->get_tablet_num_rows(_tablet_metadata->id(), &version));
 
-    ASSERT_EQ(num_rows_with_version, 35);
+    ASSERT_EQ(num_rows_with_version, 34);
     ASSERT_EQ(num_rows_with_version, num_rows_without_version);
 }
 

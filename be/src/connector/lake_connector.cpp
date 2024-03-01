@@ -657,6 +657,14 @@ StatusOr<bool> LakeDataSourceProvider::_could_tablet_internal_parallel(
     *scan_dop = num_table_rows / *splitted_scan_rows;
     *scan_dop = std::max<int64_t>(1, std::min<int64_t>(*scan_dop, pipeline_dop));
 
+    LOG(INFO) << "num_table_rows " << num_table_rows << ", splitted_scan_rows " << *splitted_scan_rows << ", config "
+              << config::tablet_internal_parallel_min_splitted_scan_rows << ", scan dop " << *scan_dop
+              << ", pipeline_dop " << pipeline_dop;
+    std::cout << "num_table_rows " + std::to_string(num_table_rows) + ", splitted_scan_rows " +
+                         std::to_string(*splitted_scan_rows) + ", config " +
+                         std::to_string(config::tablet_internal_parallel_min_splitted_scan_rows) + ", scan dop " +
+                         std::to_string(*scan_dop) + ", pipeline_dop " + std::to_string(pipeline_dop);
+
     if (force_split) {
         return true;
     }
