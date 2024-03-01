@@ -177,15 +177,6 @@ TEST_F(LakeScanNodeTest, test_could_split) {
     ASSERT_FALSE(data_source_provider->could_split());
     ASSERT_FALSE(data_source_provider->could_split_physically());
 
-    // dop is 2
-    pipeline_dop = 2;
-    ASSIGN_OR_ABORT(morsel_queue_factory,
-                    scan_node->convert_scan_range_to_morsel_queue_factory(
-                            scan_ranges, no_scan_ranges_per_driver_seq, scan_node->id(), pipeline_dop,
-                            enable_tablet_internal_parallel, tablet_internal_parallel_mode));
-    ASSERT_TRUE(data_source_provider->could_split());
-    ASSERT_TRUE(data_source_provider->could_split_physically());
-
     // dop is 100
     pipeline_dop = 100;
     config::tablet_internal_parallel_min_scan_dop = 10;
@@ -195,6 +186,16 @@ TEST_F(LakeScanNodeTest, test_could_split) {
                             enable_tablet_internal_parallel, tablet_internal_parallel_mode));
     ASSERT_FALSE(data_source_provider->could_split());
     ASSERT_FALSE(data_source_provider->could_split_physically());
+
+    // dop is 2
+    pipeline_dop = 2;
+    config::tablet_internal_parallel_min_scan_dop = 4;
+    ASSIGN_OR_ABORT(morsel_queue_factory,
+                    scan_node->convert_scan_range_to_morsel_queue_factory(
+                            scan_ranges, no_scan_ranges_per_driver_seq, scan_node->id(), pipeline_dop,
+                            enable_tablet_internal_parallel, tablet_internal_parallel_mode));
+    ASSERT_TRUE(data_source_provider->could_split());
+    ASSERT_TRUE(data_source_provider->could_split_physically());
 }
 
 } // namespace starrocks::lake
