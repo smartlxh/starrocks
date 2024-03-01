@@ -684,7 +684,7 @@ TEST_F(LakeTabletReaderSpit, test_reader_split) {
         auto rowid_range_option = std::make_shared<RowidRangeOption>();
         Rowset rowset(_tablet_mgr.get(), _tablet_metadata, 1);
         auto segment = rowset.get_segments().back();
-        auto sparse_range = std::make_shared<SparseRange<rowid_t>>(1, 20);
+        auto sparse_range = std::make_shared<SparseRange<rowid_t>>(1, 21);
         rowid_range_option->add(&rowset, segment.get(), sparse_range, true);
         params.rowid_range_option = rowid_range_option;
 
