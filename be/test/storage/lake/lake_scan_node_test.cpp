@@ -163,14 +163,23 @@ TEST_F(LakeScanNodeTest, test_could_split) {
     auto data_source_provider = scan_node->data_source_provider();
     dynamic_cast<connector::LakeDataSourceProvider*>(data_source_provider)->set_lake_tablet_manager(_tablet_mgr.get());
 
-    // dop is 1
     config::tablet_internal_parallel_max_splitted_scan_bytes = 32;
     config::tablet_internal_parallel_min_splitted_scan_rows = 4;
+    // dop is 1
     int pipeline_dop = 1;
     auto tablet_metas = std::vector<TabletMetadata*>();
     tablet_metas.emplace_back(_tablet_metadata.get());
     auto scan_ranges = create_scan_ranges_cloud(tablet_metas);
     ASSIGN_OR_ABORT(auto morsel_queue_factory,
+                    scan_node->convert_scan_range_to_morsel_queue_factory(
+                            scan_ranges, no_scan_ranges_per_driver_seq, scan_node->id(), pipeline_dop,
+                            enable_tablet_internal_parallel, tablet_internal_parallel_mode));
+    ASSERT_FALSE(data_source_provider->could_split());
+    ASSERT_FALSE(data_source_provider->could_split_physically());
+
+    // dop is 2
+    pipeline_dop = 2;
+    ASSIGN_OR_ABORT(morsel_queue_factory,
                     scan_node->convert_scan_range_to_morsel_queue_factory(
                             scan_ranges, no_scan_ranges_per_driver_seq, scan_node->id(), pipeline_dop,
                             enable_tablet_internal_parallel, tablet_internal_parallel_mode));
