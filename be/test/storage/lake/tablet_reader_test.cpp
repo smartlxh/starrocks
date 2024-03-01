@@ -535,13 +535,14 @@ public:
 
     void TearDown() override { remove_test_dir_ignore_error(); }
 
-    TabletReaderParams generate_tablet_reader_params() {
+    TabletReaderParams generate_tablet_reader_params(TScanRange* scan_range) {
         TabletReaderParams params;
         params.splitted_scan_rows = 4;
         params.scan_dop = 4;
         params.plan_node_id = 1;
         params.start_key = std::vector<OlapTuple>();
         params.end_key = std::vector<OlapTuple>();
+        params.scan_range = scan_range;
         return params;
     }
 
@@ -551,6 +552,7 @@ protected:
     std::shared_ptr<TabletMetadata> _tablet_metadata;
     std::shared_ptr<TabletSchema> _tablet_schema;
     std::shared_ptr<Schema> _schema;
+    std::shared_ptr<TScanRange> _scan_range;
 };
 
 TEST_F(LakeTabletReaderSpit, test_reader_split) {
@@ -645,9 +647,16 @@ TEST_F(LakeTabletReaderSpit, test_reader_split) {
 
     // test reader
     auto reader = std::make_shared<TabletReader>(_tablet_mgr.get(), _tablet_metadata, *_schema, true, true);
-    auto params = generate_tablet_reader_params();
-    ASSERT_OK(reader->prepare());
 
+    // construct scan_range
+    TInternalScanRange internal_scan_range;
+    internal_scan_range.__set_tablet_id(_tablet_metadata->id());
+    internal_scan_range.__set_version(std::to_string(_tablet_metadata->version()));
+    TScanRange scan_range;
+    scan_range.__set_internal_scan_range(internal_scan_range);
+    auto params = generate_tablet_reader_params(&scan_range);
+
+    ASSERT_OK(reader->prepare());
     ASSERT_OK(reader->open(params));
 
     std::vector<pipeline::ScanSplitContextPtr> split_tasks;

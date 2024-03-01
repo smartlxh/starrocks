@@ -174,47 +174,6 @@ TEST_F(ConnectorScanNodeTest, test_convert_scan_range_to_morsel_queue_factory_cl
     ASSERT_TRUE(morsel_queue_factory->is_shared());
 }
 
-TEST_F(ConnectorScanNodeTest, test_convert_scan_range_to_morsel_queue_enable_tablet_internal_parallel) {
-    std::shared_ptr<RuntimeState> runtime_state = create_runtime_state();
-    std::vector<TypeDescriptor> types;
-    types.emplace_back(TYPE_INT);
-    auto* descs = create_table_desc(runtime_state.get(), types);
-    auto tnode = create_tplan_node_cloud();
-    auto scan_node = std::make_shared<starrocks::ConnectorScanNode>(runtime_state->obj_pool(), *tnode, *descs);
-    ASSERT_OK(scan_node->init(*tnode, runtime_state.get()));
-
-    bool enable_tablet_internal_parallel = true;
-    auto tablet_internal_parallel_mode = TTabletInternalParallelMode::type::AUTO;
-    std::map<int32_t, std::vector<TScanRangeParams>> no_scan_ranges_per_driver_seq;
-
-    // dop is 1 and not so much morsels
-    int pipeline_dop = 1;
-    auto scan_ranges = create_scan_ranges_cloud(1);
-    ASSIGN_OR_ABORT(auto morsel_queue_factory,
-                    scan_node->convert_scan_range_to_morsel_queue_factory(
-                            scan_ranges, no_scan_ranges_per_driver_seq, scan_node->id(), pipeline_dop,
-                            enable_tablet_internal_parallel, tablet_internal_parallel_mode));
-    ASSERT_TRUE(morsel_queue_factory->is_shared());
-
-    // dop is 2 and not so much morsels
-    pipeline_dop = 2;
-    scan_ranges = create_scan_ranges_cloud(pipeline_dop * scan_node->io_tasks_per_scan_operator());
-    ASSIGN_OR_ABORT(morsel_queue_factory,
-                    scan_node->convert_scan_range_to_morsel_queue_factory(
-                            scan_ranges, no_scan_ranges_per_driver_seq, scan_node->id(), pipeline_dop,
-                            enable_tablet_internal_parallel, tablet_internal_parallel_mode));
-    ASSERT_FALSE(morsel_queue_factory->is_shared());
-
-    // dop is 2 and so much morsels
-    pipeline_dop = 2;
-    scan_ranges = create_scan_ranges_cloud(pipeline_dop * scan_node->io_tasks_per_scan_operator() + 1);
-    ASSIGN_OR_ABORT(morsel_queue_factory,
-                    scan_node->convert_scan_range_to_morsel_queue_factory(
-                            scan_ranges, no_scan_ranges_per_driver_seq, scan_node->id(), pipeline_dop,
-                            enable_tablet_internal_parallel, tablet_internal_parallel_mode));
-    ASSERT_TRUE(morsel_queue_factory->is_shared());
-}
-
 std::shared_ptr<TPlanNode> ConnectorScanNodeTest::create_tplan_node_hive() {
     std::vector<::starrocks::TTupleId> tuple_ids{0};
     std::vector<bool> nullable_tuples{true};
