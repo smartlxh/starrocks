@@ -44,6 +44,7 @@ import com.starrocks.catalog.PhysicalPartition;
 import com.starrocks.catalog.Table;
 import com.starrocks.catalog.Table.TableType;
 import com.starrocks.catalog.Tablet;
+import com.starrocks.catalog.system.SystemTable;
 import com.starrocks.common.Config;
 import com.starrocks.ha.HAProtocol;
 import com.starrocks.http.ActionController;
@@ -188,6 +189,8 @@ public class ShowMetaInfoAction extends RestBaseAction {
                 if (table.getType() == TableType.OLAP || table.getType() == TableType.CLOUD_NATIVE) {
                     // in implementation, cloud native table is a subtype of olap table
                     totalSize += calculateSizeForOlapTable((OlapTable) table, singleReplica);
+                } else if (table instanceof SystemTable) {
+                    continue;
                 }
 
                 OlapTable olapTable = (OlapTable) table;
