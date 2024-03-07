@@ -151,6 +151,9 @@ public class StarRocksFE {
 
                 StateChangeExecutor.getInstance().registerStateChangeExecution(
                         StarMgrServer.getCurrentState().getStateChangeExecution());
+            } else if (Config.enable_pure_dla_mode) {
+                LOG.error("Config.enable_pure_dla_mode can only be true in !" + RunMode.SHARED_DATA.name());
+                System.exit(-1);
             }
 
             StateChangeExecutor.getInstance().registerStateChangeExecution(

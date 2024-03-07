@@ -75,7 +75,7 @@ public abstract class StorageVolumeMgr implements Writable, GsonPostProcessable 
     private static final String OSS = "oss";
 
     @SerializedName("defaultSVId")
-    protected String defaultStorageVolumeId = "";
+    public String defaultStorageVolumeId = "";
 
     protected final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
