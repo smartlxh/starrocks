@@ -1507,6 +1507,11 @@ public class PropertyAnalyzer {
                     volume = properties.remove(PropertyAnalyzer.PROPERTIES_STORAGE_VOLUME);
                 }
                 StorageVolumeMgr svm = GlobalStateMgr.getCurrentState().getStorageVolumeMgr();
+                if ((volume.isEmpty() || svm.defaultStorageVolumeId.equals(volume))
+                        && Config.enable_pure_dla_mode) {
+                    throw new AnalysisException(": storage_volume should exist and can not be default volume" +
+                            " when create materialized view in pure dla mode!");
+                }
                 svm.bindTableToStorageVolume(volume, db.getId(), materializedView.getId());
                 String storageVolumeId = svm.getStorageVolumeIdOfTable(materializedView.getId());
                 GlobalStateMgr.getCurrentState().getLocalMetastore()

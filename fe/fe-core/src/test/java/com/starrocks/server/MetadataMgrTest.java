@@ -413,6 +413,25 @@ public class MetadataMgrTest {
         metadataMgr.dropDb("hive_catalog", "hive_db", false);
     }
 
+    @Test
+    public void testValidateDLAModeOp() throws Exception {
+        Config.enable_pure_dla_mode = true;
+        MetadataMgr metadataMgr = AnalyzeTestUtil.getConnectContext().getGlobalStateMgr().getMetadataMgr();
+        Assert.assertThrows(DdlException.class,
+                () -> metadataMgr.createDb("default_catalog", "test", new HashMap<>()));
+        Assert.assertThrows(DdlException.class,
+                () -> metadataMgr.dropDb("default_catalog", "test", false));
+        Assert.assertThrows(StarRocksConnectorException.class,
+                () -> metadataMgr.dropTable("default_catalog", "test", "test"));
+        String createTbl = "create table db2.tbl2(k1 varchar(32), catalog varchar(32), external varchar(32), k4 int) "
+                + "distributed by hash(k1) buckets 3 properties('replication_num' = '1')";
+        CreateTableStmt createTableStmt =
+                (CreateTableStmt) UtFrameUtils.parseStmtWithNewParser(createTbl, AnalyzeTestUtil.getConnectContext());
+        Assert.assertThrows(DdlException.class,
+                () -> metadataMgr.createTable(createTableStmt));
+        Config.enable_pure_dla_mode = false;
+    }
+
     @Test(expected = StarRocksConnectorException.class)
     public void testGetPrunedPartition() {
         MetadataMgr metadataMgr = AnalyzeTestUtil.getConnectContext().getGlobalStateMgr().getMetadataMgr();

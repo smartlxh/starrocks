@@ -205,6 +205,7 @@ public class MetadataMgr {
             throws DdlException, AlreadyExistsException {
         Optional<ConnectorMetadata> connectorMetadata = getOptionalMetadata(catalogName);
         if (connectorMetadata.isPresent()) {
+            validateOpForPureDLAMode(catalogName, dbName, "", "Create Database");
             connectorMetadata.get().createDb(dbName, properties);
         }
     }
@@ -215,6 +216,7 @@ public class MetadataMgr {
             if (getDb(catalogName, dbName) == null) {
                 throw new MetaNotFoundException(String.format("Database %s.%s doesn't exists", catalogName, dbName));
             }
+            validateOpForPureDLAMode(catalogName, dbName, "", "Drop Database");
             connectorMetadata.get().dropDb(dbName, isForce);
         }
     }
@@ -252,9 +254,10 @@ public class MetadataMgr {
         Optional<ConnectorMetadata> connectorMetadata = getOptionalMetadata(catalogName);
 
         if (connectorMetadata.isPresent()) {
+            String dbName = stmt.getDbName();
+            String tableName = stmt.getTableName();
+            validateOpForPureDLAMode(catalogName, dbName, tableName, "Create Table");
             if (!CatalogMgr.isInternalCatalog(catalogName)) {
-                String dbName = stmt.getDbName();
-                String tableName = stmt.getTableName();
                 if (getDb(catalogName, dbName) == null) {
                     ErrorReport.reportDdlException(ErrorCode.ERR_BAD_DB_ERROR, dbName);
                 }
@@ -309,6 +312,7 @@ public class MetadataMgr {
         Optional<ConnectorMetadata> connectorMetadata = getOptionalMetadata(catalogName);
         connectorMetadata.ifPresent(metadata -> {
             try {
+                validateOpForPureDLAMode(catalogName, dbName, tableName, "Drop Table");
                 metadata.dropTable(stmt);
             } catch (DdlException e) {
                 LOG.error("Failed to drop table {}.{}.{}", catalogName, dbName, tableName, e);
@@ -577,6 +581,17 @@ public class MetadataMgr {
                 throw new StarRocksConnectorException(e.getMessage());
             }
         });
+    }
+
+    private void validateOpForPureDLAMode(String catalogName,
+                                          String dbName,
+                                          String tableName,
+                                          String op) throws DdlException {
+        if (CatalogMgr.isInternalCatalog(catalogName) && Config.enable_pure_dla_mode) {
+            throw new  DdlException("Can not do operation " +
+                    String.format("'%s' for %s.%s.%s", op, catalogName, dbName, tableName) +
+                    " when enable_pure_dla_mode is true.");
+        }
     }
 
     public void abortSink(String catalogName, String dbName, String tableName, List<TSinkCommitInfo> sinkCommitInfos) {
