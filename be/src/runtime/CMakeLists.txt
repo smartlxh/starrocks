@@ -102,6 +102,7 @@ set(RUNTIME_FILES
     table_function_table_sink.cpp
     type_pack.cpp
     customized_result_writer.cpp
+    blackhole_table_sink.cpp
 )
 
 set(RUNTIME_FILES ${RUNTIME_FILES}
