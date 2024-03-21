@@ -119,7 +119,9 @@ public class Table extends MetaObject implements Writable, GsonPostProcessable, 
         @SerializedName("HIVE_VIEW")
         HIVE_VIEW,
         @SerializedName("ODPS")
-        ODPS;
+        ODPS,
+        @SerializedName("BLACKHOLE")
+        BLACKHOLE;
 
         public static String serialize(TableType type) {
             if (type == CLOUD_NATIVE) {
@@ -363,6 +365,10 @@ public class Table extends MetaObject implements Writable, GsonPostProcessable, 
 
     public boolean isTableFunctionTable() {
         return type == TableType.TABLE_FUNCTION;
+    }
+
+    public boolean isBlackHoleTable() {
+        return type == TableType.BLACKHOLE;
     }
 
     // for create table

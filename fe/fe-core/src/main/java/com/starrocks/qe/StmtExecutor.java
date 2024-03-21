@@ -54,15 +54,12 @@ import com.starrocks.analysis.UserVariableHint;
 import com.starrocks.catalog.Column;
 import com.starrocks.catalog.Database;
 import com.starrocks.catalog.ExternalOlapTable;
-import com.starrocks.catalog.HiveTable;
-import com.starrocks.catalog.IcebergTable;
 import com.starrocks.catalog.InternalCatalog;
 import com.starrocks.catalog.OlapTable;
 import com.starrocks.catalog.ResourceGroup;
 import com.starrocks.catalog.ResourceGroupClassifier;
 import com.starrocks.catalog.ScalarType;
 import com.starrocks.catalog.Table;
-import com.starrocks.catalog.TableFunctionTable;
 import com.starrocks.catalog.system.SystemTable;
 import com.starrocks.common.AnalysisException;
 import com.starrocks.common.Config;
@@ -1975,7 +1972,8 @@ public class StmtExecutor {
             }
 
             context.setStatisticsJob(AnalyzerUtils.isStatisticsJob(context, parsedStmt));
-            if (!(targetTable.isIcebergTable() || targetTable.isHiveTable() || targetTable.isTableFunctionTable())) {
+            if (!(targetTable.isIcebergTable() || targetTable.isHiveTable() || targetTable.isTableFunctionTable() ||
+                    targetTable.isBlackHoleTable())) {
                 jobId = context.getGlobalStateMgr().getLoadMgr().registerLoadJob(
                         label,
                         database.getFullName(),
@@ -2077,7 +2075,8 @@ public class StmtExecutor {
                                 coord == null ? Collections.emptyList() : coord.getFailInfos()
                         );
                     } else if (targetTable instanceof SystemTable || targetTable.isHiveTable() ||
-                            targetTable.isIcebergTable() || targetTable.isTableFunctionTable()) {
+                            targetTable.isIcebergTable() || targetTable.isTableFunctionTable() ||
+                            targetTable.isBlackHoleTable()) {
                         // schema table does not need txn
                     } else {
                         transactionMgr.abortTransaction(
@@ -2101,8 +2100,9 @@ public class StmtExecutor {
                 // otherwise, the result of the insert statement is failed
                 GlobalTransactionMgr mgr = GlobalStateMgr.getCurrentGlobalTransactionMgr();
                 if (!(targetTable instanceof ExternalOlapTable || targetTable instanceof OlapTable)) {
-                    if (!(targetTable instanceof SystemTable || targetTable instanceof IcebergTable ||
-                            targetTable instanceof HiveTable || targetTable instanceof TableFunctionTable)) {
+                    if (!(targetTable instanceof SystemTable || targetTable.isIcebergTable() ||
+                            targetTable.isHiveTable() || targetTable.isTableFunctionTable() ||
+                            targetTable.isBlackHoleTable())) {
                         // schema table and iceberg table does not need txn
                         mgr.abortTransaction(database.getId(), transactionId, ERR_NO_PARTITIONS_HAVE_DATA_LOAD.formatErrorMsg(),
                                 Coordinator.getCommitInfos(coord), Coordinator.getFailInfos(coord), null);
@@ -2128,7 +2128,7 @@ public class StmtExecutor {
             } else if (targetTable instanceof SystemTable) {
                 // schema table does not need txn
                 txnStatus = TransactionStatus.VISIBLE;
-            } else if (targetTable instanceof IcebergTable) {
+            } else if (targetTable.isIcebergTable()) {
                 // TODO(stephen): support abort interface and delete data files when aborting.
                 List<TSinkCommitInfo> commitInfos = coord.getSinkCommitInfos();
                 if (stmt instanceof InsertStmt && ((InsertStmt) stmt).isOverwrite()) {
@@ -2140,7 +2140,7 @@ public class StmtExecutor {
                 context.getGlobalStateMgr().getMetadataMgr().finishSink(catalogName, dbName, tableName, commitInfos);
                 txnStatus = TransactionStatus.VISIBLE;
                 label = "FAKE_ICEBERG_SINK_LABEL";
-            } else if (targetTable instanceof HiveTable) {
+            } else if (targetTable.isHiveTable()) {
                 List<TSinkCommitInfo> commitInfos = coord.getSinkCommitInfos();
                 HiveTableSink hiveTableSink = (HiveTableSink) execPlan.getFragments().get(0).getSink();
                 String stagingDir = hiveTableSink.getStagingDir();
@@ -2156,9 +2156,12 @@ public class StmtExecutor {
                 context.getGlobalStateMgr().getMetadataMgr().finishSink(catalogName, dbName, tableName, commitInfos);
                 txnStatus = TransactionStatus.VISIBLE;
                 label = "FAKE_HIVE_SINK_LABEL";
-            } else if (targetTable instanceof TableFunctionTable) {
+            } else if (targetTable.isTableFunctionTable()) {
                 txnStatus = TransactionStatus.VISIBLE;
                 label = "FAKE_TABLE_FUNCTION_TABLE_SINK_LABEL";
+            } else if (targetTable.isBlackHoleTable()) {
+                txnStatus = TransactionStatus.VISIBLE;
+                label = "FAKE_BLACKHOLE_TABLE_SINK_LABEL";
             } else if (isExplainAnalyze) {
                 transactionMgr.abortTransaction(database.getId(), transactionId, "Explain Analyze",
                         Coordinator.getCommitInfos(coord), Coordinator.getFailInfos(coord), null);

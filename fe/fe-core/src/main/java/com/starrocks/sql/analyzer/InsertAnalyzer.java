@@ -292,6 +292,8 @@ public class InsertAnalyzer {
     private static Table getTargetTable(InsertStmt insertStmt, ConnectContext session) {
         if (insertStmt.useTableFunctionAsTargetTable()) {
             return insertStmt.makeTableFunctionTable(session.getSessionVariable());
+        } else if (insertStmt.useBlackHoleTableAsTargetTable()) {
+            return insertStmt.makeBlackHoleTable();
         }
 
         MetaUtils.normalizationTableName(session, insertStmt.getTableName());
