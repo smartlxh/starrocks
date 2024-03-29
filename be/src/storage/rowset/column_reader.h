@@ -119,6 +119,7 @@ public:
     // Seek to the first entry in the column.
     Status seek_to_first(OrdinalPageIndexIterator* iter);
     Status seek_at_or_before(ordinal_t ordinal, OrdinalPageIndexIterator* iter);
+    Status seek_by_page_index(int page_index, OrdinalPageIndexIterator* iter);
 
     // read a page from file into a page handle
     Status read_page(const ColumnIteratorOptions& iter_opts, const PagePointer& pp, PageHandle* handle,
@@ -161,6 +162,8 @@ public:
     Status load_ordinal_index(const IndexReadOptions& opts);
 
     uint32_t num_rows() const { return _segment->num_rows(); }
+
+    void print_debug_info() { _ordinal_index->print_debug_info(); }
 
     size_t mem_usage() const;
 

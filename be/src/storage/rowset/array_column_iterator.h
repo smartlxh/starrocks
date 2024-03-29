@@ -46,8 +46,9 @@ public:
     /// for vectorized engine
     Status get_row_ranges_by_zone_map(const std::vector<const ColumnPredicate*>& predicates,
                                       const ColumnPredicate* del_predicate, SparseRange<>* row_ranges) override;
-
     Status fetch_values_by_rowid(const rowid_t* rowids, size_t size, Column* values) override;
+
+    ColumnReader* get_column_reader() { return _reader; }
 
 private:
     ColumnReader* _reader;
