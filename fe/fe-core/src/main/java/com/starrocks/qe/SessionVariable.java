@@ -51,6 +51,7 @@ import com.starrocks.common.util.CompressionUtils;
 import com.starrocks.common.util.TimeUtils;
 import com.starrocks.monitor.unit.TimeValue;
 import com.starrocks.qe.VariableMgr.VarAttr;
+import com.starrocks.server.RunMode;
 import com.starrocks.sql.analyzer.SemanticException;
 import com.starrocks.sql.common.QueryDebugOptions;
 import com.starrocks.system.BackendCoreStat;
@@ -252,6 +253,8 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
 
     public static final String ENABLE_TABLET_INTERNAL_PARALLEL = "enable_tablet_internal_parallel";
     public static final String ENABLE_TABLET_INTERNAL_PARALLEL_V2 = "enable_tablet_internal_parallel_v2";
+
+    public static final String ENABLE_LAKE_TABLET_INTERNAL_PARALLEL = "enable_lake_tablet_internal_parallel";
 
     public static final String TABLET_INTERNAL_PARALLEL_MODE = "tablet_internal_parallel_mode";
     public static final String ENABLE_SHARED_SCAN = "enable_shared_scan";
@@ -781,6 +784,9 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
     @VariableMgr.VarAttr(name = ENABLE_TABLET_INTERNAL_PARALLEL_V2,
             alias = ENABLE_TABLET_INTERNAL_PARALLEL, show = ENABLE_TABLET_INTERNAL_PARALLEL)
     private boolean enableTabletInternalParallel = true;
+
+    @VariableMgr.VarAttr(name = ENABLE_LAKE_TABLET_INTERNAL_PARALLEL)
+    private boolean enableLakeTabletInternalParallel = false;
 
     // The strategy mode of TabletInternalParallel, which is effective only when enableTabletInternalParallel is true.
     // The optional values are "auto" and "force_split".
@@ -2671,7 +2677,7 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
     }
 
     public boolean isEnableTabletInternalParallel() {
-        return enableTabletInternalParallel;
+        return enableTabletInternalParallel || (RunMode.isSharedDataMode() && enableLakeTabletInternalParallel);
     }
 
     public boolean isEnableResourceGroup() {
@@ -3601,7 +3607,12 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
             tResult.setPipeline_profile_level(TPipelineProfileLevel.MERGE);
         }
 
-        tResult.setEnable_tablet_internal_parallel(enableTabletInternalParallel);
+        if (RunMode.isSharedDataMode()) {
+            tResult.setEnable_tablet_internal_parallel(enableLakeTabletInternalParallel);
+        } else {
+            tResult.setEnable_tablet_internal_parallel(enableTabletInternalParallel);
+        }
+
         tResult.setTablet_internal_parallel_mode(
                 TTabletInternalParallelMode.valueOf(tabletInternalParallelMode.toUpperCase()));
         tResult.setSpill_mode(TSpillMode.valueOf(spillMode.toUpperCase()));

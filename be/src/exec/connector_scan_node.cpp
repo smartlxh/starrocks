@@ -687,38 +687,9 @@ StatusOr<pipeline::MorselQueuePtr> ConnectorScanNode::convert_scan_range_to_mors
         bool enable_tablet_internal_parallel, TTabletInternalParallelMode::type tablet_internal_parallel_mode,
         size_t num_total_scan_ranges) {
     _data_source_provider->peek_scan_ranges(scan_ranges);
-
-    pipeline::Morsels morsels;
-    // If this scan node does not accept non-empty scan ranges, create a placeholder one.
-    if (!accept_empty_scan_ranges() && scan_ranges.empty()) {
-        morsels.emplace_back(std::make_unique<pipeline::ScanMorsel>(node_id, TScanRangeParams()));
-    } else {
-        for (const auto& scan_range : scan_ranges) {
-            morsels.emplace_back(std::make_unique<pipeline::ScanMorsel>(node_id, scan_range));
-        }
-    }
-
-    if (partition_order_hint().has_value()) {
-        bool asc = partition_order_hint().value();
-        std::stable_sort(morsels.begin(), morsels.end(), [asc](auto& l, auto& r) {
-            auto l_partition_id = down_cast<pipeline::ScanMorsel*>(l.get())->partition_id();
-            auto r_partition_id = down_cast<pipeline::ScanMorsel*>(r.get())->partition_id();
-            if (asc) {
-                return std::less()(l_partition_id, r_partition_id);
-            } else {
-                return std::greater()(l_partition_id, r_partition_id);
-            }
-        });
-    }
-
-    if (output_chunk_by_bucket()) {
-        std::stable_sort(morsels.begin(), morsels.end(), [](auto& l, auto& r) {
-            return down_cast<pipeline::ScanMorsel*>(l.get())->owner_id() <
-                   down_cast<pipeline::ScanMorsel*>(r.get())->owner_id();
-        });
-    }
-
-    return std::make_unique<pipeline::DynamicMorselQueue>(std::move(morsels));
+    return _data_source_provider->convert_scan_range_to_morsel_queue(
+            scan_ranges, node_id, pipeline_dop, enable_tablet_internal_parallel, tablet_internal_parallel_mode,
+            num_total_scan_ranges);
 }
 
 } // namespace starrocks

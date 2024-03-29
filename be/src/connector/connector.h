@@ -82,6 +82,7 @@ public:
         int mem_alloc_failed_count;
     };
     void update_profile(const Profile& profile);
+    void set_morsel(pipeline::ScanMorsel* morsel) { _morsel = morsel; }
 
 protected:
     int64_t _read_limit = -1; // no limit
@@ -91,6 +92,7 @@ protected:
     RuntimeProfile* _runtime_profile = nullptr;
     TupleDescriptor* _tuple_desc = nullptr;
     pipeline::ScanSplitContext* _split_context = nullptr;
+    pipeline::ScanMorsel* _morsel = nullptr;
 
     virtual Status _init_chunk_if_needed(ChunkPtr* chunk, size_t n) {
         *chunk = ChunkHelper::new_chunk(*_tuple_desc, n);
@@ -162,8 +164,24 @@ public:
     virtual bool is_asc_hint() const { return true; }
     virtual std::optional<bool> partition_order_hint() const { return std::nullopt; }
 
+    virtual StatusOr<pipeline::MorselQueuePtr> convert_scan_range_to_morsel_queue(
+            const std::vector<TScanRangeParams>& scan_ranges, int node_id, int32_t pipeline_dop,
+            bool enable_tablet_internal_parallel, TTabletInternalParallelMode::type tablet_internal_parallel_mode,
+            size_t num_total_scan_ranges);
+
+    bool could_split() const { return _could_split; }
+
+    bool could_split_physically() const { return _could_split_physically; }
+
+    int64_t get_splitted_scan_rows() const { return splitted_scan_rows; }
+    int64_t get_scan_dop() const { return scan_dop; }
+
 protected:
     std::vector<ExprContext*> _partition_exprs;
+    bool _could_split = false;
+    bool _could_split_physically = false;
+    int64_t splitted_scan_rows = 0;
+    int64_t scan_dop = 0;
 };
 using DataSourceProviderPtr = std::unique_ptr<DataSourceProvider>;
 
