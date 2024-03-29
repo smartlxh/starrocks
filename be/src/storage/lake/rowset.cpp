@@ -26,6 +26,7 @@
 #include "storage/rowset/rowset_options.h"
 #include "storage/rowset/segment.h"
 #include "storage/rowset/segment_options.h"
+#include "storage/rowset/short_key_range_option.h"
 #include "storage/tablet_schema_map.h"
 #include "storage/union_iterator.h"
 #include "types/logical_type.h"
@@ -163,6 +164,10 @@ StatusOr<std::vector<ChunkIteratorPtr>> Rowset::read(const Schema& schema, const
         seg_options.delete_predicates = options.delete_predicates->get_predicates(_index);
     }
 
+    if (options.short_key_ranges_option != nullptr) { // logical split.
+        seg_options.short_key_ranges = options.short_key_ranges_option->short_key_ranges;
+    }
+
     std::unique_ptr<Schema> segment_schema_guard;
     auto* segment_schema = const_cast<Schema*>(&schema);
     // Append the columns with delete condition to segment schema.
@@ -192,6 +197,20 @@ StatusOr<std::vector<ChunkIteratorPtr>> Rowset::read(const Schema& schema, const
     for (auto& seg_ptr : segments) {
         if (seg_ptr->num_rows() == 0) {
             continue;
+        }
+
+        if (options.rowid_range_option != nullptr) { // physical split.
+            auto [rowid_range, is_first_split_of_segment] =
+                    options.rowid_range_option->get_segment_rowid_range(this, seg_ptr.get());
+            if (rowid_range == nullptr) {
+                continue;
+            }
+            seg_options.rowid_range_option = std::move(rowid_range);
+            seg_options.is_first_split_of_segment = is_first_split_of_segment;
+        } else if (options.short_key_ranges_option != nullptr) { // logical split.
+            seg_options.is_first_split_of_segment = options.short_key_ranges_option->is_first_split_of_tablet;
+        } else {
+            seg_options.is_first_split_of_segment = true;
         }
 
         auto res = seg_ptr->new_iterator(*segment_schema, seg_options);
@@ -287,6 +306,25 @@ StatusOr<std::vector<ChunkIteratorPtr>> Rowset::get_each_segment_iterator_with_d
         seg_iterators.push_back(std::move(res).value());
     }
     return seg_iterators;
+}
+
+RowsetId Rowset::rowset_id() const {
+    RowsetId rowset_id;
+    rowset_id.init(id());
+    return rowset_id;
+}
+
+std::vector<SegmentSharedPtr> Rowset::get_segments() {
+    if (!_segments.empty()) {
+        return _segments;
+    }
+
+    auto segments_or = segments(true);
+    if (!segments_or.ok()) {
+        return {};
+    }
+    _segments = std::move(segments_or.value());
+    return _segments;
 }
 
 StatusOr<std::vector<SegmentPtr>> Rowset::segments(bool fill_cache) {
