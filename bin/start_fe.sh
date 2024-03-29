@@ -48,6 +48,7 @@ while true; do
     esac
 done
 
+export JAVA_HOME=/usr/lib/jvm/java-11
 export STARROCKS_HOME=`cd "$curdir/.."; pwd`
 
 # compatible with DORIS_HOME: DORIS_HOME still be using in config on the user side, so set DORIS_HOME to the meaningful value in case of wrong envs.
