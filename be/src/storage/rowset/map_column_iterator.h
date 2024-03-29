@@ -46,6 +46,8 @@ public:
 
     Status fetch_values_by_rowid(const rowid_t* rowids, size_t size, Column* values) override;
 
+    ColumnReader* get_column_reader() override { return _reader; }
+
 private:
     ColumnReader* _reader;
 

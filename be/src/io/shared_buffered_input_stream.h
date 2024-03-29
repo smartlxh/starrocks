@@ -94,6 +94,8 @@ public:
 
     StatusOr<std::string_view> peek(int64_t count) override;
     StatusOr<std::string_view> peek_shared_buffer(int64_t count, SharedBufferPtr* shared_buffer);
+    const std::string& filename() const override { return _filename; }
+    bool is_cache_hit() const override { return false; }
 
 private:
     void _update_estimated_mem_usage();

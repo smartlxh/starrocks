@@ -837,6 +837,13 @@ CONF_Int64(object_storage_request_timeout_ms, "-1");
 CONF_Strings(fallback_to_hadoop_fs_list, "");
 CONF_Strings(s3_compatible_fs_list, "s3n://, s3a://, s3://, cos://, cosn://, obs://, ks3://, tos://");
 
+// text reader
+// Spilt text file's scan range into io ranges of 16mb size
+CONF_Int64(text_io_range_size, "16777216");
+
+// Lake
+CONF_mBool(io_coalesce_lake_read_enable, "false");
+
 // orc reader
 CONF_Bool(enable_orc_late_materialization, "true");
 CONF_Bool(enable_orc_libdeflate_decompression, "true");

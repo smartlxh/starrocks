@@ -278,7 +278,8 @@ StatusOr<ChunkIteratorPtr> Segment::_new_iterator(const Schema& schema, const Se
                 if (read_options.is_first_split_of_segment) {
                     read_options.stats->segment_stats_filtered += _column_readers.at(column_unique_id)->num_rows();
                 }
-                return Status::EndOfFile(strings::Substitute("End of file $0, empty iterator", _fname));
+                return Status::EndOfFile(
+                        strings::Substitute("End of file $0, empty iterator", _segment_file_info.path));
             } else {
                 break;
             }
