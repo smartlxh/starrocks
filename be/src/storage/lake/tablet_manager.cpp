@@ -390,12 +390,12 @@ StatusOr<int64_t> TabletManager::get_tablet_data_size(int64_t tablet_id, int64_t
 StatusOr<int64_t> TabletManager::get_tablet_num_rows(int64_t tablet_id, int64_t version) {
     int64_t num_rows = 0;
     TabletMetadataPtr metadata;
-    ASSIGN_OR_RETURN(metadata, get_tablet_metadata(tablet_id, *version_hint));
+    ASSIGN_OR_RETURN(metadata, get_tablet_metadata(tablet_id, version));
 
     for (const auto& rowset : metadata->rowsets()) {
         num_rows += rowset.num_rows();
     }
-    VLOG(2) << "get tablet " << tablet_id << " num_rows from version hint: " << *version_hint
+    VLOG(2) << "get tablet " << tablet_id << " num_rows from version hint: " << version
             << ", num_rows: " << num_rows;
 
     return num_rows;
