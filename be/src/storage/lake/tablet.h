@@ -131,6 +131,8 @@ public:
 
     int64_t data_size();
 
+    size_t num_rows() const override;
+
 private:
     TabletManager* _mgr;
     int64_t _id;

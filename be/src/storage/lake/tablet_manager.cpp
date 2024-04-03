@@ -388,6 +388,7 @@ StatusOr<int64_t> TabletManager::get_tablet_data_size(int64_t tablet_id, int64_t
 }
 
 StatusOr<int64_t> TabletManager::get_tablet_num_rows(int64_t tablet_id, int64_t version) {
+    DCHECK(version != 0);
     int64_t num_rows = 0;
     TabletMetadataPtr metadata;
     ASSIGN_OR_RETURN(metadata, get_tablet_metadata(tablet_id, version));

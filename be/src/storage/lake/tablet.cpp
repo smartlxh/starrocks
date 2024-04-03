@@ -186,4 +186,16 @@ int64_t Tablet::data_size() {
     }
 }
 
+size_t Tablet::num_rows() const {
+    // set_version_hint should be called before to avoid list tablet metadata
+    DCHECK(_version_hint != 0);
+    auto num_rows = _mgr->get_tablet_num_rows(_id, _version_hint);
+    if (num_rows.ok()) {
+        return num_rows.value();
+    } else {
+        LOG(WARNING) << "failed to get tablet rows num" << _id << "num rows: " << num_rows.status();
+        return 0;
+    }
+}
+
 } // namespace starrocks::lake
