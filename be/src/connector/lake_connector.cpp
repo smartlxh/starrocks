@@ -678,7 +678,7 @@ StatusOr<bool> LakeDataSourceProvider::_could_split_tablet_physically(
 #else
     ASSIGN_OR_RETURN(auto first_tablet_schema,
                      ExecEnv::GetInstance()->lake_tablet_manager()->get_tablet_schema(
-                             scan_ranges[0].scan_range.internal_scan_range.tablet_id, version));
+                             scan_ranges[0].scan_range.internal_scan_range.tablet_id, &version));
     keys_type = first_tablet_schema->keys_type();
 #endif
 
