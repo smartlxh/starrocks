@@ -291,6 +291,8 @@ private:
     DeltaColumnGroupList _dcgs;
     roaring::api::roaring_uint32_iterator_t _roaring_iter;
 
+    // _column_files may be empty in shared data when segment_size less than io_coalesce_lake_read_whole_file_size_bytes,
+    // instead the input_stream is _shared_buffer_stream
     std::unordered_map<ColumnId, std::unique_ptr<io::SeekableInputStream>> _column_files;
 
     SparseRange<> _scan_range;
@@ -334,6 +336,10 @@ private:
 
     std::unordered_map<ColumnId, ColumnAccessPath*> _column_access_paths;
     std::unordered_map<ColumnId, ColumnAccessPath*> _predicate_column_access_paths;
+
+    // All columns share the same stream in shared data,
+    // when enable_lake_io_coalesce is true and segment_size is less than io_coalesce_lake_read_whole_file_size_bytes
+    std::unique_ptr<io::SharedBufferedInputStream> _shared_buffer_input_stream = nullptr;
 };
 
 SegmentIterator::SegmentIterator(std::shared_ptr<Segment> segment, Schema schema, SegmentReadOptions options)
@@ -553,16 +559,35 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
                 file_size = rfile->get_size().value();
             }
 
-            auto shared_buffered_input_stream =
-                    std::make_unique<io::SharedBufferedInputStream>(rfile->stream(), _segment->file_name(), file_size);
-            const io::SharedBufferedInputStream::CoalesceOptions options = {
-                    .max_dist_size = config::io_coalesce_read_max_distance_size,
-                    .max_buffer_size = config::io_coalesce_read_max_buffer_size};
-            shared_buffered_input_stream->set_coalesce_options(options);
-            iter_opts.read_file = shared_buffered_input_stream.get();
-            iter_opts.is_io_coalesce = true;
-            _column_files[cid] = std::move(shared_buffered_input_stream);
-            _io_coalesce_column_index.emplace_back(cid);
+            // if the size of segment file is small, read the whole file directly
+            if (file_size <= config::io_coalesce_lake_read_whole_file_size_bytes) {
+                if (_shared_buffer_input_stream == nullptr) {
+                    _shared_buffer_input_stream = std::make_unique<io::SharedBufferedInputStream>(
+                            rfile->stream(), _segment->file_name(), file_size);
+                    const io::SharedBufferedInputStream::CoalesceOptions options = {
+                            .max_dist_size = config::io_coalesce_read_max_distance_size,
+                            .max_buffer_size = config::io_coalesce_read_max_buffer_size};
+                    _shared_buffer_input_stream->set_coalesce_options(options);
+
+                    // read the entire file at once by set range{0, file_size}
+                    std::vector<io::SharedBufferedInputStream::IORange> ranges = {{0, file_size}};
+                    _shared_buffer_input_stream->set_io_ranges(ranges);
+                }
+                iter_opts.read_file = _shared_buffer_input_stream.get();
+
+            } else {
+                auto shared_buffered_input_stream =
+                        std::make_unique<io::SharedBufferedInputStream>(rfile->stream(), _segment->file_name(), file_size);
+                const io::SharedBufferedInputStream::CoalesceOptions options = {
+                        .max_dist_size = config::io_coalesce_read_max_distance_size,
+                        .max_buffer_size = config::io_coalesce_read_max_buffer_size};
+                shared_buffered_input_stream->set_coalesce_options(options);
+                iter_opts.read_file = shared_buffered_input_stream.get();
+                iter_opts.is_io_coalesce = true;
+                _column_files[cid] = std::move(shared_buffered_input_stream);
+                _io_coalesce_column_index.emplace_back(cid);
+            }
+
         } else {
             iter_opts.read_file = rfile.get();
             _column_files[cid] = std::move(rfile);
@@ -1726,7 +1751,11 @@ Status SegmentIterator::_init_bitmap_index_iterators() {
             opts.use_page_cache = config::enable_bitmap_index_memory_page_cache || !config::disable_storage_page_cache;
             opts.kept_in_memory = config::enable_bitmap_index_memory_page_cache;
             opts.lake_io_opts = _opts.lake_io_opts;
-            opts.read_file = _column_files[cid].get();
+            if (_shared_buffer_input_stream != nullptr) {
+                opts.read_file = _shared_buffer_input_stream.get();
+            } else {
+                opts.read_file = _column_files[cid].get();
+            }
             opts.stats = _opts.stats;
 
             RETURN_IF_ERROR(segment_ptr->new_bitmap_index_iterator(ucid, opts, &_bitmap_index_iterators[cid]));
@@ -2030,6 +2059,11 @@ void SegmentIterator::close() {
         // update statistics before reset column file
         _update_stats(rfile.get());
         rfile.reset();
+    }
+
+    if (_shared_buffer_input_stream) {
+        _update_stats(_shared_buffer_input_stream.get());
+        _shared_buffer_input_stream.reset();
     }
 
     STLClearObject(&_selection);
