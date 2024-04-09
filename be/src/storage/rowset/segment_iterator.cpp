@@ -291,7 +291,7 @@ private:
     DeltaColumnGroupList _dcgs;
     roaring::api::roaring_uint32_iterator_t _roaring_iter;
 
-    // _column_files may be empty in shared data when segment_size less than io_coalesce_lake_read_whole_file_size_bytes,
+    // _column_files may be empty in shared data when segment_size less than lake_small_segment_file_threshold_size
     // instead the input_stream is _shared_buffer_stream
     std::unordered_map<ColumnId, std::unique_ptr<io::SeekableInputStream>> _column_files;
 
@@ -338,7 +338,7 @@ private:
     std::unordered_map<ColumnId, ColumnAccessPath*> _predicate_column_access_paths;
 
     // All columns share the same stream in shared data,
-    // when enable_lake_io_coalesce is true and segment_size is less than io_coalesce_lake_read_whole_file_size_bytes
+    // when enable_lake_io_coalesce is true and segment_size is less than lake_small_segment_file_threshold_size
     std::unique_ptr<io::SharedBufferedInputStream> _shared_buffer_input_stream = nullptr;
 };
 
@@ -560,7 +560,7 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
             }
 
             // if the size of segment file is small, read the whole file directly
-            if (file_size <= config::io_coalesce_lake_read_whole_file_size_bytes) {
+            if (file_size <= config::lake_small_segment_file_threshold_size) {
                 if (_shared_buffer_input_stream == nullptr) {
                     _shared_buffer_input_stream = std::make_unique<io::SharedBufferedInputStream>(
                             rfile->stream(), _segment->file_name(), file_size);

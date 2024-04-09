@@ -958,7 +958,7 @@ TEST_F(LakeIOCoalesceTest, test_normal) {
     // test reader
     auto reader = std::make_shared<TabletReader>(_tablet_mgr.get(), _tablet_metadata, *_schema);
     config::io_coalesce_lake_read_enable = true;
-    config::io_coalesce_lake_read_whole_file_size_bytes = 100 * 1024 * 1024; // 100M
+    config::lake_small_segment_file_threshold_size = 100 * 1024 * 1024; // 100M
 
     ASSERT_OK(reader->prepare());
     TabletReaderParams params;
@@ -985,10 +985,10 @@ TEST_F(LakeIOCoalesceTest, test_normal) {
     reader->close();
 
     // test reader
-    // config::io_coalesce_lake_read_whole_file_size_bytes is set to 1
+    // config::lake_small_segment_file_threshold_size is set to 1
     auto reader2 = std::make_shared<TabletReader>(_tablet_mgr.get(), _tablet_metadata, *_schema);
     config::io_coalesce_lake_read_enable = true;
-    config::io_coalesce_lake_read_whole_file_size_bytes = 1;
+    config::lake_small_segment_file_threshold_size = 1;
 
     ASSERT_OK(reader2->prepare());
     ASSERT_OK(reader2->open(params));
