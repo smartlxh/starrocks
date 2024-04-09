@@ -576,8 +576,8 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
                 iter_opts.read_file = _shared_buffer_input_stream.get();
 
             } else {
-                auto shared_buffered_input_stream =
-                        std::make_unique<io::SharedBufferedInputStream>(rfile->stream(), _segment->file_name(), file_size);
+                auto shared_buffered_input_stream = std::make_unique<io::SharedBufferedInputStream>(
+                        rfile->stream(), _segment->file_name(), file_size);
                 const io::SharedBufferedInputStream::CoalesceOptions options = {
                         .max_dist_size = config::io_coalesce_read_max_distance_size,
                         .max_buffer_size = config::io_coalesce_read_max_buffer_size};
