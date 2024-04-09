@@ -326,7 +326,9 @@ public class ConnectProcessor {
 
         if (Config.enable_collect_query_detail_info) {
             QueryDetailQueue.addQueryDetail(queryDetail);
-        } else if (ctx.getSessionVariable().isEnableRecaptureProfile()) {
+        }
+
+        if (ctx.getSessionVariable().isEnableRecaptureProfile()) {
             QueryDetailQueue.addAndRemoveTimeoutReCaptureQueryDetail(queryDetail);
         }
     }
