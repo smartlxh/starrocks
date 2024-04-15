@@ -216,7 +216,8 @@ public class MaterializedViewHandler extends AlterHandler {
         // Step2: create mv job
         RollupJobV2 rollupJobV2 = createMaterializedViewJob(mvIndexName, baseIndexName, mvColumns,
                 addMVClause.getWhereClause(), addMVClause.getProperties(), olapTable, db, baseIndexId,
-                addMVClause.getMVKeysType(), addMVClause.getOrigStmt(), addMVClause.getQueryStatement());
+                addMVClause.getMVKeysType(), addMVClause.getOrigStmt(), addMVClause.getQueryStatement(),
+                olapTable.isCloudNativeTable());
 
         addAlterJobV2(rollupJobV2);
 
@@ -275,7 +276,8 @@ public class MaterializedViewHandler extends AlterHandler {
                 // step 3 create rollup job
                 RollupJobV2 alterJobV2 = createMaterializedViewJob(rollupIndexName, baseIndexName, rollupSchema,
                         null, addRollupClause.getProperties(),
-                        olapTable, db, baseIndexId, olapTable.getKeysType(), null, null);
+                        olapTable, db, baseIndexId, olapTable.getKeysType(), null,
+                        null, olapTable.isCloudNativeTable());
 
                 rollupNameJobMap.put(addRollupClause.getRollupName(), alterJobV2);
                 logJobIdSet.add(alterJobV2.getJobId());
@@ -326,7 +328,7 @@ public class MaterializedViewHandler extends AlterHandler {
                                                   Expr whereClause, Map<String, String> properties,
                                                   OlapTable olapTable, Database db, long baseIndexId,
                                                   KeysType mvKeysType, OriginStatement origStmt,
-                                                  QueryStatement queryStatement)
+                                                  QueryStatement queryStatement, boolean isCloudNativeTable)
             throws DdlException, AnalysisException {
         if (mvKeysType == null) {
             // assign rollup index's key type, same as base index's
@@ -361,10 +363,19 @@ public class MaterializedViewHandler extends AlterHandler {
             throw new AnalysisException(String.format("Please ensure table %s is in colocate group if you want to use " +
                     "mv colocate optimization.", olapTable.getName()));
         }
-        RollupJobV2 mvJob = new RollupJobV2(jobId, dbId, tableId, olapTable.getName(), timeoutMs,
-                baseIndexId, mvIndexId, baseIndexName, mvName, mvSchemaVersion, 
-                mvColumns, whereClause, baseSchemaHash, mvSchemaHash,
-                mvKeysType, mvShortKeyColumnCount, origStmt, viewDefineSql, isColocateMv);
+        RollupJobV2 mvJob;
+        if (isCloudNativeTable) {
+            mvJob = new LakeRollupJob(jobId, dbId, tableId, olapTable.getName(), timeoutMs,
+                    baseIndexId, mvIndexId, baseIndexName, mvName, mvSchemaVersion,
+                    mvColumns, whereClause, baseSchemaHash, mvSchemaHash,
+                    mvKeysType, mvShortKeyColumnCount, origStmt, viewDefineSql, isColocateMv);
+        } else {
+            mvJob = new RollupJobV2(jobId, dbId, tableId, olapTable.getName(), timeoutMs,
+                    baseIndexId, mvIndexId, baseIndexName, mvName, mvSchemaVersion,
+                    mvColumns, whereClause, baseSchemaHash, mvSchemaHash,
+                    mvKeysType, mvShortKeyColumnCount, origStmt, viewDefineSql, isColocateMv);
+        }
+
 
         /*
          * create all rollup indexes. and set state.

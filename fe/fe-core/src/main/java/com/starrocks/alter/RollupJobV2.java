@@ -388,7 +388,7 @@ public class RollupJobV2 extends AlterJobV2 implements GsonPostProcessable {
         tbl.rebuildFullSchema();
     }
 
-    private Expr analyzeExpr(Type type, String name, Expr defineExpr, Map<String, SlotDescriptor> slotDescByName,
+    protected Expr analyzeExpr(Type type, String name, Expr defineExpr, Map<String, SlotDescriptor> slotDescByName,
                              List<Expr> outputExprs, OlapTable tbl, TableName tableName) throws AlterCancelException {
         List<SlotRef> slots = new ArrayList<>();
         defineExpr.collect(SlotRef.class, slots);
@@ -688,7 +688,7 @@ public class RollupJobV2 extends AlterJobV2 implements GsonPostProcessable {
     }
 
     @Override
-    protected void runFinishedRewritingJob() {
+    protected void runFinishedRewritingJob() throws AlterCancelException {
         // nothing to do
     }
 

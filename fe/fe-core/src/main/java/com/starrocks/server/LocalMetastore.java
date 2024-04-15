@@ -1870,7 +1870,7 @@ public class LocalMetastore implements ConnectorMetadata {
             long shardGroupId = 0;
             if (table.isCloudNativeTableOrMaterializedView()) {
                 shardGroupId = GlobalStateMgr.getCurrentState().getStarOSAgent().
-                        createShardGroup(db.getId(), table.getId(), partitionId);
+                        createShardGroup(db.getId(), table.getId(), indexId);
             }
             shardGroupIdList.add(shardGroupId);
 
