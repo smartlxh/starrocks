@@ -187,7 +187,7 @@ public class LakeRollupJob extends RollupJobV2 {
         // Add shadow indexes to table.
         try (WriteLockedDatabase db = getWriteLockedDatabase(dbId)) {
             LakeTable table = getTableOrThrow(db, tableId);
-            Preconditions.checkState(table.getState() == OlapTable.OlapTableState.SCHEMA_CHANGE);
+            Preconditions.checkState(table.getState() == OlapTable.OlapTableState.ROLLUP);
             watershedTxnId = getNextTransactionId();
             addRollIndexToCatalog(table);
             //addShadowIndexToCatalog(table, watershedTxnId);
@@ -360,8 +360,7 @@ public class LakeRollupJob extends RollupJobV2 {
             }
         }
 
-        AgentTaskQueue.addBatchTask(rollupBatchTask);
-        AgentTaskExecutor.submit(rollupBatchTask);
+        sendAgentTask(rollupBatchTask);
         this.jobState = JobState.RUNNING;
         span.addEvent("setRunning");
 
@@ -704,6 +703,12 @@ public class LakeRollupJob extends RollupJobV2 {
             LOG.error("Fail to publish version for schema change job {}: {}", jobId, e.getMessage());
             return false;
         }
+    }
+
+    @VisibleForTesting
+    public static void sendAgentTask(AgentBatchTask batchTask) {
+        AgentTaskQueue.addBatchTask(batchTask);
+        AgentTaskExecutor.submit(batchTask);
     }
 
 }

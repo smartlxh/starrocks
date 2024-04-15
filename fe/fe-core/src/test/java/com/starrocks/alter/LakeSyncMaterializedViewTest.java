@@ -12,28 +12,45 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package com.starrocks.lake;
+package com.starrocks.alter;
 
 import com.starrocks.alter.AlterJobV2;
+import com.starrocks.alter.LakeRollupJob;
+import com.starrocks.catalog.Database;
+import com.starrocks.catalog.MaterializedIndex;
+import com.starrocks.catalog.Partition;
+import com.starrocks.catalog.Table;
 import com.starrocks.qe.ConnectContext;
 import com.starrocks.server.GlobalStateMgr;
 import com.starrocks.server.RunMode;
 import com.starrocks.sql.ast.CreateMaterializedViewStmt;
 import com.starrocks.sql.ast.StatementBase;
+import com.starrocks.task.AgentBatchTask;
 import com.starrocks.utframe.StarRocksAssert;
 import com.starrocks.utframe.UtFrameUtils;
+import mockit.Mock;
+import mockit.MockUp;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+
+import static java.lang.Thread.sleep;
 
 public class LakeSyncMaterializedViewTest {
     private static final String DB = "db_for_lake_mv";
 
     private static ConnectContext connectContext;
     private static StarRocksAssert starRocksAssert;
+
+    private static LakeRollupJob lakeRollupJob;
+
+    private static Database db;
+    private static Table table;
 
     @BeforeClass
     public static void setUp() throws Exception {
@@ -55,6 +72,20 @@ public class LakeSyncMaterializedViewTest {
                 "    PARTITION p2 values [('2022-02-16'),('2022-03-01'))\n" +
                 ")\n" +
                 "DISTRIBUTED BY HASH(k2) BUCKETS 3");
+
+        String sql = "create materialized view mv1 as\n" +
+                "select k2, k1 from base_table order by k2;";
+        StatementBase stmt = UtFrameUtils.parseStmtWithNewParser(sql, connectContext);
+        Assert.assertTrue(stmt instanceof CreateMaterializedViewStmt);
+        CreateMaterializedViewStmt createMaterializedViewStmt = (CreateMaterializedViewStmt) stmt;
+        GlobalStateMgr.getCurrentState().getLocalMetastore().createMaterializedView(createMaterializedViewStmt);
+
+        db = GlobalStateMgr.getServingState().getDb(DB);
+        table = db.getTable("base_table");
+
+        List<AlterJobV2> alterJobV2List = GlobalStateMgr.getCurrentState().getRollupHandler().getUnfinishedAlterJobV2ByTableId(table.getId());
+        GlobalStateMgr.getCurrentState().getRollupHandler().clearJobs();
+        lakeRollupJob = (LakeRollupJob) alterJobV2List.get(0);
     }
 
 
@@ -66,19 +97,21 @@ public class LakeSyncMaterializedViewTest {
 
     @Test
     public void testCreateSyncMv() throws Exception {
-        String sql = "create materialized view mv1 as\n" +
-                "select k2, k1 from base_table order by k2;";
-        StatementBase stmt = UtFrameUtils.parseStmtWithNewParser(sql, connectContext);
-        Assert.assertTrue(stmt instanceof CreateMaterializedViewStmt);
-        CreateMaterializedViewStmt createMaterializedViewStmt = (CreateMaterializedViewStmt) stmt;
-        GlobalStateMgr.getCurrentState().getLocalMetastore().createMaterializedView(createMaterializedViewStmt);
+        new MockUp<LakeRollupJob>() {
+            @Mock
+            public void sendAgentTask(AgentBatchTask batchTask) {
+                batchTask.getAllTasks().forEach(t -> t.setFinished(true));
+            }
+        };
 
-        Map<Long, AlterJobV2> alterJobs = GlobalStateMgr.getCurrentState().getRollupHandler().getAlterJobsV2();
-        Assert.assertEquals(1, alterJobs.size());
+        lakeRollupJob.runPendingJob();
+        Assert.assertEquals(AlterJobV2.JobState.WAITING_TXN, lakeRollupJob.getJobState());
 
-        for (AlterJobV2 alterJobV2 : alterJobs.values()) {
-            alterJobV2.getJobState();
-        }
+        lakeRollupJob.runWaitingTxnJob();
+        Assert.assertEquals(AlterJobV2.JobState.RUNNING, lakeRollupJob.getJobState());
+
+        lakeRollupJob.runRunningJob();
+        Assert.assertEquals(AlterJobV2.JobState.FINISHED_REWRITING, lakeRollupJob.getJobState());
     }
 
 }

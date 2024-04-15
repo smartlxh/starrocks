@@ -923,8 +923,7 @@ public class LakeTableSchemaChangeJob extends AlterJobV2 {
     }
 
     AgentBatchTask getOrCreateSchemaChangeBatchTask() {
-        if (schemaChangeBatchTask ==
-                null) { // This would happen after FE restarted and this object was deserialized from Json.
+        if (schemaChangeBatchTask == null) { // This would happen after FE restarted and this object was deserialized from Json.
             schemaChangeBatchTask = new AgentBatchTask();
         }
         return schemaChangeBatchTask;
