@@ -84,53 +84,11 @@ import javax.annotation.Nullable;
 import javax.validation.constraints.NotNull;
 
 public class LakeRollupJob extends RollupJobV2 {
-    private static final Logger LOG = LogManager.getLogger(RollupJobV2.class);
-
-    // physical partition id -> (rollup tablet id -> base tablet id)
-    @SerializedName(value = "partitionIdToBaseRollupTabletIdMap")
-    private Map<Long, Map<Long, Long>> physicalPartitionIdToBaseRollupTabletIdMap = Maps.newHashMap();
-    @SerializedName(value = "partitionIdToRollupIndex")
-    private Map<Long, MaterializedIndex> physicalPartitionIdToRollupIndex = Maps.newHashMap();
-
-    // rollup and base schema info
-    @SerializedName(value = "baseIndexId")
-    private long baseIndexId;
-    @SerializedName(value = "rollupIndexId")
-    private long rollupIndexId;
-    @SerializedName(value = "baseIndexName")
-    private String baseIndexName;
-    @SerializedName(value = "rollupIndexName")
-    private String rollupIndexName;
-
-    @SerializedName(value = "rollupSchema")
-    private List<Column> rollupSchema = Lists.newArrayList();
-    @SerializedName(value = "rollupSchemaVersion")
-    private int rollupSchemaVersion;
-    @SerializedName(value = "baseSchemaHash")
-    private int baseSchemaHash;
-    @SerializedName(value = "rollupSchemaHash")
-    private int rollupSchemaHash;
-
-    @SerializedName(value = "rollupKeysType")
-    private KeysType rollupKeysType;
-    @SerializedName(value = "rollupShortKeyColumnCount")
-    private short rollupShortKeyColumnCount;
-    @SerializedName(value = "origStmt")
-    private OriginStatement origStmt;
-
-    // The rollup job will wait all transactions before this txn id finished, then send the rollup tasks.
-    @SerializedName(value = "watershedTxnId")
-    protected long watershedTxnId = -1;
-    @SerializedName(value = "viewDefineSql")
-    private String viewDefineSql;
-    @SerializedName(value = "isColocateMVIndex")
-    protected boolean isColocateMVIndex = false;
+    private static final Logger LOG = LogManager.getLogger(LakeRollupJob.class);
 
     @SerializedName(value = "commitVersionMap")
     // Mapping from partition id to commit version
     private Map<Long, Long> commitVersionMap;
-
-    private Expr whereClause;
 
     // save all create rollup tasks
     private AgentBatchTask rollupBatchTask = new AgentBatchTask();

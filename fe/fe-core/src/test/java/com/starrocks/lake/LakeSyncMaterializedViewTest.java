@@ -14,6 +14,71 @@
 
 package com.starrocks.lake;
 
+import com.starrocks.alter.AlterJobV2;
+import com.starrocks.qe.ConnectContext;
+import com.starrocks.server.GlobalStateMgr;
+import com.starrocks.server.RunMode;
+import com.starrocks.sql.ast.CreateMaterializedViewStmt;
+import com.starrocks.sql.ast.StatementBase;
+import com.starrocks.utframe.StarRocksAssert;
+import com.starrocks.utframe.UtFrameUtils;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import java.util.Map;
+
 public class LakeSyncMaterializedViewTest {
+    private static final String DB = "db_for_lake_mv";
+
+    private static ConnectContext connectContext;
+    private static StarRocksAssert starRocksAssert;
+
+    @BeforeClass
+    public static void setUp() throws Exception {
+        UtFrameUtils.createMinStarRocksCluster(RunMode.SHARED_DATA);
+        connectContext = UtFrameUtils.createDefaultCtx();
+
+        starRocksAssert = new StarRocksAssert(connectContext);
+        starRocksAssert.withDatabase(DB).useDatabase(DB);
+
+        starRocksAssert.withTable("CREATE TABLE base_table\n" +
+                "(\n" +
+                "    k1 date,\n" +
+                "    k2 int,\n" +
+                "    k3 int\n" +
+                ")\n" +
+                "PARTITION BY RANGE(k1)\n" +
+                "(\n" +
+                "    PARTITION p1 values [('2022-02-01'),('2022-02-16')),\n" +
+                "    PARTITION p2 values [('2022-02-16'),('2022-03-01'))\n" +
+                ")\n" +
+                "DISTRIBUTED BY HASH(k2) BUCKETS 3");
+    }
+
+
+
+    @AfterClass
+    public static void tearDown() {
+
+    }
+
+    @Test
+    public void testCreateSyncMv() throws Exception {
+        String sql = "create materialized view mv1 as\n" +
+                "select k2, k1 from base_table order by k2;";
+        StatementBase stmt = UtFrameUtils.parseStmtWithNewParser(sql, connectContext);
+        Assert.assertTrue(stmt instanceof CreateMaterializedViewStmt);
+        CreateMaterializedViewStmt createMaterializedViewStmt = (CreateMaterializedViewStmt) stmt;
+        GlobalStateMgr.getCurrentState().getLocalMetastore().createMaterializedView(createMaterializedViewStmt);
+
+        Map<Long, AlterJobV2> alterJobs = GlobalStateMgr.getCurrentState().getRollupHandler().getAlterJobsV2();
+        Assert.assertEquals(1, alterJobs.size());
+
+        for (AlterJobV2 alterJobV2 : alterJobs.values()) {
+            alterJobV2.getJobState();
+        }
+    }
 
 }
