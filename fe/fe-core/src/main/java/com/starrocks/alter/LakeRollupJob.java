@@ -30,14 +30,12 @@ import com.starrocks.analysis.TupleDescriptor;
 import com.starrocks.catalog.Column;
 import com.starrocks.catalog.Database;
 import com.starrocks.catalog.KeysType;
-import com.starrocks.catalog.LocalTablet;
 import com.starrocks.catalog.MaterializedIndex;
 import com.starrocks.catalog.MaterializedIndexMeta;
 import com.starrocks.catalog.OlapTable;
 import com.starrocks.catalog.Partition;
 import com.starrocks.catalog.PhysicalPartition;
 import com.starrocks.catalog.PrimitiveType;
-import com.starrocks.catalog.Replica;
 import com.starrocks.catalog.ScalarType;
 import com.starrocks.catalog.SchemaInfo;
 import com.starrocks.catalog.Tablet;
@@ -68,6 +66,7 @@ import com.starrocks.thrift.TTabletSchema;
 import com.starrocks.thrift.TTabletType;
 import com.starrocks.thrift.TTaskType;
 import com.starrocks.transaction.GlobalTransactionMgr;
+import io.opentelemetry.api.trace.StatusCode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -187,7 +186,10 @@ public class LakeRollupJob extends RollupJobV2 {
         // Add shadow indexes to table.
         try (WriteLockedDatabase db = getWriteLockedDatabase(dbId)) {
             LakeTable table = getTableOrThrow(db, tableId);
-            Preconditions.checkState(table.getState() == OlapTable.OlapTableState.ROLLUP);
+            if (table.getState() != OlapTable.OlapTableState.ROLLUP) {
+                throw new IllegalStateException("Table State doesn't equal to ROLLUP, it is " + table.getState() + ".");
+            }
+            Preconditions.checkState(table.getState().equals(OlapTable.OlapTableState.ROLLUP));
             watershedTxnId = getNextTransactionId();
             addRollIndexToCatalog(table);
             //addShadowIndexToCatalog(table, watershedTxnId);
@@ -354,7 +356,6 @@ public class LakeRollupJob extends RollupJobV2 {
                             baseTabletId, visibleVersion, jobId,
                             rollupJobV2Params, baseColumn, watershedTxnId);
                     rollupBatchTask.addTask(rollupTask);
-
                 }
                 //partition.setMinRetainVersion(visibleVersion);
             }
@@ -445,14 +446,20 @@ public class LakeRollupJob extends RollupJobV2 {
 
             // ---------------------------------------
             for (Partition partition : table.getPartitions()) {
+                Preconditions.checkState(commitVersionMap.containsKey(partition.getId()));
+                long commitVersion = commitVersionMap.get(partition.getId());
+
                 for (PhysicalPartition physicalPartition : partition.getSubPartitions()) {
+                    LOG.debug("update partition visible version. partition=" + partition.getId() + " commitVersion=" +
+                            commitVersion);
+                    // Update Partition's visible version
+                    Preconditions.checkState(commitVersion == partition.getVisibleVersion() + 1,
+                            commitVersion + " vs " + partition.getVisibleVersion());
+                    partition.setVisibleVersion(commitVersion, finishedTimeMs);
+                    LOG.debug("update visible version of partition {} to {}. jobId={}", partition.getId(),
+                            commitVersion, jobId);
                     MaterializedIndex rollupIndex = physicalPartition.getIndex(rollupIndexId);
                     Preconditions.checkNotNull(rollupIndex, rollupIndexId);
-                    for (Tablet tablet : rollupIndex.getTablets()) {
-                        for (Replica replica : ((LocalTablet) tablet).getImmutableReplicas()) {
-                            replica.setState(Replica.ReplicaState.NORMAL);
-                        }
-                    }
                     physicalPartition.visualiseShadowIndex(rollupIndexId, false);
                 }
             }
@@ -472,7 +479,38 @@ public class LakeRollupJob extends RollupJobV2 {
 
     @Override
     protected boolean cancelImpl(String errMsg) {
-        return false;
+        if (jobState == JobState.CANCELLED || jobState == JobState.FINISHED) {
+            return false;
+        }
+
+        // Cancel a job of state `FINISHED_REWRITING` only when the database or table has been dropped.
+        if (jobState == JobState.FINISHED_REWRITING && tableExists()) {
+            return false;
+        }
+
+        if (rollupBatchTask != null) {
+            AgentTaskQueue.removeBatchTask(rollupBatchTask, TTaskType.ALTER);
+        }
+
+        try (WriteLockedDatabase db = getWriteLockedDatabase(dbId)) {
+            LakeTable table = (db != null) ? db.getTable(tableId) : null;
+            if (table != null) {
+                removeShadowIndex(table);
+                table.setState(OlapTable.OlapTableState.NORMAL);
+            }
+        }
+
+        this.jobState = JobState.CANCELLED;
+        this.errMsg = errMsg;
+        this.finishedTimeMs = System.currentTimeMillis();
+        if (span != null) {
+            span.setStatus(StatusCode.ERROR, errMsg);
+            span.end();
+        }
+
+        writeEditLog(this);
+
+        return true;
     }
 
     @Override
@@ -711,4 +749,50 @@ public class LakeRollupJob extends RollupJobV2 {
         AgentTaskExecutor.submit(batchTask);
     }
 
+    private void cancelInternal() {
+        // clear tasks if has
+        AgentTaskQueue.removeBatchTask(rollupBatchTask, TTaskType.ALTER);
+        // remove all rollup indexes, and set state to NORMAL
+        TabletInvertedIndex invertedIndex = GlobalStateMgr.getCurrentState().getTabletInvertedIndex();
+        Database db = GlobalStateMgr.getCurrentState().getDb(dbId);
+        if (db != null) {
+            Locker locker = new Locker();
+            locker.lockDatabase(db, LockType.WRITE);
+            try {
+                OlapTable tbl = (OlapTable) db.getTable(tableId);
+                if (tbl != null) {
+                    for (Long partitionId : physicalPartitionIdToRollupIndex.keySet()) {
+                        MaterializedIndex rollupIndex = physicalPartitionIdToRollupIndex.get(partitionId);
+                        for (Tablet rollupTablet : rollupIndex.getTablets()) {
+                            invertedIndex.deleteTablet(rollupTablet.getId());
+                        }
+                        PhysicalPartition partition = tbl.getPhysicalPartition(partitionId);
+                        partition.deleteRollupIndex(rollupIndexId);
+                    }
+                    tbl.deleteIndexInfo(rollupIndexName);
+                }
+            } finally {
+                locker.unLockDatabase(db, LockType.WRITE);
+            }
+        }
+    }
+
+    void removeShadowIndex(@NotNull LakeTable table) {
+        TabletInvertedIndex invertedIndex = GlobalStateMgr.getCurrentState().getTabletInvertedIndex();
+        for (Long partitionId : physicalPartitionIdToRollupIndex.keySet()) {
+            MaterializedIndex rollupIndex = physicalPartitionIdToRollupIndex.get(partitionId);
+            for (Tablet rollupTablet : rollupIndex.getTablets()) {
+                invertedIndex.deleteTablet(rollupTablet.getId());
+            }
+            PhysicalPartition partition = table.getPhysicalPartition(partitionId);
+            partition.deleteRollupIndex(rollupIndexId);
+        }
+        table.deleteIndexInfo(rollupIndexName);
+    }
+
+    private boolean tableExists() {
+        try (ReadLockedDatabase db = getReadLockedDatabase(dbId)) {
+            return db != null && db.getTable(tableId) != null;
+        }
+    }
 }

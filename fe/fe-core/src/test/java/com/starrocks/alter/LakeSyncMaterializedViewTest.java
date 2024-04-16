@@ -14,11 +14,7 @@
 
 package com.starrocks.alter;
 
-import com.starrocks.alter.AlterJobV2;
-import com.starrocks.alter.LakeRollupJob;
 import com.starrocks.catalog.Database;
-import com.starrocks.catalog.MaterializedIndex;
-import com.starrocks.catalog.Partition;
 import com.starrocks.catalog.Table;
 import com.starrocks.qe.ConnectContext;
 import com.starrocks.server.GlobalStateMgr;
@@ -35,11 +31,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-
-import static java.lang.Thread.sleep;
 
 public class LakeSyncMaterializedViewTest {
     private static final String DB = "db_for_lake_mv";
@@ -83,7 +75,8 @@ public class LakeSyncMaterializedViewTest {
         db = GlobalStateMgr.getServingState().getDb(DB);
         table = db.getTable("base_table");
 
-        List<AlterJobV2> alterJobV2List = GlobalStateMgr.getCurrentState().getRollupHandler().getUnfinishedAlterJobV2ByTableId(table.getId());
+        List<AlterJobV2> alterJobV2List = GlobalStateMgr.getCurrentState().getRollupHandler().
+                getUnfinishedAlterJobV2ByTableId(table.getId());
         GlobalStateMgr.getCurrentState().getRollupHandler().clearJobs();
         lakeRollupJob = (LakeRollupJob) alterJobV2List.get(0);
     }
@@ -112,6 +105,9 @@ public class LakeSyncMaterializedViewTest {
 
         lakeRollupJob.runRunningJob();
         Assert.assertEquals(AlterJobV2.JobState.FINISHED_REWRITING, lakeRollupJob.getJobState());
+
+        lakeRollupJob.runFinishedRewritingJob();
+        Assert.assertEquals(AlterJobV2.JobState.FINISHED, lakeRollupJob.getJobState());
     }
 
 }
