@@ -357,7 +357,6 @@ Status SchemaChangeHandler::do_process_alter_tablet(const TAlterTabletReqV2& req
         auto base_txn_log = std::make_shared<TxnLog>();
         base_txn_log->set_tablet_id(base_tablet.id());
         base_txn_log->set_txn_id(request.txn_id);
-        auto op_empty_txn_log = txn_log->mutable_op_write();
         // write txn log
         RETURN_IF_ERROR(base_tablet.tablet_manager()->put_txn_log(std::move(base_txn_log)));
     }
