@@ -101,7 +101,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-import static com.starrocks.alter.LakeTableAlterJobV2Builder.createShards;
 
 /*
  * MaterializedViewHandler is responsible for ADD/DROP materialized view.
@@ -409,11 +408,12 @@ public class MaterializedViewHandler extends AlterHandler {
                     properties.put(LakeTablet.PROPERTY_KEY_INDEX_ID, Long.toString(mvIndexId));
 
                     List<Tablet> originTablets = partition.getIndex(baseIndexId).getTablets();
-                    List<Long> originTabletIds = originTablets.stream().map(Tablet::getId).collect(Collectors.toList());
-                    List<Long> shadowTabletIds =
-                            createShards(originTablets.size(), olapTable.getPartitionFilePathInfo(partitionId),
-                                    olapTable.getPartitionFileCacheInfo(partitionId), shardGroupId,
-                                    originTabletIds, shardProperties);
+                    // List<Long> originTabletIds = originTablets.stream().map(Tablet::getId).collect(Collectors.toList());
+                    List<Long> shadowTabletIds = GlobalStateMgr.getCurrentState().getStarOSAgent().createShards(
+                            originTablets.size(),
+                            olapTable.getPartitionFilePathInfo(partitionId),
+                            olapTable.getPartitionFileCacheInfo(partitionId),
+                            shardGroupId, shardProperties);
                     Preconditions.checkState(originTablets.size() == shadowTabletIds.size());
 
                     TabletMeta shadowTabletMeta =

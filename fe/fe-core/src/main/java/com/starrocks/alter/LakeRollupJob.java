@@ -459,7 +459,7 @@ public class LakeRollupJob extends RollupJobV2 {
                 }
             }
             table.rebuildFullSchema();
-            table.lastSchemaUpdateTime.set(System.nanoTime());
+            table.setState(OlapTable.OlapTableState.NORMAL);
 
             this.jobState = JobState.FINISHED;
             this.finishedTimeMs = System.currentTimeMillis();
@@ -477,6 +477,8 @@ public class LakeRollupJob extends RollupJobV2 {
         if (jobState == JobState.CANCELLED || jobState == JobState.FINISHED) {
             return false;
         }
+
+        // todo delete shardGroup and shard
 
         // Cancel a job of state `FINISHED_REWRITING` only when the database or table has been dropped.
         if (jobState == JobState.FINISHED_REWRITING && tableExists()) {
