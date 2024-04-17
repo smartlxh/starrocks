@@ -432,10 +432,6 @@ public class LakeRollupJob extends RollupJobV2 {
             return;
         }
 
-        JournalTask editLogFuture;
-        // Replace the current index with shadow index.
-        Set<String> modifiedColumns;
-        List<MaterializedIndex> droppedIndexes;
         try (WriteLockedDatabase db = getWriteLockedDatabase(dbId)) {
             LakeTable table = (db != null) ? db.getTable(tableId) : null;
             if (table == null) {
@@ -443,8 +439,6 @@ public class LakeRollupJob extends RollupJobV2 {
                 return;
             }
 
-
-            // ---------------------------------------
             for (Partition partition : table.getPartitions()) {
                 Preconditions.checkState(commitVersionMap.containsKey(partition.getId()));
                 long commitVersion = commitVersionMap.get(partition.getId());
@@ -519,8 +513,66 @@ public class LakeRollupJob extends RollupJobV2 {
     }
 
     @Override
-    public void replay(AlterJobV2 replayedJob) {
+    public void replay(AlterJobV2 lakeRollupJob) {
+        LakeRollupJob other = (LakeRollupJob) lakeRollupJob;
 
+        LOG.info("Replaying lake table rollup job. state={} jobId={}", lakeRollupJob.jobState, lakeRollupJob.jobId);
+
+        if (this != other) {
+            Preconditions.checkState(this.type.equals(other.type));
+            Preconditions.checkState(this.jobId == other.jobId);
+            Preconditions.checkState(this.dbId == other.dbId);
+            Preconditions.checkState(this.tableId == other.tableId);
+
+            this.jobState = other.jobState;
+            this.createTimeMs = other.createTimeMs;
+            this.finishedTimeMs = other.finishedTimeMs;
+            this.errMsg = other.errMsg;
+            this.timeoutMs = other.timeoutMs;
+
+            this.watershedTxnId = other.watershedTxnId;
+            this.commitVersionMap = other.commitVersionMap;
+
+            this.physicalPartitionIdToBaseRollupTabletIdMap = other.physicalPartitionIdToBaseRollupTabletIdMap;
+            this.physicalPartitionIdToRollupIndex = other.physicalPartitionIdToRollupIndex;
+            this.baseIndexId = other.baseIndexId;
+            this.rollupIndexId = other.rollupIndexId;
+            this.baseIndexName = other.baseIndexName;
+            this.rollupIndexName = other.baseIndexName;
+            this.rollupSchema = other.rollupSchema;
+            this.rollupSchemaVersion = other.rollupSchemaVersion;
+            this.baseSchemaHash = other.baseSchemaHash;
+            this.rollupSchemaHash = other.rollupSchemaHash;
+            this.rollupKeysType = other.rollupKeysType;
+            this.rollupShortKeyColumnCount = other.rollupShortKeyColumnCount;
+            this.viewDefineSql = other.viewDefineSql;
+            this.isColocateMVIndex = other.isColocateMVIndex;
+            this.rollupBatchTask = new AgentBatchTask();
+        }
+
+        try (WriteLockedDatabase db = getWriteLockedDatabase(dbId)) {
+            LakeTable table = (db != null) ? db.getTable(tableId) : null;
+            if (table == null) {
+                return; // do nothing if the table has been dropped.
+            }
+
+            if (jobState == JobState.PENDING) {
+                addTabletToInvertedIndex(table);
+                table.setState(OlapTable.OlapTableState.ROLLUP);
+            } else if (jobState == JobState.WAITING_TXN) {
+                addRollIndexToCatalog(table);
+            } else if (jobState == JobState.RUNNING) {
+                    // do nothing
+            } else if (jobState == JobState.FINISHED_REWRITING) {
+                updateNextVersion(table);
+            } else if (jobState == JobState.FINISHED) {
+                visualiseShadowIndex(table);
+            } else if (jobState == JobState.CANCELLED) {
+                removeShadowIndex(table);
+            } else {
+                throw new RuntimeException("unknown job state '{}'" + jobState.name());
+            }
+        }
     }
 
     @Override
@@ -811,5 +863,28 @@ public class LakeRollupJob extends RollupJobV2 {
         try (ReadLockedDatabase db = getReadLockedDatabase(dbId)) {
             return db != null && db.getTable(tableId) != null;
         }
+    }
+
+    public void visualiseShadowIndex(OlapTable table) {
+        for (Partition partition : table.getPartitions()) {
+            Preconditions.checkState(commitVersionMap.containsKey(partition.getId()));
+            long commitVersion = commitVersionMap.get(partition.getId());
+
+            for (PhysicalPartition physicalPartition : partition.getSubPartitions()) {
+                LOG.debug("update partition visible version. partition=" + partition.getId() + " commitVersion=" +
+                        commitVersion);
+                // Update Partition's visible version
+                Preconditions.checkState(commitVersion == partition.getVisibleVersion() + 1,
+                        commitVersion + " vs " + partition.getVisibleVersion());
+                partition.setVisibleVersion(commitVersion, finishedTimeMs);
+                LOG.debug("update visible version of partition {} to {}. jobId={}", partition.getId(),
+                        commitVersion, jobId);
+                MaterializedIndex rollupIndex = physicalPartition.getIndex(rollupIndexId);
+                Preconditions.checkNotNull(rollupIndex, rollupIndexId);
+                physicalPartition.visualiseShadowIndex(rollupIndexId, false);
+            }
+        }
+        table.rebuildFullSchema();
+        table.lastSchemaUpdateTime.set(System.nanoTime());
     }
 }

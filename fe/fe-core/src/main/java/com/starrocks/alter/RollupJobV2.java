@@ -795,7 +795,7 @@ public class RollupJobV2 extends AlterJobV2 implements GsonPostProcessable {
         LOG.info("replay pending rollup job: {}", jobId);
     }
 
-    private void addTabletToInvertedIndex(OlapTable tbl) {
+    protected void addTabletToInvertedIndex(OlapTable tbl) {
         TabletInvertedIndex invertedIndex = GlobalStateMgr.getCurrentState().getTabletInvertedIndex();
         // add all rollup replicas to tablet inverted index
         for (Long partitionId : physicalPartitionIdToRollupIndex.keySet()) {
