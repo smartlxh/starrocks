@@ -150,7 +150,7 @@ StatusOr<TabletMetadataPtr> publish_version(TabletManager* tablet_mgr, int64_t t
         auto new_metadata = std::make_shared<TabletMetadataPB>(*metadata);
         new_metadata->set_version(new_version);
 
-        tablet_mgr->put_tablet_metadata(new_metadata);
+        RETURN_IF_ERROR(tablet_mgr->put_tablet_metadata(new_metadata));
         return new_metadata;
     }
 
