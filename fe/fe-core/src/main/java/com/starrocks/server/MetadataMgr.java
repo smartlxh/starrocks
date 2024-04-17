@@ -205,7 +205,6 @@ public class MetadataMgr {
             throws DdlException, AlreadyExistsException {
         Optional<ConnectorMetadata> connectorMetadata = getOptionalMetadata(catalogName);
         if (connectorMetadata.isPresent()) {
-            validateOpForPureDLAMode(catalogName, dbName, "", "Create Database");
             connectorMetadata.get().createDb(dbName, properties);
         }
     }
@@ -216,7 +215,6 @@ public class MetadataMgr {
             if (getDb(catalogName, dbName) == null) {
                 throw new MetaNotFoundException(String.format("Database %s.%s doesn't exists", catalogName, dbName));
             }
-            validateOpForPureDLAMode(catalogName, dbName, "", "Drop Database");
             connectorMetadata.get().dropDb(dbName, isForce);
         }
     }
