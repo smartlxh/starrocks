@@ -40,6 +40,7 @@ import com.starrocks.catalog.ScalarType;
 import com.starrocks.catalog.SchemaInfo;
 import com.starrocks.catalog.Tablet;
 import com.starrocks.catalog.TabletInvertedIndex;
+import com.starrocks.catalog.TabletMeta;
 import com.starrocks.catalog.Type;
 import com.starrocks.common.AnalysisException;
 import com.starrocks.common.Config;
@@ -886,5 +887,21 @@ public class LakeRollupJob extends RollupJobV2 {
         }
         table.rebuildFullSchema();
         table.lastSchemaUpdateTime.set(System.nanoTime());
+    }
+
+    private void addTabletToInvertedIndex(OlapTable tbl) {
+        TabletInvertedIndex invertedIndex = GlobalStateMgr.getCurrentState().getTabletInvertedIndex();
+        // add all rollup replicas to tablet inverted index
+        for (Long partitionId : physicalPartitionIdToRollupIndex.keySet()) {
+            MaterializedIndex rollupIndex = physicalPartitionIdToRollupIndex.get(partitionId);
+            PhysicalPartition physicalPartition = tbl.getPhysicalPartition(partitionId);
+            TStorageMedium medium = tbl.getPartitionInfo().getDataProperty(physicalPartition.getParentId()).getStorageMedium();
+            TabletMeta rollupTabletMeta = new TabletMeta(dbId, tableId, partitionId, rollupIndexId,
+                    rollupSchemaHash, medium);
+
+            for (Tablet rollupTablet : rollupIndex.getTablets()) {
+                invertedIndex.addTablet(rollupTablet.getId(), rollupTabletMeta);
+            }
+        }
     }
 }
