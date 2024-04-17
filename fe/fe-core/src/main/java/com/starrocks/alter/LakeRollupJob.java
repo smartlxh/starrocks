@@ -729,10 +729,27 @@ public class LakeRollupJob extends RollupJobV2 {
     }
 
     boolean publishVersion() {
-        try {
-            for (Map.Entry<Long, MaterializedIndex> item : physicalPartitionIdToRollupIndex.entrySet()) {
-                long commitVersion = commitVersionMap.get(item.getKey());
-                Utils.publishVersion(item.getValue().getTablets(), watershedTxnId, 1, commitVersion,
+        try (ReadLockedDatabase db = getReadLockedDatabase(dbId)) {
+            LakeTable table = getTableOrThrow(db, tableId);
+            for (long partitionId : physicalPartitionIdToRollupIndex.keySet()) {
+                PhysicalPartition partition = table.getPhysicalPartition(partitionId);
+                Preconditions.checkState(partition != null, partitionId);
+                // todo only publish visible
+                List<MaterializedIndex> allMaterializedIndex = table.getPartition(partitionId).
+                        getMaterializedIndices(MaterializedIndex.IndexExtState.VISIBLE);
+                List<Tablet> allOtherPartitionTablets = new ArrayList<>();
+                for (MaterializedIndex index : allMaterializedIndex) {
+                    allOtherPartitionTablets.addAll(index.getTablets());
+                }
+                long commitVersion = commitVersionMap.get(partitionId);
+
+                // publish rollup tablets
+                Utils.publishVersion(physicalPartitionIdToRollupIndex.get(partitionId).getTablets(), watershedTxnId,
+                        1, commitVersion,
+                        finishedTimeMs / 1000, warehouseId);
+
+                // publish origin tablets
+                Utils.publishVersion(allOtherPartitionTablets, -1, commitVersion - 1, commitVersion,
                         finishedTimeMs / 1000, warehouseId);
 
             }
