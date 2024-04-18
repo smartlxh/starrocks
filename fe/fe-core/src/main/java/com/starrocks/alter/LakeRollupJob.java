@@ -440,29 +440,11 @@ public class LakeRollupJob extends RollupJobV2 {
                 return;
             }
 
-            for (Partition partition : table.getPartitions()) {
-                Preconditions.checkState(commitVersionMap.containsKey(partition.getId()));
-                long commitVersion = commitVersionMap.get(partition.getId());
-
-                for (PhysicalPartition physicalPartition : partition.getSubPartitions()) {
-                    LOG.debug("update partition visible version. partition=" + partition.getId() + " commitVersion=" +
-                            commitVersion);
-                    // Update Partition's visible version
-                    Preconditions.checkState(commitVersion == partition.getVisibleVersion() + 1,
-                            commitVersion + " vs " + partition.getVisibleVersion());
-                    partition.setVisibleVersion(commitVersion, finishedTimeMs);
-                    LOG.debug("update visible version of partition {} to {}. jobId={}", partition.getId(),
-                            commitVersion, jobId);
-                    MaterializedIndex rollupIndex = physicalPartition.getIndex(rollupIndexId);
-                    Preconditions.checkNotNull(rollupIndex, rollupIndexId);
-                    physicalPartition.visualiseShadowIndex(rollupIndexId, false);
-                }
-            }
-            table.rebuildFullSchema();
-            table.setState(OlapTable.OlapTableState.NORMAL);
+            visualiseShadowIndex(table);
 
             this.jobState = JobState.FINISHED;
             this.finishedTimeMs = System.currentTimeMillis();
+            table.setState(OlapTable.OlapTableState.NORMAL);
         }
 
         writeEditLog(this);
@@ -570,6 +552,7 @@ public class LakeRollupJob extends RollupJobV2 {
                 updateNextVersion(table);
             } else if (jobState == JobState.FINISHED) {
                 visualiseShadowIndex(table);
+                table.setState(OlapTable.OlapTableState.NORMAL);
             } else if (jobState == JobState.CANCELLED) {
                 removeShadowIndex(table);
             } else {
