@@ -559,7 +559,7 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
             // if the size of segment file is small, read the whole file directly
             if (file_size <= config::lake_small_segment_file_threshold_size) {
                 if (_column_files.empty()) {
-                    auot shared_buffered_input_stream = std::make_shared<io::SharedBufferedInputStream>(
+                    auto shared_buffered_input_stream = std::make_shared<io::SharedBufferedInputStream>(
                             rfile->stream(), _segment->file_name(), file_size);
                     shared_buffered_input_stream->set_coalesce_options(options);
 
