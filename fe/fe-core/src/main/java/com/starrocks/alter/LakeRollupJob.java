@@ -523,7 +523,7 @@ public class LakeRollupJob extends RollupJobV2 {
             this.baseIndexId = other.baseIndexId;
             this.rollupIndexId = other.rollupIndexId;
             this.baseIndexName = other.baseIndexName;
-            this.rollupIndexName = other.baseIndexName;
+            this.rollupIndexName = other.rollupIndexName;
             this.rollupSchema = other.rollupSchema;
             this.rollupSchemaVersion = other.rollupSchemaVersion;
             this.baseSchemaHash = other.baseSchemaHash;
