@@ -938,7 +938,7 @@ TEST_F(LakeIOCoalesceTest, test_normal) {
     read_chunk_ptr = ChunkHelper::new_chunk(*_schema, 1024);
     for (int j = 0; j < 2; ++j) {
         read_chunk_ptr->reset();
-        ASSERT_OK(reader->get_next(read_chunk_ptr.get()));
+        ASSERT_OK(reader2->get_next(read_chunk_ptr.get()));
         ASSERT_EQ(segment_rows, read_chunk_ptr->num_rows());
         for (int i = 0, sz = k0.size(); i < sz; i++) {
             EXPECT_EQ(k0[i], read_chunk_ptr->get(i)[0].get_int32());
@@ -951,7 +951,7 @@ TEST_F(LakeIOCoalesceTest, test_normal) {
     }
 
     read_chunk_ptr->reset();
-    ASSERT_TRUE(reader->get_next(read_chunk_ptr.get()).is_end_of_file());
+    ASSERT_TRUE(reader2->get_next(read_chunk_ptr.get()).is_end_of_file());
 
     reader->close();
 }
