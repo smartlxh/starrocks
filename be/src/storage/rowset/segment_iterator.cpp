@@ -333,6 +333,10 @@ private:
 
     std::unordered_map<ColumnId, ColumnAccessPath*> _column_access_paths;
     std::unordered_map<ColumnId, ColumnAccessPath*> _predicate_column_access_paths;
+
+    // All columns share the same stream in shared data,
+    // when enable_lake_io_coalesce is true and segment_size is less than lake_small_segment_file_threshold_size
+    std::shared_ptr<io::SharedBufferedInputStream> _shared_buffered_input_stream = nullptr;
 };
 
 SegmentIterator::SegmentIterator(std::shared_ptr<Segment> segment, Schema schema, SegmentReadOptions options)
@@ -558,17 +562,17 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
 
             // if the size of segment file is small, read the whole file directly
             if (file_size <= config::lake_small_segment_file_threshold_size) {
-                if (_column_files.empty()) {
-                    auto shared_buffered_input_stream = std::make_shared<io::SharedBufferedInputStream>(
+                if (_shared_buffered_input_stream == nullptr) {
+                    _shared_buffered_input_stream = std::make_shared<io::SharedBufferedInputStream>(
                             rfile->stream(), _segment->file_name(), file_size);
-                    shared_buffered_input_stream->set_coalesce_options(options);
+                    _shared_buffered_input_stream->set_coalesce_options(options);
 
                     // read the entire file at once by set range{0, file_size}
                     std::vector<io::SharedBufferedInputStream::IORange> ranges = {{0, file_size}};
-                    RETURN_IF_ERROR(shared_buffered_input_stream->set_io_ranges(ranges));
+                    RETURN_IF_ERROR(_shared_buffered_input_stream->set_io_ranges(ranges));
                 }
-                iter_opts.read_file = shared_buffered_input_stream.get();
 
+                iter_opts.read_file = _shared_buffered_input_stream.get();
             } else {
                 auto shared_buffered_input_stream = std::make_shared<io::SharedBufferedInputStream>(
                         rfile->stream(), _segment->file_name(), file_size);
