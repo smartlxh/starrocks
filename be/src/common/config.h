@@ -824,7 +824,7 @@ CONF_Strings(s3_compatible_fs_list, "s3n://, s3a://, s3://, oss://, cos://, cosn
 
 // Lake
 CONF_mBool(io_coalesce_lake_read_enable, "false");
-CONF_mInt32(lake_small_segment_file_threshold_size, "83886080"); // 10MB
+CONF_mInt32(lake_small_segment_file_threshold_size, "83886080"); // 10 * 1024 * 1024 * 8 = 10MB
 
 // orc reader
 CONF_Bool(enable_orc_late_materialization, "true");

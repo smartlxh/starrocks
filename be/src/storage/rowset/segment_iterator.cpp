@@ -290,10 +290,7 @@ private:
     DelVectorPtr _del_vec;
     DeltaColumnGroupList _dcgs;
     roaring::api::roaring_uint32_iterator_t _roaring_iter;
-
-    // _column_files may be empty in shared data when segment_size less than lake_small_segment_file_threshold_size
-    // instead the input_stream is _shared_buffer_stream
-    std::unordered_map<ColumnId, std::unique_ptr<io::SeekableInputStream>> _column_files;
+    std::unordered_map<ColumnId, std::shared_ptr<io::SeekableInputStream>> _column_files;
 
     SparseRange<> _scan_range;
     SparseRangeIterator<> _range_iter;
@@ -336,10 +333,6 @@ private:
 
     std::unordered_map<ColumnId, ColumnAccessPath*> _column_access_paths;
     std::unordered_map<ColumnId, ColumnAccessPath*> _predicate_column_access_paths;
-
-    // All columns share the same stream in shared data,
-    // when enable_lake_io_coalesce is true and segment_size is less than lake_small_segment_file_threshold_size
-    std::unique_ptr<io::SharedBufferedInputStream> _shared_buffer_input_stream = nullptr;
 };
 
 SegmentIterator::SegmentIterator(std::shared_ptr<Segment> segment, Schema schema, SegmentReadOptions options)
@@ -559,28 +552,26 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
                 file_size = rfile->get_size().value();
             }
 
+            const io::SharedBufferedInputStream::CoalesceOptions options = {
+                    .max_dist_size = config::io_coalesce_read_max_distance_size,
+                    .max_buffer_size = config::io_coalesce_read_max_buffer_size};
+
             // if the size of segment file is small, read the whole file directly
             if (file_size <= config::lake_small_segment_file_threshold_size) {
-                if (_shared_buffer_input_stream == nullptr) {
-                    _shared_buffer_input_stream = std::make_unique<io::SharedBufferedInputStream>(
+                if (_column_files.empty()) {
+                    auot shared_buffered_input_stream = std::make_shared<io::SharedBufferedInputStream>(
                             rfile->stream(), _segment->file_name(), file_size);
-                    const io::SharedBufferedInputStream::CoalesceOptions options = {
-                            .max_dist_size = config::io_coalesce_read_max_distance_size,
-                            .max_buffer_size = config::io_coalesce_read_max_buffer_size};
-                    _shared_buffer_input_stream->set_coalesce_options(options);
+                    shared_buffered_input_stream->set_coalesce_options(options);
 
                     // read the entire file at once by set range{0, file_size}
                     std::vector<io::SharedBufferedInputStream::IORange> ranges = {{0, file_size}};
-                    RETURN_IF_ERROR(_shared_buffer_input_stream->set_io_ranges(ranges));
+                    RETURN_IF_ERROR(shared_buffered_input_stream->set_io_ranges(ranges));
                 }
-                iter_opts.read_file = _shared_buffer_input_stream.get();
+                iter_opts.read_file = shared_buffered_input_stream.get();
 
             } else {
-                auto shared_buffered_input_stream = std::make_unique<io::SharedBufferedInputStream>(
+                auto shared_buffered_input_stream = std::make_shared<io::SharedBufferedInputStream>(
                         rfile->stream(), _segment->file_name(), file_size);
-                const io::SharedBufferedInputStream::CoalesceOptions options = {
-                        .max_dist_size = config::io_coalesce_read_max_distance_size,
-                        .max_buffer_size = config::io_coalesce_read_max_buffer_size};
                 shared_buffered_input_stream->set_coalesce_options(options);
                 iter_opts.read_file = shared_buffered_input_stream.get();
                 iter_opts.is_io_coalesce = true;
@@ -1751,11 +1742,7 @@ Status SegmentIterator::_init_bitmap_index_iterators() {
             opts.use_page_cache = config::enable_bitmap_index_memory_page_cache || !config::disable_storage_page_cache;
             opts.kept_in_memory = config::enable_bitmap_index_memory_page_cache;
             opts.lake_io_opts = _opts.lake_io_opts;
-            if (_shared_buffer_input_stream != nullptr) {
-                opts.read_file = _shared_buffer_input_stream.get();
-            } else {
-                opts.read_file = _column_files[cid].get();
-            }
+            opts.read_file = _column_files[cid].get();
             opts.stats = _opts.stats;
 
             RETURN_IF_ERROR(segment_ptr->new_bitmap_index_iterator(ucid, opts, &_bitmap_index_iterators[cid]));
