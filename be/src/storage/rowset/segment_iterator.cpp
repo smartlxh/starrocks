@@ -2052,9 +2052,9 @@ void SegmentIterator::close() {
         rfile.reset();
     }
 
-    if (_shared_buffer_input_stream) {
-        _update_stats(_shared_buffer_input_stream.get());
-        _shared_buffer_input_stream.reset();
+    if (_shared_buffered_input_stream) {
+        _update_stats(_shared_buffered_input_stream.get());
+        _shared_buffered_input_stream.reset();
     }
 
     STLClearObject(&_selection);
