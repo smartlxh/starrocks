@@ -40,7 +40,7 @@ ParallelSet<int64_t> tablet_txns;
 // the situation happens in create rollup.
 const int EMPTY_TXNLOG_TXNID = -1;
 
-    bool add_tablet(int64_t tablet_id) {
+bool add_tablet(int64_t tablet_id) {
     auto [_, ok] = tablet_txns.insert(tablet_id);
     return ok;
 }
@@ -143,7 +143,7 @@ StatusOr<TabletMetadataPtr> publish_version(TabletManager* tablet_mgr, int64_t t
                                             int64_t new_version, std::span<const TxnInfoPB> txns) {
     if (txns.size() == 1 && txns[0].txn_id() == EMPTY_TXNLOG_TXNID) {
         LOG(INFO) << "publish version tablet_id: " << tablet_id << ", txn: " << EMPTY_TXNLOG_TXNID
-                << ", base_version: " << base_version << ", new_version: " << new_version;
+                  << ", base_version: " << base_version << ", new_version: " << new_version;
         // means there is no txnlog and need to increase version number,
         // just return tablet metadata of base_version.
         CHECK_EQ(new_version, base_version + 1);
