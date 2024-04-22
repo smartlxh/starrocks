@@ -47,19 +47,19 @@ import org.apache.spark.util.SizeEstimator;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.stream.Collectors;
 
 /*
- * if you want to visit the atrribute(such as queryID,defaultDb)
+ * if you want to visit the attribute(such as queryID,defaultDb)
  * you can use profile.getInfoStrings("queryId")
  * All attributes can be seen from the above.
  *
- * why the element in the finished profile arary is not RuntimeProfile,
+ * why the element in the finished profile array is not RuntimeProfile,
  * the purpose is let coordinator can destruct earlier(the fragment profile is in Coordinator)
  *
  */
@@ -79,7 +79,7 @@ public class ProfileManager implements MemoryTrackable {
     public static final String VARIABLES = "Variables";
     public static final String PROFILE_COLLECT_TIME = "Collect Profile Time";
 
-    public static final ArrayList<String> PROFILE_HEADERS = new ArrayList<>(
+    public static final List<String> PROFILE_HEADERS = new ArrayList<>(
             Arrays.asList(QUERY_ID, USER, DEFAULT_DB, SQL_STATEMENT, QUERY_TYPE,
                     START_TIME, END_TIME, TOTAL_TIME, QUERY_STATE));
 
@@ -95,9 +95,22 @@ public class ProfileManager implements MemoryTrackable {
     }
 
     public static class ProfileElement {
-        public Map<String, String> infoStrings = Maps.newHashMap();
-        public byte[] profileContent;
-        public ProfilingExecPlan plan;
+        public final Map<String, String> infoStrings = Maps.newHashMap();
+        public final String profile;
+        public final byte[] compressedProfile;
+        public final ProfilingExecPlan plan;
+
+        public ProfileElement(String profile, ProfilingExecPlan plan) {
+            this.profile = profile;
+            this.compressedProfile = null;
+            this.plan = plan;
+        }
+
+        public ProfileElement(byte[] compressedProfile, ProfilingExecPlan plan) {
+            this.profile = null;
+            this.compressedProfile = compressedProfile;
+            this.plan = plan;
+        }
 
         public List<String> toRow() {
             List<String> res = Lists.newArrayList();
@@ -112,13 +125,20 @@ public class ProfileManager implements MemoryTrackable {
             res.add(statement);
             return res;
         }
+
+        public String getProfileContent() throws IOException {
+            if (profile == null) {
+                return CompressionUtils.gzipDecompressString(compressedProfile);
+            } else {
+                return profile;
+            }
+        }
     }
 
-    private final ReadLock readLock;
-    private final WriteLock writeLock;
-
-    private final LinkedHashMap<String, ProfileElement> profileMap; // from QueryId to RuntimeProfile
-    private final LinkedHashMap<String, ProfileElement> loadProfileMap; // from LoadId to RuntimeProfile
+    private final Queue<String> profileExpirationQueue;
+    private final Map<String, ProfileElement> profileMap; // from QueryId to RuntimeProfile
+    private final Queue<String> loadProfileExpirationQueue;
+    private final Map<String, ProfileElement> loadProfileMap; // from LoadId to RuntimeProfile
 
     public static ProfileManager getInstance() {
         if (INSTANCE == null) {
@@ -128,23 +148,25 @@ public class ProfileManager implements MemoryTrackable {
     }
 
     private ProfileManager() {
-        ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
-        readLock = lock.readLock();
-        writeLock = lock.writeLock();
-        profileMap = new LinkedHashMap<>();
-        loadProfileMap = new LinkedHashMap<>();
+        profileExpirationQueue = new LinkedBlockingQueue<>();
+        profileMap = new ConcurrentHashMap<>();
+        loadProfileExpirationQueue = new LinkedBlockingQueue<>();
+        loadProfileMap = new ConcurrentHashMap<>();
     }
 
-    public ProfileElement createElement(RuntimeProfile summaryProfile, String profileString) {
-        ProfileElement element = new ProfileElement();
+    public ProfileElement createElement(RuntimeProfile summaryProfile, String profileString, ProfilingExecPlan plan) {
+        ProfileElement element = new ProfileElement(profileString, plan);
+        if (Config.profile_enable_compression) {
+            try {
+                byte[] compressedProfile = CompressionUtils.gzipCompressString(profileString);
+                element = new ProfileElement(compressedProfile, plan);
+            } catch (IOException e) {
+                LOG.warn("Compress profile string failed, length: {}, reason: {}",
+                        profileString.length(), e.getMessage());
+            }
+        }
         for (String header : PROFILE_HEADERS) {
             element.infoStrings.put(header, summaryProfile.getInfoString(header));
-        }
-        try {
-            element.profileContent = CompressionUtils.gzipCompressString(profileString);
-        } catch (IOException e) {
-            LOG.warn("Compress profile string failed, length: {}, reason: {}",
-                    profileString.length(), e.getMessage());
         }
         return element;
     }
@@ -170,10 +192,26 @@ public class ProfileManager implements MemoryTrackable {
         return profileString;
     }
 
+    private void pushProfileWithExpiration(Map<String, ProfileElement> profileMap, Queue<String> expirationQueue,
+            String queryId, ProfileElement element, int numProfileReserved) {
+        profileMap.compute(queryId, (id, item) -> {
+            if (item == null) {
+                expirationQueue.offer(id);
+            }
+            return element;
+        });
+        while (expirationQueue.size() > numProfileReserved) {
+            String expiredQueryId = expirationQueue.poll();
+            profileMap.remove(expiredQueryId);
+        }
+    }
+
     public String pushProfile(ProfilingExecPlan plan, RuntimeProfile profile) {
+        if (profile == null) {
+            return null;
+        }
         String profileString = generateProfileString(profile);
-        ProfileElement element = createElement(profile.getChildList().get(0).first, profileString);
-        element.plan = plan;
+        ProfileElement element = createElement(profile.getChildList().get(0).first, profileString, plan);
         String queryId = element.infoStrings.get(ProfileManager.QUERY_ID);
         String queryType = element.infoStrings.get(ProfileManager.QUERY_TYPE);
         // check when push in, which can ensure every element in the list has QUERY_ID column,
@@ -183,136 +221,93 @@ public class ProfileManager implements MemoryTrackable {
                     + "may be forget to insert 'QUERY_ID' column into infoStrings");
         }
 
-        writeLock.lock();
-        try {
-            if (queryType != null && queryType.equals("Load")) {
-                loadProfileMap.put(queryId, element);
-                if (loadProfileMap.size() > Config.load_profile_info_reserved_num) {
-                    loadProfileMap.remove(loadProfileMap.keySet().iterator().next());
-                }
-            } else {
-                profileMap.put(queryId, element);
-                if (profileMap.size() > Config.profile_info_reserved_num) {
-                    profileMap.remove(profileMap.keySet().iterator().next());
-                }
-            }
-        } finally {
-            writeLock.unlock();
+        if (queryType != null && queryType.equals("Load")) {
+            pushProfileWithExpiration(
+                    loadProfileMap, loadProfileExpirationQueue, queryId, element, Config.load_profile_info_reserved_num);
+        } else {
+            pushProfileWithExpiration(
+                    profileMap, profileExpirationQueue, queryId, element, Config.profile_info_reserved_num);
         }
-
         return profileString;
     }
 
     public boolean hasProfile(String queryId) {
-        readLock.lock();
-        try {
-            return profileMap.containsKey(queryId) || loadProfileMap.containsKey(queryId);
-        } finally {
-            readLock.unlock();
-        }
+        return profileMap.containsKey(queryId) || loadProfileMap.containsKey(queryId);
+    }
+
+    private List<List<String>> getAllQueries(Map<String, ProfileElement> profileMap) {
+        return profileMap.values().stream()
+                .sorted((o1, o2) -> {
+                    int startTimeResult = o2.infoStrings.get(START_TIME).compareTo(o1.infoStrings.get(START_TIME));
+                    if (startTimeResult == 0) {
+                        return o2.infoStrings.get(END_TIME).compareTo(o1.infoStrings.get(END_TIME));
+                    }
+                    return startTimeResult;
+                })
+                .map(element -> PROFILE_HEADERS.stream().map(element.infoStrings::get).collect(Collectors.toList()))
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     public List<List<String>> getAllQueries() {
-        List<List<String>> result = Lists.newLinkedList();
-        readLock.lock();
-        try {
-            for (ProfileElement element : profileMap.values()) {
-                Map<String, String> infoStrings = element.infoStrings;
-                List<String> row = Lists.newArrayList();
-                for (String str : PROFILE_HEADERS) {
-                    row.add(infoStrings.get(str));
-                }
-                result.add(0, row);
-            }
-            for (ProfileElement element : loadProfileMap.values()) {
-                Map<String, String> infoStrings = element.infoStrings;
-                List<String> row = Lists.newArrayList();
-                for (String str : PROFILE_HEADERS) {
-                    row.add(infoStrings.get(str));
-                }
-                result.add(0, row);
-            }
-        } finally {
-            readLock.unlock();
-        }
-        return result;
+        List<List<String>> profiles = getAllQueries(profileMap);
+        List<List<String>> loadProfiles = getAllQueries(loadProfileMap);
+        profiles.addAll(loadProfiles);
+        return profiles;
     }
 
     public void removeProfile(String queryId) {
-        writeLock.lock();
-        try {
-            loadProfileMap.remove(queryId);
-            profileMap.remove(queryId);
-        } finally {
-            writeLock.unlock();
-        }
+        loadProfileMap.remove(queryId);
+        profileMap.remove(queryId);
     }
 
     public void clearProfiles() {
-        writeLock.lock();
-        try {
-            loadProfileMap.clear();
-            profileMap.clear();
-        } finally {
-            writeLock.unlock();
-        }
+        loadProfileMap.clear();
+        profileMap.clear();
     }
 
     public String getProfile(String queryId) {
-        ProfileElement element = new ProfileElement();
-        readLock.lock();
-        try {
-            element = profileMap.get(queryId) == null ? loadProfileMap.get(queryId) : profileMap.get(queryId);
-            if (element == null) {
-                return null;
-            }
-
-            return CompressionUtils.gzipDecompressString(element.profileContent);
-        } catch (IOException e) {
-            LOG.warn("Decompress profile content failed, length: {}, reason: {}",
-                    element.profileContent.length, e.getMessage());
-            return null;
-        } finally {
-            readLock.unlock();
+        ProfileElement element = null;
+        if (profileMap.containsKey(queryId)) {
+            element = profileMap.get(queryId);
+        } else if (loadProfileMap.containsKey(queryId)) {
+            element = loadProfileMap.get(queryId);
         }
+
+        if (element == null) {
+            return null;
+        }
+
+        if (Config.profile_enable_compression && element.compressedProfile != null) {
+            try {
+                return CompressionUtils.gzipDecompressString(element.compressedProfile);
+            } catch (IOException e) {
+                LOG.warn("Decompress profile content failed, length: {}, reason: {}",
+                        element.compressedProfile.length, e.getMessage());
+            }
+        }
+        return element.profile;
     }
 
     public ProfileElement getProfileElement(String queryId) {
-        readLock.lock();
-        try {
-            return profileMap.get(queryId) == null ? loadProfileMap.get(queryId) : profileMap.get(queryId);
-        } finally {
-            readLock.unlock();
+        if (profileMap.containsKey(queryId)) {
+            return profileMap.get(queryId);
+        } else {
+            return loadProfileMap.get(queryId);
         }
     }
 
     public List<ProfileElement> getAllProfileElements() {
         List<ProfileElement> result = Lists.newArrayList();
-        readLock.lock();
-        try {
-            result.addAll(profileMap.values());
-            result.addAll(loadProfileMap.values());
-        } finally {
-            readLock.unlock();
-        }
+        result.addAll(profileMap.values());
+        result.addAll(loadProfileMap.values());
         return result;
     }
 
     public long getQueryProfileCount() {
-        readLock.lock();
-        try {
-            return profileMap.size();
-        } finally {
-            readLock.unlock();
-        }
+        return profileMap.size();
     }
 
     public long getLoadProfileCount() {
-        readLock.lock();
-        try {
-            return loadProfileMap.size();
-        } finally {
-            readLock.unlock();
-        }
+        return loadProfileMap.size();
     }
 }

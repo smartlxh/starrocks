@@ -282,6 +282,7 @@ public:
     PriorityThreadPool* query_rpc_pool() { return _query_rpc_pool; }
     ThreadPool* load_rpc_pool() { return _load_rpc_pool.get(); }
     FragmentMgr* fragment_mgr() { return _fragment_mgr; }
+    ThreadPool* fragment_finalizer_pool() { return _fragment_finalizer_pool.get(); }
     starrocks::pipeline::DriverExecutor* wg_driver_executor() { return _wg_driver_executor; }
     BaseLoadPathMgr* load_path_mgr() { return _load_path_mgr; }
     BfdParser* bfd_parser() const { return _bfd_parser; }
@@ -368,6 +369,7 @@ private:
     PriorityThreadPool* _query_rpc_pool = nullptr;
     std::unique_ptr<ThreadPool> _load_rpc_pool;
     FragmentMgr* _fragment_mgr = nullptr;
+    std::unique_ptr<ThreadPool> _fragment_finalizer_pool;
     pipeline::QueryContextManager* _query_context_mgr = nullptr;
     pipeline::DriverExecutor* _wg_driver_executor = nullptr;
     pipeline::DriverLimiter* _driver_limiter = nullptr;

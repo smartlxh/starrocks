@@ -77,6 +77,9 @@ public:
     bool all_pipelines_finished() const { return _num_finished_pipelines == _pipelines.size(); }
     void count_down_pipeline(size_t val = 1);
 
+    inline int64_t lifetime() { return _lifetime_sw.elapsed_time(); }
+    void async_finalize_fragment();
+
     bool need_report_exec_state();
     void report_exec_state_if_necessary();
 
@@ -113,6 +116,10 @@ public:
     void destroy_pass_through_chunk_buffer();
 
     void set_driver_token(DriverLimiter::TokenPtr driver_token) { _driver_token = std::move(driver_token); }
+    void clear_driver_token() {
+        _driver_token.reset(nullptr);
+        _driver_token = nullptr;
+    }
 
     query_cache::CacheParam& cache_param() { return _cache_param; }
 
@@ -199,6 +206,8 @@ private:
     size_t _expired_log_count = 0;
 
     std::atomic<int64_t> _last_report_exec_state_ns = MonotonicNanos();
+
+    MonotonicStopWatch _lifetime_sw;
 };
 
 class FragmentContextManager {
