@@ -51,6 +51,8 @@ import com.starrocks.journal.JournalTask;
 import com.starrocks.lake.LakeTable;
 import com.starrocks.lake.LakeTablet;
 import com.starrocks.lake.Utils;
+import com.starrocks.proto.TxnInfoPB;
+import com.starrocks.proto.TxnTypePB;
 import com.starrocks.qe.OriginStatement;
 import com.starrocks.server.GlobalStateMgr;
 import com.starrocks.sql.ast.CreateMaterializedViewStmt;
@@ -781,14 +783,23 @@ public class LakeRollupJob extends RollupJobV2 {
                 }
                 long commitVersion = commitVersionMap.get(partitionId);
 
+                TxnInfoPB rollUpTxnInfo = new TxnInfoPB();
+                rollUpTxnInfo.txnId = watershedTxnId;
+                rollUpTxnInfo.combinedTxnLog = false;
+                rollUpTxnInfo.commitTime = finishedTimeMs / 1000;
+                rollUpTxnInfo.txnType = TxnTypePB.TXN_NORMAL;
                 // publish rollup tablets
-                Utils.publishVersion(physicalPartitionIdToRollupIndex.get(partitionId).getTablets(), watershedTxnId,
-                        1, commitVersion,
-                        finishedTimeMs / 1000, warehouseId);
+                Utils.publishVersion(physicalPartitionIdToRollupIndex.get(partitionId).getTablets(), rollUpTxnInfo,
+                        1, commitVersion, warehouseId);
 
+                TxnInfoPB originTxnInfo = new TxnInfoPB();
+                originTxnInfo.txnId = -1L;
+                originTxnInfo.combinedTxnLog = false;
+                originTxnInfo.commitTime = finishedTimeMs / 1000;
+                originTxnInfo.txnType = TxnTypePB.TXN_EMPTY;
                 // publish origin tablets
-                Utils.publishVersion(allOtherPartitionTablets, -1, commitVersion - 1, commitVersion,
-                        finishedTimeMs / 1000, warehouseId);
+                Utils.publishVersion(allOtherPartitionTablets, originTxnInfo, commitVersion - 1,
+                        commitVersion, warehouseId);
 
             }
             return true;
