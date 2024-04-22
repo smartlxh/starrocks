@@ -28,7 +28,6 @@ import com.starrocks.analysis.SlotRef;
 import com.starrocks.analysis.TableName;
 import com.starrocks.analysis.TupleDescriptor;
 import com.starrocks.catalog.Column;
-import com.starrocks.catalog.Database;
 import com.starrocks.catalog.KeysType;
 import com.starrocks.catalog.MaterializedIndex;
 import com.starrocks.catalog.MaterializedIndexMeta;
@@ -45,8 +44,6 @@ import com.starrocks.catalog.Type;
 import com.starrocks.common.AnalysisException;
 import com.starrocks.common.Config;
 import com.starrocks.common.util.concurrent.MarkedCountDownLatch;
-import com.starrocks.common.util.concurrent.lock.LockType;
-import com.starrocks.common.util.concurrent.lock.Locker;
 import com.starrocks.journal.JournalTask;
 import com.starrocks.lake.LakeTable;
 import com.starrocks.lake.LakeTablet;
@@ -68,7 +65,6 @@ import com.starrocks.thrift.TStorageType;
 import com.starrocks.thrift.TTabletSchema;
 import com.starrocks.thrift.TTabletType;
 import com.starrocks.thrift.TTaskType;
-import com.starrocks.transaction.GlobalTransactionMgr;
 import io.opentelemetry.api.trace.StatusCode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -78,32 +74,84 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import javax.annotation.Nullable;
 import javax.validation.constraints.NotNull;
 
-public class LakeRollupJob extends RollupJobV2 {
+import static com.starrocks.alter.RollupJobV2.analyzeExpr;
+
+public class LakeRollupJob extends LakeTableSchemaChangeJobBase {
     private static final Logger LOG = LogManager.getLogger(LakeRollupJob.class);
 
     @SerializedName(value = "commitVersionMap")
     // Mapping from partition id to commit version
     private Map<Long, Long> commitVersionMap;
 
+    //------------------
+    @SerializedName(value = "partitionIdToBaseRollupTabletIdMap")
+    protected Map<Long, Map<Long, Long>> physicalPartitionIdToBaseRollupTabletIdMap = Maps.newHashMap();
+    @SerializedName(value = "partitionIdToRollupIndex")
+    protected Map<Long, MaterializedIndex> physicalPartitionIdToRollupIndex = Maps.newHashMap();
+
+    // rollup and base schema info
+    @SerializedName(value = "baseIndexId")
+    protected long baseIndexId;
+    @SerializedName(value = "rollupIndexId")
+    protected long rollupIndexId;
+    @SerializedName(value = "baseIndexName")
+    protected String baseIndexName;
+    @SerializedName(value = "rollupIndexName")
+    protected String rollupIndexName;
+
+    @SerializedName(value = "rollupSchema")
+    protected List<Column> rollupSchema = Lists.newArrayList();
+    @SerializedName(value = "rollupSchemaVersion")
+    protected int rollupSchemaVersion;
+    @SerializedName(value = "baseSchemaHash")
+    protected int baseSchemaHash;
+    @SerializedName(value = "rollupSchemaHash")
+    protected int rollupSchemaHash;
+
+    @SerializedName(value = "rollupKeysType")
+    protected KeysType rollupKeysType;
+    @SerializedName(value = "rollupShortKeyColumnCount")
+    protected short rollupShortKeyColumnCount;
+    @SerializedName(value = "origStmt")
+    protected OriginStatement origStmt;
+
+    // The rollup job will wait all transactions before this txn id finished, then send the rollup tasks.
+
+    @SerializedName(value = "viewDefineSql")
+    protected String viewDefineSql;
+    @SerializedName(value = "isColocateMVIndex")
+    protected boolean isColocateMVIndex = false;
+
+    protected Expr whereClause;
+
     // save all create rollup tasks
-    private AgentBatchTask rollupBatchTask = new AgentBatchTask();
+    protected AgentBatchTask rollupBatchTask = new AgentBatchTask();
 
     public LakeRollupJob(long jobId, long dbId, long tableId, String tableName, long timeoutMs,
                          long baseIndexId, long rollupIndexId, String baseIndexName, String rollupIndexName,
                          int rollupSchemaVersion, List<Column> rollupSchema, Expr whereClause, int baseSchemaHash,
                          int rollupSchemaHash, KeysType rollupKeysType, short rollupShortKeyColumnCount,
                          OriginStatement origStmt, String viewDefineSql, boolean isColocateMVIndex) {
-        super(jobId, dbId, tableId, tableName, timeoutMs, baseIndexId, rollupIndexId, baseIndexName,
-                rollupIndexName, rollupSchemaVersion, rollupSchema, whereClause, baseSchemaHash,
-                rollupSchemaHash, rollupKeysType, rollupShortKeyColumnCount, origStmt,
-                viewDefineSql, isColocateMVIndex);
+        super(jobId, JobType.ROLLUP, dbId, tableId, tableName, timeoutMs);
+        this.baseIndexId = baseIndexId;
+        this.rollupIndexId = rollupIndexId;
+        this.baseIndexName = baseIndexName;
+        this.rollupIndexName = rollupIndexName;
+        this.rollupSchemaVersion = rollupSchemaVersion;
+        this.rollupSchema = rollupSchema;
+        this.whereClause = whereClause;
+        this.baseSchemaHash = baseSchemaHash;
+        this.rollupSchemaHash = rollupSchemaHash;
+        this.rollupKeysType = rollupKeysType;
+        this.rollupShortKeyColumnCount = rollupShortKeyColumnCount;
+        this.origStmt = origStmt;
+        this.viewDefineSql = viewDefineSql;
+        this.isColocateMVIndex = isColocateMVIndex;
     }
 
     @Override
@@ -229,7 +277,7 @@ public class LakeRollupJob extends RollupJobV2 {
         Preconditions.checkState(jobState == JobState.WAITING_TXN, jobState);
 
         try {
-            if (!isPreviousLoadFinished()) {
+            if (!isPreviousLoadFinished(dbId, tableId, watershedTxnId)) {
                 LOG.info("wait transactions before {} to be finished, rollup job: {}", watershedTxnId, jobId);
                 return;
             }
@@ -418,7 +466,7 @@ public class LakeRollupJob extends RollupJobV2 {
         if (span != null) {
             span.addEvent("finishedRewriting");
         }
-        LOG.info("schema change job finished rewriting historical data: {}", jobId);
+        LOG.info("lake rollup job finished rewriting historical data: {}", jobId);
     }
 
     @Override
@@ -462,8 +510,6 @@ public class LakeRollupJob extends RollupJobV2 {
             return false;
         }
 
-        // todo delete shardGroup and shard
-
         // Cancel a job of state `FINISHED_REWRITING` only when the database or table has been dropped.
         if (jobState == JobState.FINISHED_REWRITING && tableExists()) {
             return false;
@@ -490,6 +536,7 @@ public class LakeRollupJob extends RollupJobV2 {
         }
 
         writeEditLog(this);
+        LOG.info("Lake Rollup job canceled, jobId: {}, error: {}", jobId, errMsg);
 
         return true;
     }
@@ -562,105 +609,6 @@ public class LakeRollupJob extends RollupJobV2 {
             }
         }
     }
-
-    @Override
-    public Optional<Long> getTransactionId() {
-        return Optional.empty();
-    }
-
-    @Nullable
-    ReadLockedDatabase getReadLockedDatabase(long dbId) {
-        Database db = GlobalStateMgr.getCurrentState().getDb(dbId);
-        return db != null ? new ReadLockedDatabase(db) : null;
-    }
-
-    @Nullable
-    WriteLockedDatabase getWriteLockedDatabase(long dbId) {
-        Database db = GlobalStateMgr.getCurrentState().getDb(dbId);
-        return db != null ? new WriteLockedDatabase(db) : null;
-    }
-
-    // Check whether transactions of the given database which txnId is less than 'watershedTxnId' are finished.
-    @VisibleForTesting
-    public boolean isPreviousLoadFinished(long dbId, long tableId, long txnId) throws AnalysisException {
-        GlobalTransactionMgr globalTxnMgr = GlobalStateMgr.getCurrentState().getGlobalTransactionMgr();
-        return globalTxnMgr.isPreviousTransactionsFinished(txnId, dbId, Lists.newArrayList(tableId));
-    }
-
-    private abstract static class LockedDatabase implements AutoCloseable {
-        private final Database db;
-        protected Locker locker;
-
-        LockedDatabase(@NotNull Database db) {
-            this.locker = new Locker();
-            lock(db);
-            this.db = db;
-        }
-
-        abstract void lock(Database db);
-
-        abstract void unlock(Database db);
-
-        @Nullable
-        LakeTable getTable(long tableId) {
-            return (LakeTable) db.getTable(tableId);
-        }
-
-        @Nullable
-        String getFullName() {
-            return db.getFullName();
-        }
-
-        @Override
-        public void close() {
-            unlock(db);
-        }
-    }
-
-    private static class ReadLockedDatabase extends LockedDatabase {
-        ReadLockedDatabase(@NotNull Database db) {
-            super(db);
-        }
-
-        @Override
-        void lock(Database db) {
-            locker.lockDatabase(db, LockType.READ);
-        }
-
-        @Override
-        void unlock(Database db) {
-            locker.unLockDatabase(db, LockType.READ);
-        }
-    }
-
-    private static class WriteLockedDatabase extends LockedDatabase {
-        WriteLockedDatabase(@NotNull Database db) {
-            super(db);
-        }
-
-        @Override
-        void lock(Database db) {
-            locker.lockDatabase(db, LockType.WRITE);
-        }
-
-        @Override
-        void unlock(Database db) {
-            locker.unLockDatabase(db, LockType.WRITE);
-        }
-    }
-
-    @NotNull
-    LakeTable getTableOrThrow(@Nullable LockedDatabase db, long tableId) throws AlterCancelException {
-        if (db == null) {
-            throw new AlterCancelException("Database does not exist");
-        }
-        LakeTable table = db.getTable(tableId);
-        if (table == null) {
-            throw new AlterCancelException("Table does not exist. tableId=" + tableId);
-        }
-        return table;
-    }
-
 
     @VisibleForTesting
     public static void sendAgentTaskAndWait(AgentBatchTask batchTask, MarkedCountDownLatch<Long, Long> countDownLatch,
@@ -768,7 +716,7 @@ public class LakeRollupJob extends RollupJobV2 {
         return true;
     }
 
-    boolean publishVersion() {
+    private boolean publishVersion() {
         try (ReadLockedDatabase db = getReadLockedDatabase(dbId)) {
             LakeTable table = getTableOrThrow(db, tableId);
             for (long partitionId : physicalPartitionIdToRollupIndex.keySet()) {
@@ -809,40 +757,6 @@ public class LakeRollupJob extends RollupJobV2 {
         }
     }
 
-    @VisibleForTesting
-    public static void sendAgentTask(AgentBatchTask batchTask) {
-        AgentTaskQueue.addBatchTask(batchTask);
-        AgentTaskExecutor.submit(batchTask);
-    }
-
-    private void cancelInternal() {
-        // clear tasks if has
-        AgentTaskQueue.removeBatchTask(rollupBatchTask, TTaskType.ALTER);
-        // remove all rollup indexes, and set state to NORMAL
-        TabletInvertedIndex invertedIndex = GlobalStateMgr.getCurrentState().getTabletInvertedIndex();
-        Database db = GlobalStateMgr.getCurrentState().getDb(dbId);
-        if (db != null) {
-            Locker locker = new Locker();
-            locker.lockDatabase(db, LockType.WRITE);
-            try {
-                OlapTable tbl = (OlapTable) db.getTable(tableId);
-                if (tbl != null) {
-                    for (Long partitionId : physicalPartitionIdToRollupIndex.keySet()) {
-                        MaterializedIndex rollupIndex = physicalPartitionIdToRollupIndex.get(partitionId);
-                        for (Tablet rollupTablet : rollupIndex.getTablets()) {
-                            invertedIndex.deleteTablet(rollupTablet.getId());
-                        }
-                        PhysicalPartition partition = tbl.getPhysicalPartition(partitionId);
-                        partition.deleteRollupIndex(rollupIndexId);
-                    }
-                    tbl.deleteIndexInfo(rollupIndexName);
-                }
-            } finally {
-                locker.unLockDatabase(db, LockType.WRITE);
-            }
-        }
-    }
-
     void removeShadowIndex(@NotNull LakeTable table) {
         TabletInvertedIndex invertedIndex = GlobalStateMgr.getCurrentState().getTabletInvertedIndex();
         for (Long partitionId : physicalPartitionIdToRollupIndex.keySet()) {
@@ -854,12 +768,6 @@ public class LakeRollupJob extends RollupJobV2 {
             partition.deleteRollupIndex(rollupIndexId);
         }
         table.deleteIndexInfo(rollupIndexName);
-    }
-
-    private boolean tableExists() {
-        try (ReadLockedDatabase db = getReadLockedDatabase(dbId)) {
-            return db != null && db.getTable(tableId) != null;
-        }
     }
 
     public void visualiseShadowIndex(OlapTable table) {
@@ -899,5 +807,17 @@ public class LakeRollupJob extends RollupJobV2 {
                 invertedIndex.addTablet(rollupTablet.getId(), rollupTabletMeta);
             }
         }
+    }
+
+    @Override
+    public void addTabletIdMap(long partitionId, long rollupTabletId, long baseTabletId) {
+        Map<Long, Long> tabletIdMap =
+                physicalPartitionIdToBaseRollupTabletIdMap.computeIfAbsent(partitionId, k -> Maps.newHashMap());
+        tabletIdMap.put(rollupTabletId, baseTabletId);
+    }
+
+    @Override
+    public void addMVIndex(long partitionId, MaterializedIndex mvIndex) {
+        this.physicalPartitionIdToRollupIndex.put(partitionId, mvIndex);
     }
 }
