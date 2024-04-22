@@ -285,7 +285,15 @@ void GlobalDriverExecutor::cancel(DriverRawPtr driver) {
 
 void GlobalDriverExecutor::report_exec_state(QueryContext* query_ctx, FragmentContext* fragment_ctx,
                                              const Status& status, bool done, bool attach_profile) {
-    auto* profile = fragment_ctx->runtime_state()->runtime_profile();
+    if (fragment_ctx->lifetime() < query_ctx->get_fragment_profile_drop_threshold()) {
+        attach_profile = false;
+        LOG(WARNING) << "Drop profile for query " << print_id(query_ctx->query_id()) << " fragment "
+                     << print_id(fragment_ctx->fragment_instance_id()) << " since its lifetime "
+                     << fragment_ctx->lifetime() << " ns is shorter than threshold "
+                     << query_ctx->get_fragment_profile_drop_threshold() << " ns.";
+    }
+
+    RuntimeProfile* profile = nullptr;
     ObjectPool obj_pool;
     if (attach_profile) {
         profile = _build_merged_instance_profile(query_ctx, fragment_ctx, &obj_pool);
@@ -337,9 +345,6 @@ void GlobalDriverExecutor::report_exec_state(QueryContext* query_ctx, FragmentCo
                         continue;
                     }
                 }
-            } else {
-                LOG(INFO) << "[Driver] Succeed to report exec state: fragment_instance_id=" << print_id(fragment_id)
-                          << ", is_done=" << params.done;
             }
             break;
         }
@@ -348,9 +353,13 @@ void GlobalDriverExecutor::report_exec_state(QueryContext* query_ctx, FragmentCo
     // if it is done exec state report, We need to ensure that this report is executed with priority
     // and is retried as much as possible to ensure success.
     // Otherwise, it may result in the query or ingestion status getting stuck.
-    this->_exec_state_reporter->submit(std::move(report_task), done);
-    VLOG(1) << "[Driver] Submit exec state report task: fragment_instance_id=" << print_id(fragment_id)
-            << ", is_done=" << done;
+    auto st = this->_exec_state_reporter->submit(std::move(report_task), done);
+    if (!st.ok()) {
+        LOG(WARNING) << "[Driver] Fail to submit report task to ExecStateReporter, reason: " << st.to_string();
+    } else {
+        VLOG(1) << "[Driver] Submit exec state report task: fragment_instance_id=" << print_id(fragment_id)
+                << ", is_done=" << done;
+    }
 }
 
 void GlobalDriverExecutor::report_audit_statistics(QueryContext* query_ctx, FragmentContext* fragment_ctx, bool* done) {
@@ -434,12 +443,13 @@ void GlobalDriverExecutor::report_epoch(ExecEnv* exec_env, QueryContext* query_c
                 LOG(WARNING) << "[Driver] Fail to report epoch exec state: query_id=" << print_id(query_id)
                              << ", status: " << status.to_string();
             }
-        } else {
-            LOG(INFO) << "[Driver] Succeed to report epoch exec state: query_id=" << print_id(query_id);
         }
     };
 
-    this->_exec_state_reporter->submit(std::move(report_task));
+    auto st = this->_exec_state_reporter->submit(std::move(report_task));
+    if (!st.ok()) {
+        LOG(WARNING) << "[Driver] Fail to submit report epoch task to ExecStateReporter.";
+    }
 }
 
 void GlobalDriverExecutor::iterate_immutable_blocking_driver(const IterateImmutableDriverFunc& call) const {

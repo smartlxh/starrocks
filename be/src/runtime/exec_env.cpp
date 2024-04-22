@@ -343,6 +343,13 @@ Status ExecEnv::init(const std::vector<StorePath>& store_paths, bool as_cn) {
     _udf_call_pool = new PriorityThreadPool("udf", config::udf_thread_pool_size, config::udf_thread_pool_size);
     _fragment_mgr = new FragmentMgr(this);
 
+    RETURN_IF_ERROR(ThreadPoolBuilder("fragment_finalizer")
+                            .set_min_threads(config::fragment_finalizer_min_threads)
+                            .set_max_threads(config::fragment_finalizer_max_threads)
+                            .set_max_queue_size(config::fragment_finalizer_max_queue_size)
+                            .set_idle_timeout(MonoDelta::FromMilliseconds(config::fragment_finalizer_idle_timeout_ms))
+                            .build(&_fragment_finalizer_pool));
+
     RETURN_IF_ERROR(ThreadPoolBuilder("automatic_partition") // automatic partition pool
                             .set_min_threads(0)
                             .set_max_threads(8)

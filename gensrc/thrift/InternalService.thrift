@@ -145,6 +145,7 @@ struct TQueryOptions {
   13: optional bool abort_on_default_limit_exceeded = 0
   14: optional i32 query_timeout = 3600
   15: optional bool enable_profile = 0
+  16: optional i32 fragment_profile_drop_threshold_ms = 1000
 
   18: optional TQueryType query_type = TQueryType.SELECT
 

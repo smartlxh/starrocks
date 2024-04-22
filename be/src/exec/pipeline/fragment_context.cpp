@@ -26,7 +26,9 @@
 
 namespace starrocks::pipeline {
 
-FragmentContext::FragmentContext() : _data_sink(nullptr) {}
+FragmentContext::FragmentContext() : _data_sink(nullptr) {
+    _lifetime_sw.start();
+}
 
 FragmentContext::~FragmentContext() {
     _data_sink.reset();
@@ -91,8 +93,6 @@ void FragmentContext::count_down_pipeline(size_t val) {
     }
 
     auto* state = runtime_state();
-    auto* query_ctx = state->query_ctx();
-
     state->runtime_profile()->reverse_childs();
     if (config::pipeline_print_profile) {
         std::stringstream ss;
@@ -102,13 +102,34 @@ void FragmentContext::count_down_pipeline(size_t val) {
         LOG(INFO) << ss.str();
     }
 
-    finish();
-    auto status = final_status();
-    state->exec_env()->wg_driver_executor()->report_exec_state(query_ctx, this, status, true, true);
-
     destroy_pass_through_chunk_buffer();
 
-    query_ctx->count_down_fragments();
+    // Release driver token here because we need to release driver quota as soon as possible.
+    clear_driver_token();
+
+    async_finalize_fragment();
+}
+
+void FragmentContext::async_finalize_fragment() {
+    auto* state = runtime_state();
+    auto* exec_env = state->exec_env();
+    auto* query_ctx = state->query_ctx();
+    const auto& query_id = print_id(query_ctx->query_id());
+    const auto& fragment_id = print_id(fragment_instance_id());
+
+    auto task = [this, exec_env, query_ctx]() -> void {
+        finish();
+        auto status = final_status();
+        exec_env->wg_driver_executor()->report_exec_state(query_ctx, this, status, true, true);
+        query_ctx->count_down_fragments();
+    };
+
+    Status status = exec_env->fragment_finalizer_pool()->submit_func(std::move(task));
+    if (!status.ok()) {
+        LOG(WARNING) << "Fail to submit print profile task for query " << query_id << " fragment instance "
+                     << fragment_id << ", reason: " << status.message();
+        task();
+    }
 }
 
 bool FragmentContext::need_report_exec_state() {

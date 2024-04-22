@@ -139,6 +139,9 @@ Status FragmentExecutor::_prepare_query_ctx(ExecEnv* exec_env, const UnifiedExec
     if (query_options.__isset.enable_profile && query_options.enable_profile) {
         _query_ctx->set_enable_profile();
     }
+    if (query_options.__isset.fragment_profile_drop_threshold_ms && query_options.fragment_profile_drop_threshold_ms) {
+        _query_ctx->set_fragment_profile_drop_threshold(query_options.fragment_profile_drop_threshold_ms);
+    }
     if (query_options.__isset.big_query_profile_threshold) {
         _query_ctx->set_big_query_profile_threshold(query_options.big_query_profile_threshold,
                                                     query_options.big_query_profile_threshold_unit);

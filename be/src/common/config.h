@@ -1270,4 +1270,13 @@ CONF_mBool(brpc_socket_keepalive, "false");
 CONF_mBool(enable_pk_strict_memcheck, "false");
 CONF_mBool(apply_del_vec_after_all_index_filter, "true");
 
+CONF_mInt32(exec_state_reporter_min_threads, "1");
+CONF_mInt32(exec_state_reporter_max_threads, "2");
+CONF_mInt32(exec_state_reporter_max_queue_size, "1000");
+CONF_mInt32(exec_state_reporter_idle_timeout_ms, "2000");
+CONF_mInt32(fragment_finalizer_min_threads, "1");
+CONF_mInt32(fragment_finalizer_max_threads, "2");
+CONF_mInt32(fragment_finalizer_max_queue_size, "1000");
+CONF_mInt32(fragment_finalizer_idle_timeout_ms, "2000");
+
 } // namespace starrocks::config

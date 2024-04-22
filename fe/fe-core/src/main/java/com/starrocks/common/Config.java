@@ -2636,6 +2636,13 @@ public class Config extends ConfigBase {
     public static String profile_info_format = "default";
 
     /**
+     * Whether compress profile content or not.
+     * Default value: false
+     */
+    @ConfField(mutable = true)
+    public static boolean profile_enable_compression = false;
+
+    /**
      * When the session variable `enable_profile` is set to `false` and `big_query_profile_threshold` is set to 0,
      * the amount of time taken by a load exceeds the default_big_load_profile_threshold_second,
      * a profile is generated for that load.
