@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.starrocks.analysis.TableName;
+import com.starrocks.authentication.AuthenticationMgr;
 import com.starrocks.catalog.BasicTable;
 import com.starrocks.catalog.Column;
 import com.starrocks.catalog.Database;
@@ -62,6 +63,7 @@ import com.starrocks.sql.optimizer.statistics.ColumnStatistic;
 import com.starrocks.sql.optimizer.statistics.Histogram;
 import com.starrocks.sql.optimizer.statistics.Statistics;
 import com.starrocks.statistic.StatisticUtils;
+import com.starrocks.statistic.StatsConstants;
 import com.starrocks.thrift.TSinkCommitInfo;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -585,6 +587,19 @@ public class MetadataMgr {
                                           String dbName,
                                           String tableName,
                                           String op) throws DdlException {
+        ConnectContext context = ConnectContext.get();
+        // Check for system db
+        if (dbName.equalsIgnoreCase(StatsConstants.INFORMATION_SCHEMA)
+                || dbName.equalsIgnoreCase(StatsConstants.STATISTICS_DB_NAME)) {
+            return;
+        }
+
+        // Check for current user
+        if (context == null || context.getCurrentUserIdentity().getUser().isEmpty()
+                || context.getCurrentUserIdentity().getUser().equalsIgnoreCase(AuthenticationMgr.ROOT_USER)) {
+            return;
+        }
+
         if (CatalogMgr.isInternalCatalog(catalogName) && Config.enable_pure_dla_mode) {
             throw new  DdlException("Can not do operation " +
                     String.format("'%s' for %s.%s.%s", op, catalogName, dbName, tableName) +

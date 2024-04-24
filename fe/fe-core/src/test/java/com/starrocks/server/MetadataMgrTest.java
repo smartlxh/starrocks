@@ -16,6 +16,7 @@
 package com.starrocks.server;
 
 import com.google.common.collect.Lists;
+import com.starrocks.analysis.TableName;
 import com.starrocks.common.Config;
 import com.starrocks.common.DdlException;
 import com.starrocks.common.MetaNotFoundException;
@@ -30,6 +31,8 @@ import com.starrocks.qe.ConnectContext;
 import com.starrocks.sql.analyzer.AnalyzeTestUtil;
 import com.starrocks.sql.ast.CreateTableLikeStmt;
 import com.starrocks.sql.ast.CreateTableStmt;
+import com.starrocks.sql.ast.DropTableStmt;
+import com.starrocks.sql.ast.UserIdentity;
 import com.starrocks.utframe.StarRocksAssert;
 import com.starrocks.utframe.UtFrameUtils;
 import mockit.Expectations;
@@ -417,18 +420,26 @@ public class MetadataMgrTest {
     public void testValidateDLAModeOp() throws Exception {
         Config.enable_pure_dla_mode = true;
         MetadataMgr metadataMgr = AnalyzeTestUtil.getConnectContext().getGlobalStateMgr().getMetadataMgr();
-        Assert.assertThrows(DdlException.class,
-                () -> metadataMgr.createDb("default_catalog", "test", new HashMap<>()));
-        Assert.assertThrows(DdlException.class,
-                () -> metadataMgr.dropDb("default_catalog", "test", false));
+        ConnectContext.get().setCurrentUserIdentity(new UserIdentity("test", "test"));
+
+        TableName tableName = new TableName("default_catalog", "test", "test");
+        DropTableStmt dropTableStmt = new DropTableStmt(false, tableName, false);
         Assert.assertThrows(StarRocksConnectorException.class,
-                () -> metadataMgr.dropTable("default_catalog", "test", "test"));
+                () -> metadataMgr.dropTable(dropTableStmt));
+
         String createTbl = "create table db2.tbl2(k1 varchar(32), catalog varchar(32), external varchar(32), k4 int) "
                 + "distributed by hash(k1) buckets 3 properties('replication_num' = '1')";
         CreateTableStmt createTableStmt =
                 (CreateTableStmt) UtFrameUtils.parseStmtWithNewParser(createTbl, AnalyzeTestUtil.getConnectContext());
         Assert.assertThrows(DdlException.class,
                 () -> metadataMgr.createTable(createTableStmt));
+
+        ConnectContext.get().setCurrentUserIdentity(new UserIdentity("root", "test"));
+        String createTbl1 = "create table db2.tbl4(k1 varchar(32), catalog varchar(32), external varchar(32), k4 int) "
+                + "distributed by hash(k1) buckets 3 properties('replication_num' = '1')";
+        CreateTableStmt createTableStmt1 =
+                (CreateTableStmt) UtFrameUtils.parseStmtWithNewParser(createTbl1, AnalyzeTestUtil.getConnectContext());
+        Assert.assertTrue(metadataMgr.createTable(createTableStmt1));
         Config.enable_pure_dla_mode = false;
     }
 
