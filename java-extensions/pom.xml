@@ -20,6 +20,7 @@
         <module>hadoop-ext</module>
         <module>odps-reader</module>
         <module>common-runtime</module>
+        <module>kudu-reader</module>
     </modules>
     <name>starrocks-java-extensions</name>
 

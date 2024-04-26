@@ -60,7 +60,7 @@ enum TPlanNodeType {
   META_SCAN_NODE,
   ANALYTIC_EVAL_NODE,
   OLAP_REWRITE_NODE,
-  KUDU_SCAN_NODE, // Deprecated
+  KUDU_SCAN_NODE,
   FILE_SCAN_NODE,
   EMPTY_SET_NODE,
   UNION_NODE,
@@ -364,7 +364,16 @@ struct THdfsScanRange {
     20: optional map<string, string> odps_split_infos
 
     // delete columns slots like iceberg equality delete column slots
-    21: optional list<Types.TSlotId> delete_column_slot_ids
+    21: optional list<Types.TSlotId> delete_column_slot_ids;
+
+    // whether to use JNI scanner to read data of kudu table
+    24: optional bool use_kudu_jni_reader
+
+    // kudu master addresses
+    25: optional string kudu_master
+
+    // kudu scan token
+    26: optional string kudu_scan_token
 
     27: optional TPaimonDeletionFile paimon_deletion_file;
 }
