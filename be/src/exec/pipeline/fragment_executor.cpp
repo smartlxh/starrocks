@@ -142,6 +142,9 @@ Status FragmentExecutor::_prepare_query_ctx(ExecEnv* exec_env, const UnifiedExec
     if (query_options.__isset.fragment_profile_drop_threshold_ms && query_options.fragment_profile_drop_threshold_ms) {
         _query_ctx->set_fragment_profile_drop_threshold(query_options.fragment_profile_drop_threshold_ms);
     }
+    if (query_options.__isset.print_scan_operator_profile && query_options.print_scan_operator_profile) {
+        _query_ctx->set_print_scan_operator_profile();
+    }
     if (query_options.__isset.big_query_profile_threshold) {
         _query_ctx->set_big_query_profile_threshold(query_options.big_query_profile_threshold,
                                                     query_options.big_query_profile_threshold_unit);
@@ -708,19 +711,19 @@ Status FragmentExecutor::prepare(ExecEnv* exec_env, const TExecPlanFragmentParam
             COUNTER_SET(prepare_timer, profiler.prepare_time);
 
             auto* prepare_query_ctx_timer =
-                    ADD_CHILD_TIMER_THESHOLD(profile, "prepare-query-ctx", "FragmentInstancePrepareTime", 10_ms);
+                    ADD_CHILD_TIMER_THRESHOLD(profile, "prepare-query-ctx", "FragmentInstancePrepareTime", 10_ms);
             COUNTER_SET(prepare_query_ctx_timer, profiler.prepare_query_ctx_time);
 
             auto* prepare_fragment_ctx_timer =
-                    ADD_CHILD_TIMER_THESHOLD(profile, "prepare-fragment-ctx", "FragmentInstancePrepareTime", 10_ms);
+                    ADD_CHILD_TIMER_THRESHOLD(profile, "prepare-fragment-ctx", "FragmentInstancePrepareTime", 10_ms);
             COUNTER_SET(prepare_fragment_ctx_timer, profiler.prepare_fragment_ctx_time);
 
             auto* prepare_runtime_state_timer =
-                    ADD_CHILD_TIMER_THESHOLD(profile, "prepare-runtime-state", "FragmentInstancePrepareTime", 10_ms);
+                    ADD_CHILD_TIMER_THRESHOLD(profile, "prepare-runtime-state", "FragmentInstancePrepareTime", 10_ms);
             COUNTER_SET(prepare_runtime_state_timer, profiler.prepare_runtime_state_time);
 
             auto* prepare_pipeline_driver_timer =
-                    ADD_CHILD_TIMER_THESHOLD(profile, "prepare-pipeline-driver", "FragmentInstancePrepareTime", 10_ms);
+                    ADD_CHILD_TIMER_THRESHOLD(profile, "prepare-pipeline-driver", "FragmentInstancePrepareTime", 10_ms);
             COUNTER_SET(prepare_pipeline_driver_timer, profiler.prepare_runtime_state_time);
 
             auto* process_mem_counter = ADD_COUNTER(profile, "InitialProcessMem", TUnit::BYTES);

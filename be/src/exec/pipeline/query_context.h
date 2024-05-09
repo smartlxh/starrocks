@@ -107,6 +107,8 @@ public:
         _fragment_profile_drop_threshold = fragment_profile_drop_threshold_ms * 1000ll * 1000;
     }
     int64_t get_fragment_profile_drop_threshold() { return _fragment_profile_drop_threshold; }
+    void set_print_scan_operator_profile() { _print_scan_operator_profile = true; }
+    bool print_scan_operator_profile() { return _print_scan_operator_profile; }
     void set_big_query_profile_threshold(int64_t big_query_profile_threshold,
                                          TTimeUnit::type big_query_profile_threshold_unit) {
         int64_t factor = 1;
@@ -251,6 +253,7 @@ private:
     std::shared_ptr<RuntimeProfile> _profile;
     bool _enable_profile = false;
     int64_t _fragment_profile_drop_threshold = 0;
+    bool _print_scan_operator_profile = false;
     int64_t _big_query_profile_threshold_ns = 0;
     int64_t _runtime_profile_report_interval_ns = std::numeric_limits<int64_t>::max();
     TPipelineProfileLevel::type _profile_level;

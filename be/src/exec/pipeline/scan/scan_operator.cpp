@@ -31,6 +31,7 @@
 #include "util/debug/query_trace.h"
 #include "util/failpoint/fail_point.h"
 #include "util/runtime_profile.h"
+#include "util/scan_profile_collector.h"
 
 namespace starrocks::pipeline {
 
@@ -111,6 +112,14 @@ void ScanOperator::close(RuntimeState* state) {
     COUNTER_SET(_tablets_counter, static_cast<int64_t>(_source_factory()->num_total_original_morsels()));
 
     _merge_chunk_source_profiles(state);
+
+    auto* query_ctx = state->query_ctx();
+    if (query_ctx != nullptr && query_ctx->print_scan_operator_profile()) {
+        const auto& _query_id = print_id(query_ctx->query_id());
+        const auto& _fragment_instance_id = print_id(runtime_state()->fragment_instance_id());
+        ScanProfileCollector scan_profile_collector(_chunk_source_profiles, _query_id, _fragment_instance_id);
+        scan_profile_collector.print_profile_if_necessary();
+    }
 
     do_close(state);
     Operator::close(state);
@@ -505,9 +514,9 @@ Status ScanOperator::_pickup_morsel(RuntimeState* state, int chunk_source_index)
                 // When both intra-tablet parallelism and multi-version cache mechanisms take effects, we must
                 // use delta rowsets instead of the ensemble of rowsets to fetch rows from disk for all of the
                 // morsels originated from the identical tablet.
-                auto [delta_verrsion, delta_rowsets] = _cache_operator->delta_version_and_rowsets(lane_owner);
+                auto [delta_version, delta_rowsets] = _cache_operator->delta_version_and_rowsets(lane_owner);
                 if (!delta_rowsets.empty()) {
-                    morsel->set_from_version(delta_verrsion);
+                    morsel->set_from_version(delta_version);
                     std::vector<BaseRowsetSharedPtr> drs;
                     for (auto& rs : delta_rowsets) {
                         drs.emplace_back(rs);

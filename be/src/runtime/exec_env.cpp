@@ -569,6 +569,12 @@ Status ExecEnv::init(const std::vector<StorePath>& store_paths, bool as_cn) {
     _spill_dir_mgr = std::make_shared<spill::DirManager>();
     RETURN_IF_ERROR(_spill_dir_mgr->init(config::spill_local_storage_dir));
 
+    _profile_writer = std::make_unique<ProfileWriter>(config::scan_profile_log_dir, config::scan_profile_log_bytes,
+                                                      config::scan_profile_log_num);
+    if (!_profile_writer->initialize()) {
+        LOG(ERROR) << "Failed to initialize ProfileWriter to log ScanOperator's profile.";
+        _profile_writer = nullptr;
+    }
     return Status::OK();
 }
 

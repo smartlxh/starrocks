@@ -131,6 +131,8 @@ public:
     // MUST_EXIST                   | opens             | fails
     enum OpenMode { CREATE_OR_OPEN_WITH_TRUNCATE, CREATE_OR_OPEN, MUST_CREATE, MUST_EXIST };
 
+    enum LinkMode { HARD, SOFT };
+
     FileSystem() = default;
     virtual ~FileSystem() = default;
 
@@ -278,7 +280,13 @@ public:
     virtual Status rename_file(const std::string& src, const std::string& target) = 0;
 
     // create a hard-link
-    virtual Status link_file(const std::string& /*old_path*/, const std::string& /*new_path*/) = 0;
+    virtual Status link_file(const std::string& old_path, const std::string& new_path) {
+        return link_file(old_path, new_path, LinkMode::HARD);
+    }
+
+    virtual Status link_file(const std::string& old_path, const std::string& new_path, const LinkMode& link_mode) {
+        return Status::NotSupported("Unsupported function.");
+    }
 
     // Determines the information about the filesystem on which the pathname 'path' is located.
     virtual StatusOr<SpaceInfo> space(const std::string& path) { return Status::NotSupported("FileSystem::space()"); }

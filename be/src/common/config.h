@@ -1279,4 +1279,8 @@ CONF_mInt32(fragment_finalizer_max_threads, "2");
 CONF_mInt32(fragment_finalizer_max_queue_size, "1000");
 CONF_mInt32(fragment_finalizer_idle_timeout_ms, "2000");
 
+CONF_mString(scan_profile_log_dir, "${STARROCKS_HOME}/log");
+CONF_mInt64(scan_profile_log_bytes, "1073741824"); // 1GB
+CONF_mInt32(scan_profile_log_num, "5");
+
 } // namespace starrocks::config

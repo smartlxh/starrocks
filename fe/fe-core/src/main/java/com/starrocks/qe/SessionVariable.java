@@ -130,6 +130,7 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
     public static final String IS_REPORT_SUCCESS = "is_report_success";
     public static final String ENABLE_PROFILE = "enable_profile";
     public static final String FRAGMENT_PROFILE_DROP_THRESHOLD_MS = "fragment_profile_drop_threshold_ms";
+    public static final String PRINT_SCAN_OPERATOR_PROFILE = "print_scan_operator_profile";
 
     // Used by product like starrocks manager not by users
     public static final String ENABLE_RECAPTURE_PROFILE = "enable_recapture_profile";
@@ -823,6 +824,9 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
     // queryDeliveryTimeoutS is the timeout of the first phase.
     @VariableMgr.VarAttr(name = QUERY_DELIVERY_TIMEOUT)
     private int queryDeliveryTimeoutS = 300;
+
+    @VariableMgr.VarAttr(name = PRINT_SCAN_OPERATOR_PROFILE)
+    private boolean printScanOperatorProfile = false;
 
     @VariableMgr.VarAttr(name = FRAGMENT_PROFILE_DROP_THRESHOLD_MS)
     private int fragmentProfileDropThresholdMs = 1000;
@@ -2123,6 +2127,10 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
 
     public int getQueryDeliveryTimeoutS() {
         return queryDeliveryTimeoutS;
+    }
+
+    public boolean printScanOperatorProfile() {
+        return printScanOperatorProfile;
     }
 
     public boolean isEnableProfile() {
@@ -3556,6 +3564,7 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
         // Avoid integer overflow
         tResult.setQuery_timeout(Math.min(Integer.MAX_VALUE / 1000, queryTimeoutS));
         tResult.setQuery_delivery_timeout(Math.min(Integer.MAX_VALUE / 1000, queryDeliveryTimeoutS));
+        tResult.setPrint_scan_operator_profile(printScanOperatorProfile);
         tResult.setEnable_profile(enableProfile);
         tResult.setFragment_profile_drop_threshold_ms(fragmentProfileDropThresholdMs);
         tResult.setBig_query_profile_threshold(TimeValue.parseTimeValue(bigQueryProfileThreshold).getMillis());
