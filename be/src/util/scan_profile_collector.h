@@ -32,6 +32,7 @@ public:
 private:
     static const std::vector<std::string> lake_profile_names;
     static const std::vector<std::string> hive_profile_names;
+    static const std::vector<std::string> common_profile_names;
 
     static const std::string hive_connector_name;
     static const std::string lake_connector_name;

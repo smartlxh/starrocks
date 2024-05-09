@@ -44,7 +44,9 @@ const std::vector<std::string> ScanProfileCollector::hive_profile_names{"DataCac
                                                                         "FSIOBytesRead",
                                                                         "FSIOCounter",
                                                                         "FSIOTime"};
-const std::vector<std::string> ScanProfileCollector::lake_profile_names{"CompressedBytesReadLocalDisk",
+const std::vector<std::string> ScanProfileCollector::lake_profile_names{"CompressedBytesRead",
+                                                                        "UncompressedBytesRead",
+                                                                        "CompressedBytesReadLocalDisk",
                                                                         "CompressedBytesReadRemote",
                                                                         "CompressedBytesReadRequest",
                                                                         "CompressedBytesReadTotal",
@@ -58,7 +60,9 @@ const std::vector<std::string> ScanProfileCollector::lake_profile_names{"Compres
                                                                         "PagesCountLocalDisk",
                                                                         "PagesCountMemory",
                                                                         "PagesCountRemote",
-                                                                        "PagesCountTotal"};
+                                                                        "PagesCountTotal",
+                                                                        "BytesRead"};
+const std::vector<std::string> ScanProfileCollector::common_profile_names{"IOTaskExecTime", "ScanTime"};
 const std::string ScanProfileCollector::hive_connector_name = "HiveDataSource";
 const std::string ScanProfileCollector::lake_connector_name = "LakeDataSource";
 const std::string ScanProfileCollector::unknown_connector_type = "$unknown$";
@@ -110,7 +114,7 @@ std::string ScanProfileCollector::table_name() {
 }
 
 void ScanProfileCollector::do_print(const std::vector<std::string>& profile_names) {
-    std::vector<int64_t> counter_value(profile_names.size(), 0);
+    std::vector<int64_t> counter_value(profile_names.size() + common_profile_names.size(), 0);
     for (const auto& connector_profile : _connector_profiles) {
         auto* data_source = connector_profile->get_child("DataSource");
         if (data_source == nullptr) {
@@ -118,6 +122,9 @@ void ScanProfileCollector::do_print(const std::vector<std::string>& profile_name
         }
         for (size_t i = 0; i < profile_names.size(); ++i) {
             counter_value[i] += get_counter_value(data_source, profile_names[i]);
+        }
+        for (size_t i = 0; i < common_profile_names.size(); ++i) {
+            counter_value[profile_names.size() + i] += get_counter_value(data_source, common_profile_names[i]);
         }
     }
 
@@ -127,6 +134,10 @@ void ScanProfileCollector::do_print(const std::vector<std::string>& profile_name
     for (size_t i = 0; i < profile_names.size(); ++i) {
         rapidjson::Value key(profile_names[i].c_str(), allocator);
         root.AddMember(key, counter_value[i], allocator);
+    }
+    for (size_t i = 0; i < common_profile_names.size(); ++i) {
+        rapidjson::Value key(common_profile_names[i].c_str(), allocator);
+        root.AddMember(key, counter_value[profile_names.size() + i], allocator);
     }
 
     rapidjson::Value value(table_name().c_str(), allocator);
