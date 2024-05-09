@@ -608,9 +608,17 @@ public:
         return Status::OK();
     }
 
-    Status link_file(const std::string& old_path, const std::string& new_path) override {
-        if (link(old_path.c_str(), new_path.c_str()) != 0) {
-            return io_error(old_path, errno);
+    Status link_file(const std::string& old_path, const std::string& new_path, const LinkMode& link_mode) override {
+        switch (link_mode) {
+        case LinkMode::SOFT:
+            if (symlink(old_path.c_str(), new_path.c_str()) != 0) {
+                return io_error(old_path, errno);
+            }
+        case LinkMode::HARD:
+        default:
+            if (link(old_path.c_str(), new_path.c_str()) != 0) {
+                return io_error(old_path, errno);
+            }
         }
         return Status::OK();
     }

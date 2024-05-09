@@ -104,6 +104,8 @@ set(UTIL_FILES
   bthreads/future.h
   bthreads/future_impl.cpp
   hash_util.cpp
+  profile_writer.cpp
+  scan_profile_collector.cpp
 )
 
 add_library(Util STATIC

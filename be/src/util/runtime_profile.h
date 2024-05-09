@@ -83,9 +83,9 @@ inline unsigned long long operator"" _ms(unsigned long long x) {
     (profile)->add_child_counter(                                                                                      \
             name, type, RuntimeProfile::Counter::create_strategy(type, TCounterMergeType::MERGE_ALL, 0, min_max_type), \
             parent)
-#define ADD_CHILD_TIMER_THESHOLD(profile, name, parent, threshold) \
-    (profile)->add_child_counter(                                  \
-            name, TUnit::TIME_NS,                                  \
+#define ADD_CHILD_TIMER_THRESHOLD(profile, name, parent, threshold) \
+    (profile)->add_child_counter(                                   \
+            name, TUnit::TIME_NS,                                   \
             RuntimeProfile::Counter::create_strategy(TUnit::TIME_NS, TCounterMergeType::MERGE_ALL, threshold), parent)
 #define ADD_CHILD_TIMER(profile, name, parent) \
     (profile)->add_child_counter(name, TUnit::TIME_NS, RuntimeProfile::Counter::create_strategy(TUnit::TIME_NS), parent)
@@ -121,7 +121,7 @@ class ObjectPool;
 // Runtime profiles supports measuring wall clock rate based counters.  There is a
 // single thread per process that will convert an amount (i.e. bytes) counter to a
 // corresponding rate based counter.  This thread wakes up at fixed intervals and updates
-// all of the rate counters.
+// all the rate counters.
 // Thread-safe.
 class RuntimeProfile {
 public:
@@ -151,7 +151,7 @@ public:
         }
 
         explicit Counter(TUnit::type type, int64_t value = 0)
-                : _value(0), _type(type), _strategy(create_strategy(type)) {}
+                : _value(value), _type(type), _strategy(create_strategy(type)) {}
         explicit Counter(TUnit::type type, const TCounterStrategy& strategy, int64_t value = 0)
                 : _value(value), _type(type), _strategy(strategy) {}
 
@@ -206,12 +206,8 @@ public:
         const TCounterStrategy _strategy;
     };
 
-    class ConcurrentTimerCounter;
     class DerivedCounter;
-    class EventSequence;
-    class SummaryStatsCounter;
     class ThreadCounters;
-    class TimeSeriesCounter;
 
     /// A counter that keeps track of the highest/lowest value seen (reporting that
     /// as value()) and the current value.
@@ -320,45 +316,6 @@ public:
         Counter* _involuntary_context_switches;
     };
 
-    // An EventSequence captures a sequence of events (each added by
-    // calling MarkEvent). Each event has a text label, and a time
-    // (measured relative to the moment start() was called as t=0). It is
-    // useful for tracking the evolution of some serial process, such as
-    // the query lifecycle.
-    // Not thread-safe.
-    class EventSequence {
-    public:
-        EventSequence() = default;
-
-        // starts the timer without resetting it.
-        void start() { _sw.start(); }
-
-        // stops (or effectively pauses) the timer.
-        void stop() { _sw.stop(); }
-
-        // Stores an event in sequence with the given label and the
-        // current time (relative to the first time start() was called) as
-        // the timestamp.
-        void mark_event(const std::string& label) { _events.push_back(make_pair(label, _sw.elapsed_time())); }
-
-        int64_t elapsed_time() { return _sw.elapsed_time(); }
-
-        // An Event is a <label, timestamp> pair
-        typedef std::pair<std::string, int64_t> Event;
-
-        // An EventList is a sequence of Events, in increasing timestamp order
-        typedef std::vector<Event> EventList;
-
-        const EventList& events() const { return _events; }
-
-    private:
-        // Stored in increasing time order
-        EventList _events;
-
-        // Timer which allows events to be timestamped when they are recorded.
-        MonotonicStopWatch _sw;
-    };
-
     // Create a runtime profile object with 'name'.
     explicit RuntimeProfile(std::string name, bool is_averaged_profile = false);
 
@@ -384,19 +341,8 @@ public:
     // [thread-safe]
     RuntimeProfile* create_child(const std::string& name, bool indent = true, bool prepend = false);
 
-    // Remove childs
-    void remove_childs();
-
     // Reverse childs
     void reverse_childs();
-
-    // Sorts all children according to a custom comparator. Does not
-    // invalidate pointers to profiles.
-    template <class Compare>
-    void sort_childer(const Compare& cmp) {
-        std::lock_guard<std::mutex> l(_children_lock);
-        std::sort(_children.begin(), _children.end(), cmp);
-    }
 
     // Merges the src profile into this one, combining counters that have an identical
     // path. Info strings from profiles are not merged. 'src' would be a const if it
@@ -452,21 +398,9 @@ public:
     // Remove the counter object with 'name', and it will remove all the child counters recursively
     void remove_counter(const std::string& name);
 
-    // Clean all the counters except saved_names
-    void remove_counters(const std::set<std::string>& saved_names);
-
-    // Helper to append to the "ExecOption" info string.
-    void append_exec_option(const std::string& option) { add_info_string("ExecOption", option); }
-
     // Adds a string to the runtime profile.  If a value already exists for 'key',
     // the value will be updated.
     void add_info_string(const std::string& key, const std::string& value = "");
-
-    // Creates and returns a new EventSequence (owned by the runtime
-    // profile) - unless a timer with the same 'key' already exists, in
-    // which case it is returned.
-    // TODO: EventSequences are not merged by Merge()
-    EventSequence* add_event_sequence(const std::string& key);
 
     // Returns a pointer to the info string value for 'key'.  Returns NULL if
     // the key does not exist.
@@ -503,9 +437,6 @@ public:
 
     // Gets all profiles in tree, including this one.
     void get_all_children(std::vector<RuntimeProfile*>* children);
-
-    // Returns the number of counters in this profile
-    int num_counters() const { return _counter_map.size(); }
 
     // Returns name of this profile
     const std::string& name() const { return _name; }
@@ -571,16 +502,16 @@ private:
 
     // Map from counter names to counters and parent counter names.
     // The profile owns the memory for the counters.
-    typedef std::map<std::string, std::pair<Counter*, std::string>> CounterMap;
+    typedef std::unordered_map<std::string, std::pair<Counter*, std::string>> CounterMap;
     CounterMap _counter_map;
 
     // Map from parent counter name to a set of child counter name.
     // All top level counters are the child of "" (root).
-    typedef std::map<std::string, std::set<std::string>> ChildCounterMap;
+    typedef std::unordered_map<std::string, std::unordered_set<std::string>> ChildCounterMap;
     ChildCounterMap _child_counter_map;
 
     // A set of bucket counters registered in this runtime profile.
-    std::set<std::vector<Counter*>*> _bucketing_counters;
+    std::unordered_set<std::vector<Counter*>*> _bucketing_counters;
 
     // protects _counter_map, _counter_child_map and _bucketing_counters
     mutable std::mutex _counter_lock;
@@ -588,13 +519,13 @@ private:
     // Child profiles.  Does not own memory.
     // We record children in both a map (to facilitate updates) and a vector
     // (to print things in the order they were registered)
-    typedef std::map<std::string, RuntimeProfile*> ChildMap;
+    typedef std::unordered_map<std::string, RuntimeProfile*> ChildMap;
     ChildMap _child_map;
 
     ChildVector _children;
     mutable std::mutex _children_lock; // protects _child_map and _children
 
-    typedef std::map<std::string, std::string> InfoStrings;
+    typedef std::unordered_map<std::string, std::string> InfoStrings;
     InfoStrings _info_strings;
 
     // Keeps track of the order in which InfoStrings are displayed when printed
@@ -603,10 +534,6 @@ private:
 
     // Protects _info_strings and _info_strings_display_order
     mutable std::mutex _info_strings_lock;
-
-    typedef std::map<std::string, EventSequence*> EventSequenceMap;
-    EventSequenceMap _event_sequence_map;
-    mutable std::mutex _event_sequences_lock;
 
     Counter _counter_total_time;
     // Time spent in just in this profile (i.e. not the children) as a fraction
@@ -617,9 +544,9 @@ private:
     // On return, *idx points to the node immediately following this subtree.
     void update(const std::vector<TRuntimeProfileNode>& nodes, int* idx);
 
-    // Helper function to compute compute the fraction of the total time spent in
+    // Helper function to compute the fraction of the total time spent in
     // this profile and its children.
-    // Called recusively.
+    // Called recursively.
     void compute_time_in_profile(int64_t total_time);
 
     // Print the child counters of the given counter name
@@ -644,37 +571,6 @@ private:
         return TUnit::type::CPU_TICKS == type || TUnit::type::TIME_NS == type || TUnit::type::TIME_MS == type ||
                TUnit::type::TIME_S == type;
     }
-
-    std::string get_children_name_string();
-};
-
-// Utility class to update the counter at object construction and destruction.
-// When the object is constructed, decrement the counter by val.
-// When the object goes out of scope, increment the counter by val.
-class ScopedCounter {
-public:
-    ScopedCounter(RuntimeProfile::Counter* counter, int64_t val) : _val(val), _counter(counter) {
-        if (counter == nullptr) {
-            return;
-        }
-
-        _counter->update(-1L * _val);
-    }
-
-    // Increment the counter when object is destroyed
-    ~ScopedCounter() {
-        if (_counter != nullptr) {
-            _counter->update(_val);
-        }
-    }
-
-    // Disable copy constructor and assignment
-    ScopedCounter(const ScopedCounter& counter) = delete;
-    ScopedCounter& operator=(const ScopedCounter& counter) = delete;
-
-private:
-    int64_t _val;
-    RuntimeProfile::Counter* _counter;
 };
 
 // Utility class to update time elapsed when the object goes out of scope.
