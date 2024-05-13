@@ -841,7 +841,7 @@ public class OlapTable extends Table {
             ColocateTableIndex.GroupId groupId = colocateTableIndex.getGroup(this.id);
             List<List<Long>> backendsPerBucketSeq = colocateTableIndex.getBackendsPerBucketSeq(groupId);
             boolean chooseBackendsArbitrary = backendsPerBucketSeq == null || backendsPerBucketSeq.isEmpty();
-    
+
             if (chooseBackendsArbitrary) {
                 backendsPerBucketSeq = Lists.newArrayList();
             }
@@ -850,7 +850,7 @@ public class OlapTable extends Table {
                 long newTabletId = globalStateMgr.getNextId();
                 LocalTablet newTablet = new LocalTablet(newTabletId);
                 index.addTablet(newTablet, null /* tablet meta */, false/* update inverted index */);
-    
+
                 // replicas
                 List<Long> beIds;
                 if (chooseBackendsArbitrary) {
@@ -888,16 +888,20 @@ public class OlapTable extends Table {
                 long newTabletId = globalStateMgr.getNextId();
                 LocalTablet newTablet = new LocalTablet(newTabletId);
                 index.addTablet(newTablet, null /* tablet meta */, false/* update inverted index */);
-    
-                // replicas
-                List<Long> beIds = GlobalStateMgr.getCurrentState().getNodeMgr()
+
+                // Choose backends sequentially
+                List<Long> nodeIds = GlobalStateMgr.getCurrentState().getNodeMgr()
                         .getClusterInfo().getNodeSelector().seqChooseBackendIds(replicationNum, true, true, getLocation());
-                if (CollectionUtils.isEmpty(beIds)) {
-                    return new Status(ErrCode.COMMON_ERROR, "failed to find "
-                            + replicationNum
-                            + " different hosts to create table: " + name);
+                if (CollectionUtils.isEmpty(nodeIds)) {
+                    nodeIds = GlobalStateMgr.getCurrentState().getNodeMgr()
+                            .getClusterInfo().getNodeSelector().seqChooseComputeNodes(replicationNum, true, true);
+                    if (CollectionUtils.isEmpty(nodeIds)) {
+                        return new Status(ErrCode.COMMON_ERROR, "failed to find "
+                                + replicationNum
+                                + " different hosts to create table: " + name);
+                    }
                 }
-                for (Long beId : beIds) {
+                for (Long beId : nodeIds) {
                     long newReplicaId = globalStateMgr.getNextId();
                     Replica replica = new Replica(newReplicaId, beId, ReplicaState.NORMAL,
                             version, schemaHash);
@@ -3256,7 +3260,7 @@ public class OlapTable extends Table {
                     return partitionRange.isConnected(dataCacheRange);
                 } catch (Exception e) {
                     LOG.warn("Table name: {}, Partition name: {}, Datacache.partiton_duration: {}, Failed to check the " +
-                            " validaity of range partition. Error: {}.", super.name, partition.getName(),
+                                    " validaity of range partition. Error: {}.", super.name, partition.getName(),
                             cacheDuration.toString(), e.getMessage());
                     return false;
                 }
