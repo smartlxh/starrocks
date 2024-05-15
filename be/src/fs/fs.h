@@ -96,6 +96,7 @@ struct RandomAccessFileOptions {
     bool skip_fill_local_cache = false;
     // Specify different buffer size for different read scenarios
     int64_t buffer_size = -1;
+    bool adaptive_io = false;
 };
 
 struct DirEntry {

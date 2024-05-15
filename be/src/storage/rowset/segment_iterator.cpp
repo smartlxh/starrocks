@@ -565,9 +565,10 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
         auto tablet_schema = _opts.tablet_schema ? _opts.tablet_schema : _segment->tablet_schema_share_ptr();
         const auto& col = tablet_schema->column(cid);
         ASSIGN_OR_RETURN(_column_iterators[cid], _segment->new_column_iterator_or_default(col, access_path));
-        ASSIGN_OR_RETURN(auto rfile, _opts.fs->new_random_access_file(opts, _segment->file_info()));
         if (config::io_coalesce_lake_read_enable && !_segment->is_default_column(col) &&
             _segment->lake_tablet_manager() != nullptr) {
+            opts.adaptive_io = true;
+            ASSIGN_OR_RETURN(auto rfile, _opts.fs->new_random_access_file(opts, _segment->file_info()));
             ASSIGN_OR_RETURN(auto file_size, _segment->get_data_size());
             auto shared_buffered_input_stream =
                     std::make_unique<io::SharedBufferedInputStream>(rfile->stream(), _segment->file_name(), file_size);
@@ -580,6 +581,7 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
             _column_files[cid] = std::move(shared_buffered_input_stream);
             _io_coalesce_column_index.emplace_back(cid);
         } else {
+            ASSIGN_OR_RETURN(auto rfile, _opts.fs->new_random_access_file(opts, _segment->file_info()));
             iter_opts.read_file = rfile.get();
             _column_files[cid] = std::move(rfile);
         }
