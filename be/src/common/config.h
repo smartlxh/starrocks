@@ -829,7 +829,7 @@ CONF_Strings(s3_compatible_fs_list, "s3n://, s3a://, s3://, oss://, cos://, cosn
 
 // Lake
 CONF_mBool(io_coalesce_lake_read_enable, "false");
-
+CONF_mBool(io_coalesce_lake_adaptive_read_enable, "false");
 // orc reader
 CONF_Bool(enable_orc_late_materialization, "true");
 CONF_Bool(enable_orc_libdeflate_decompression, "true");

@@ -567,7 +567,9 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
         ASSIGN_OR_RETURN(_column_iterators[cid], _segment->new_column_iterator_or_default(col, access_path));
         if (config::io_coalesce_lake_read_enable && !_segment->is_default_column(col) &&
             _segment->lake_tablet_manager() != nullptr) {
-            opts.adaptive_io = true;
+            if (config::io_coalesce_lake_adaptive_read_enable) {
+                opts.adaptive_io = true;
+            }
             ASSIGN_OR_RETURN(auto rfile, _opts.fs->new_random_access_file(opts, _segment->file_info()));
             ASSIGN_OR_RETURN(auto file_size, _segment->get_data_size());
             auto shared_buffered_input_stream =
