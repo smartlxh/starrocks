@@ -153,11 +153,31 @@ Status ExecStateReporter::report_exec_status(const TReportExecStatusParams& para
         return fe_status;
     }
 
+    TReportExecStatusResult res;
     Status rpc_status;
 
     try {
-        TReportExecStatusResult res;
-        coord->reportExecStatus(res, params);
+        try {
+            coord->reportExecStatus(res, params);
+        } catch (TTransportException& e) {
+            TTransportException::TTransportExceptionType type = e.getType();
+            if (type != TTransportException::TTransportExceptionType::TIMED_OUT) {
+                // if not TIMED_OUT, retry
+                rpc_status = coord.reopen(config::thrift_rpc_timeout_ms);
+
+                if (!rpc_status.ok()) {
+                    return rpc_status;
+                }
+                coord->reportExecStatus(res, params);
+            } else {
+                std::stringstream msg;
+                msg << "ReportExecStatus() to " << fe_addr << " failed:\n" << e.what();
+                LOG(WARNING) << msg.str();
+                rpc_status = Status::InternalError(msg.str());
+                return rpc_status;
+            }
+        }
+
         rpc_status = Status(res.status);
     } catch (TException& e) {
         std::stringstream msg;
