@@ -2734,6 +2734,17 @@ public class Config extends ConfigBase {
     public static boolean profile_enable = false;
 
     /**
+     * This config is used by serverless EMR StarRocks and aimed to reduce profile collection overhead by dropping
+     * short life fragment's profile in BE.
+     * The feature can be enabled by setting this config's value to an integer bigger than 0.
+     * By default, we disable dropping fragment profile here. The unit is millisecond(ms).
+     *
+     * EMR user should only control this config by session variable.
+     */
+    @ConfField
+    public static int fragment_profile_drop_threshold_ms = 0;
+
+    /**
      * Enable auto create tablet when creating table and add partition
      **/
     @ConfField(mutable = true)

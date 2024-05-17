@@ -829,7 +829,7 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
     private boolean printScanOperatorProfile = false;
 
     @VariableMgr.VarAttr(name = FRAGMENT_PROFILE_DROP_THRESHOLD_MS)
-    private int fragmentProfileDropThresholdMs = 1000;
+    private int fragmentProfileDropThresholdMs = Config.fragment_profile_drop_threshold_ms;
 
     // if true, need report to coordinator when plan fragment execute successfully.
     @VariableMgr.VarAttr(name = ENABLE_PROFILE, alias = IS_REPORT_SUCCESS)
