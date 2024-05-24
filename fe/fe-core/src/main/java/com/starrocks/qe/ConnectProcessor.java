@@ -363,6 +363,29 @@ public class ConnectProcessor {
         QueryDetailQueue.addQueryDetail(queryDetail.copy());
     }
 
+    protected void addParseFailedQueryDetail(String sql) {
+        if (!Config.enable_collect_query_detail_info &&
+                !ctx.getSessionVariable().isEnableRecaptureProfile()) {
+            return;
+        }
+
+        QueryDetail queryDetail = new QueryDetail(
+                DebugUtil.printId(ctx.getQueryId()),
+                true, // always set isQuery to true
+                ctx.connectionId,
+                ctx.getMysqlChannel() != null ?
+                        ctx.getMysqlChannel().getRemoteIp() : "System",
+                ctx.getStartTime(), -1, -1,
+                QueryDetail.QueryMemState.FAILED,
+                ctx.getDatabase(),
+                sql,
+                ctx.getQualifiedUser(),
+                Optional.ofNullable(ctx.getResourceGroup()).map(TWorkGroup::getName).orElse(""));
+        ctx.setQueryDetail(queryDetail);
+        // copy queryDetail, cause some properties can be changed in future
+        QueryDetailQueue.addQueryDetail(queryDetail.copy());
+    }
+
     // process COM_QUERY statement,
     protected void handleQuery() {
         boolean isRoot = ctx.getCurrentUserIdentity() != null &&
@@ -398,6 +421,8 @@ public class ConnectProcessor {
             try {
                 stmts = com.starrocks.sql.parser.SqlParser.parse(originStmt, ctx.getSessionVariable());
             } catch (ParsingException parsingException) {
+                ctx.getState().setError(parsingException.getMessage());
+                addParseFailedQueryDetail(originStmt);
                 throw new AnalysisException(parsingException.getMessage());
             }
 
