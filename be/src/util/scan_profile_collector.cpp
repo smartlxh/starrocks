@@ -140,8 +140,20 @@ void ScanProfileCollector::do_print(const std::vector<std::string>& profile_name
         root.AddMember(key, counter_value[profile_names.size() + i], allocator);
     }
 
-    rapidjson::Value value(table_name().c_str(), allocator);
-    root.AddMember("Table", value, allocator);
+    {
+        rapidjson::Value value(_query_id.c_str(), allocator);
+        root.AddMember("QueryId", value, allocator);
+    }
+
+    {
+        rapidjson::Value value(_fragment_instance_id.c_str(), allocator);
+        root.AddMember("FragmentInstanceId", value, allocator);
+    }
+
+    {
+        rapidjson::Value value(table_name().c_str(), allocator);
+        root.AddMember("Table", value, allocator);
+    }
 
     rapidjson::StringBuffer buffer;
     rapidjson::Writer writer(buffer);
@@ -151,8 +163,7 @@ void ScanProfileCollector::do_print(const std::vector<std::string>& profile_name
     auto& profile_writer = ExecEnv::GetInstance()->get_profile_writer();
     if (profile_writer != nullptr) {
         std::stringstream ss;
-        ss << "ScanOperator's profile for query " << _query_id << ", fragment " << _fragment_instance_id << ": "
-           << profile << "\n";
+        ss << profile << "\n";
         profile_writer->write(ss.str());
     }
 }
