@@ -134,11 +134,10 @@ public class PaimonScanNodeTest {
 
         List<DataFileMeta> meta1 = new ArrayList<>();
 
-        BinaryTableStats dataTableStats
-                = new BinaryTableStats(BinaryRow.EMPTY_ROW, BinaryRow.EMPTY_ROW, BinaryArray.fromLongArray(new Long[]{0L}));
-        meta1.add(new DataFileMeta("file1", 100, 200, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_KEY_STATS, dataTableStats,
+        BinaryTableStats dataTableStats = new BinaryTableStats(BinaryRow.EMPTY_ROW, BinaryRow.EMPTY_ROW, BinaryArray.fromLongArray(new Long[]{0L}));
+        meta1.add(new DataFileMeta("file1", 100, 200, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_KEY_STATS, null,
                 1, 1, 1, DUMMY_LEVEL, 0L, null));
-        meta1.add(new DataFileMeta("file2", 100, 300, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_KEY_STATS, dataTableStats,
+        meta1.add(new DataFileMeta("file2", 100, 300, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_KEY_STATS, null,
                 1, 1, 1, DUMMY_LEVEL, 0L, null));
 
         DataSplit split = DataSplit.builder().withSnapshot(1L).withPartition(row1).withBucket(1)
@@ -152,8 +151,13 @@ public class PaimonScanNodeTest {
         };
         desc.setTable(table);
         PaimonScanNode scanNode = new PaimonScanNode(new PlanNodeId(0), desc, "XXX");
+<<<<<<< HEAD
         DeletionFile deletionFile = new DeletionFile("dummy", 1, 22);
         scanNode.splitRawFileScanRangeLocations(rawFile, deletionFile);
+=======
+
+        scanNode.splitRawFileScanRangeLocations(rawFile, null);
+>>>>>>> 714b710e70e ([EMR][Feature] Upgrade paimon version to 0.8, and support reading paimon deletion vector)
         scanNode.splitScanRangeLocations(rawFile, 0, 256 * 1024 * 1024, 64 * 1024 * 1024, null);
         scanNode.addSplitScanRangeLocations(split, null, 256 * 1024 * 1024);
     }

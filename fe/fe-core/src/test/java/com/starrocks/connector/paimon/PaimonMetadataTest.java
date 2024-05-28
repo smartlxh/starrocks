@@ -117,10 +117,11 @@ public class PaimonMetadataTest {
         List<DataFileMeta> meta2 = new ArrayList<>();
         meta2.add(new DataFileMeta("file3", 100, 400, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_KEY_STATS, null,
                 1, 1, 1, DUMMY_LEVEL, 0L, null));
-        this.splits.add(DataSplit.builder().withSnapshot(1L).withPartition(row1).withBucket(1)
-                .withBucketPath("not used").withDataFiles(meta1).isStreaming(false).build());
-        this.splits.add(DataSplit.builder().withSnapshot(1L).withPartition(row2).withBucket(1)
-                .withBucketPath("not used").withDataFiles(meta2).isStreaming(false).build());
+
+        this.splits.add(DataSplit.builder().withSnapshot(1L).withPartition(row1).withBucket(1).withDataFiles(meta1)
+                .isStreaming(false).build());
+        this.splits.add(DataSplit.builder().withSnapshot(1L).withPartition(row2).withBucket(1).withDataFiles(meta2)
+                .isStreaming(false).build());
     }
 
     @Test

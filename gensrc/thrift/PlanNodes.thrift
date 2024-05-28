@@ -375,7 +375,8 @@ struct THdfsScanRange {
     // kudu scan token
     26: optional string kudu_scan_token
 
-    27: optional TPaimonDeletionFile paimon_deletion_file;
+    // Paimon Deletion Vector File
+    27: optional TPaimonDeletionFile paimon_deletion_file
 }
 
 struct TBinlogScanRange {
