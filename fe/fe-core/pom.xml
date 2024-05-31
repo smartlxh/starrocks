@@ -39,8 +39,8 @@ under the License.
         <fe_ut_parallel>${env.FE_UT_PARALLEL}</fe_ut_parallel>
         <jacoco.version>0.8.7</jacoco.version>
         <iceberg.version>1.6.0</iceberg.version>
-        <paimon.version>0.9-20240509-4b8601-SNAPSHOT</paimon.version>
-        <paimon.ali.dlf.version>0.9-ali-1-SNAPSHOT</paimon.ali.dlf.version>
+        <paimon.version>0.9-20240531-9615fc-SNAPSHOT</paimon.version>
+        <paimon.ali.dlf.version>0.9-ali-2-SNAPSHOT</paimon.ali.dlf.version>
         <delta-kernel.version>4.0.0rc1</delta-kernel.version>
         <staros.version>3.3.0</staros.version>
         <python>python</python>
