@@ -24,6 +24,8 @@ import com.starrocks.catalog.Type;
 import com.starrocks.connector.HdfsEnvironment;
 import com.starrocks.connector.RemoteFileDesc;
 import com.starrocks.connector.RemoteFileInfo;
+import com.starrocks.credential.CloudConfiguration;
+import com.starrocks.credential.CloudType;
 import com.starrocks.server.MetadataMgr;
 import com.starrocks.sql.optimizer.Memo;
 import com.starrocks.sql.optimizer.OptExpression;
@@ -81,9 +83,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.paimon.io.DataFileMeta.DUMMY_LEVEL;
-import static org.apache.paimon.io.DataFileMeta.EMPTY_KEY_STATS;
 import static org.apache.paimon.io.DataFileMeta.EMPTY_MAX_KEY;
 import static org.apache.paimon.io.DataFileMeta.EMPTY_MIN_KEY;
+import static org.apache.paimon.stats.SimpleStats.EMPTY_STATS;
 import static org.junit.Assert.assertEquals;
 
 public class PaimonMetadataTest {
@@ -109,19 +111,19 @@ public class PaimonMetadataTest {
         writer.complete();
 
         List<DataFileMeta> meta1 = new ArrayList<>();
-        meta1.add(new DataFileMeta("file1", 100, 200, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_KEY_STATS, null,
-                1, 1, 1, DUMMY_LEVEL, 0L, null));
-        meta1.add(new DataFileMeta("file2", 100, 300, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_KEY_STATS, null,
-                1, 1, 1, DUMMY_LEVEL, 0L, null));
+        meta1.add(new DataFileMeta("file1", 100, 200, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_STATS, null,
+                1, 1, 1, DUMMY_LEVEL, 0L, null, null));
+        meta1.add(new DataFileMeta("file2", 100, 300, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_STATS, null,
+                1, 1, 1, DUMMY_LEVEL, 0L, null, null));
 
         List<DataFileMeta> meta2 = new ArrayList<>();
-        meta2.add(new DataFileMeta("file3", 100, 400, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_KEY_STATS, null,
-                1, 1, 1, DUMMY_LEVEL, 0L, null));
 
-        this.splits.add(DataSplit.builder().withSnapshot(1L).withPartition(row1).withBucket(1).withDataFiles(meta1)
-                .isStreaming(false).build());
-        this.splits.add(DataSplit.builder().withSnapshot(1L).withPartition(row2).withBucket(1).withDataFiles(meta2)
-                .isStreaming(false).build());
+        meta2.add(new DataFileMeta("file3", 100, 400, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_STATS, null,
+                1, 1, 1, DUMMY_LEVEL, 0L, null, null));
+        this.splits.add(DataSplit.builder().withSnapshot(1L).withPartition(row1).withBucket(1)
+                .withBucketPath("not used").withDataFiles(meta1).isStreaming(false).build());
+        this.splits.add(DataSplit.builder().withSnapshot(1L).withPartition(row2).withBucket(1)
+                .withBucketPath("not used").withDataFiles(meta2).isStreaming(false).build());
     }
 
     @Test
@@ -168,7 +170,7 @@ public class PaimonMetadataTest {
     }
 
     @Test
-    public void testTableExists() {
+    public void testTableExists(@Mocked FileStoreTable paimonNativeTable) {
         new Expectations() {
             {
                 paimonNativeCatalog.tableExists((Identifier) any);
@@ -283,6 +285,12 @@ public class PaimonMetadataTest {
         Assert.assertEquals(1, result.size());
         Assert.assertEquals(1, result.get(0).getFiles().size());
         Assert.assertEquals(2, result.get(0).getFiles().get(0).getPaimonSplitsInfo().getPaimonSplits().size());
+    }
+
+    @Test
+    public void testGetCloudConfiguration() {
+        CloudConfiguration cc = metadata.getCloudConfiguration();
+        Assert.assertEquals(cc.getCloudType(), CloudType.DEFAULT);
     }
 
     @Test
