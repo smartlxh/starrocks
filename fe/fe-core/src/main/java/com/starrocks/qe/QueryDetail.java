@@ -41,7 +41,8 @@ public class QueryDetail implements Serializable {
         RUNNING,
         FINISHED,
         FAILED,
-        CANCELLED
+        CANCELLED,
+        PARSE_FAILED
     }
 
     // When query received, FE will construct a QueryDetail
