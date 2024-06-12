@@ -118,6 +118,8 @@ import com.starrocks.proto.PPlanFragmentCancelReason;
 import com.starrocks.proto.PQueryStatistics;
 import com.starrocks.proto.QueryStatisticsItemPB;
 import com.starrocks.qe.QueryState.MysqlStateType;
+import com.starrocks.qe.events.StmtEvent;
+import com.starrocks.qe.events.StmtEventProcessor;
 import com.starrocks.qe.scheduler.Coordinator;
 import com.starrocks.qe.scheduler.FeExecuteCoordinator;
 import com.starrocks.server.GlobalStateMgr;
@@ -766,6 +768,8 @@ public class StmtExecutor {
             } else {
                 context.getState().setError("Do not support this query.");
             }
+            //handle stmt event
+            postStmtEvent(parsedStmt);
         } catch (IOException e) {
             LOG.warn("execute IOException ", e);
             // the exception happens when interact with client
@@ -810,6 +814,20 @@ public class StmtExecutor {
                 WarehouseIdleChecker.decreaseRunningSQL(context.getCurrentWarehouseId());
             }
         }
+    }
+
+    private void postStmtEvent(StatementBase statementBase) {
+        if (!Config.enable_stmt_event_listener) {
+            LOG.debug("enable_stmt_event_listener not enabled!");
+            return;
+        }
+        StmtEvent stmtEvent = new StmtEvent()
+                .timestamp(context.getStartTime())
+                .clientIp(context.getRemoteIP())
+                .user(context.getQualifiedUser())
+                .queryId(context.getQueryId() == null ? "" : context.getQueryId().toString())
+                .statementBase(statementBase);
+        StmtEventProcessor.postEvent(stmtEvent);
     }
 
     private void clearQueryScopeHintContext() {

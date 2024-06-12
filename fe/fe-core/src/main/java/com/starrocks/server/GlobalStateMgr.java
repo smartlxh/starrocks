@@ -188,6 +188,7 @@ import com.starrocks.qe.QueryStatisticsInfo;
 import com.starrocks.qe.SessionVariable;
 import com.starrocks.qe.ShowExecutor;
 import com.starrocks.qe.VariableMgr;
+import com.starrocks.qe.events.StmtEventProcessor;
 import com.starrocks.qe.scheduler.slot.GlobalSlotProvider;
 import com.starrocks.qe.scheduler.slot.LocalSlotProvider;
 import com.starrocks.qe.scheduler.slot.ResourceUsageMonitor;
@@ -806,6 +807,12 @@ public class GlobalStateMgr {
         this.showExecutor = new ShowExecutor(ShowExecutor.ShowExecutorVisitor.getInstance());
         this.temporaryTableCleaner = new TemporaryTableCleaner();
         this.warehouseIdleChecker = new WarehouseIdleChecker();
+
+        // add stmtEventProcessor postprocessing stmt events
+        // skip when checkpoint
+        if (!isCkptGlobalState) {
+            StmtEventProcessor.startProcessor();
+        }
     }
 
     public static void destroyCheckpoint() {
