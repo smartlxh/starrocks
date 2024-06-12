@@ -139,6 +139,18 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true)
     public static boolean audit_log_json_format = false;
 
+    @ConfField
+    public static String lineage_log_dir = StarRocksFE.STARROCKS_HOME_DIR + "/log";
+
+    @ConfField
+    public static int lineage_log_roll_num = 90;
+
+    @ConfField
+    public static String lineage_log_roll_interval = "DAY";
+
+    @ConfField
+    public static String lineage_log_delete_age = "2d";
+
     @ConfField(mutable = true)
     public static long slow_lock_threshold_ms = 3000L;
 
@@ -3008,4 +3020,29 @@ public class Config extends ConfigBase {
 
     @ConfField(mutable = true)
     public static String emr_serverless_full_domain = "";
+
+    /**
+     * if enable stmt event listener
+     */
+    @ConfField(mutable = true)
+    public static boolean enable_stmt_event_listener = true;
+
+    /**
+     * if enable stmt listener log, skip all events when false
+     */
+    @ConfField(mutable = true)
+    public static boolean enable_lineage_log = true;
+
+    /**
+     * blocking queue size
+     */
+    @ConfField()
+    public static int stmt_event_processor_queue_size = 1000;
+
+    /**
+     * stmt event listener scan packages, separated by comma
+     * like com.starrocks.a,com.starrocks.b
+     */
+    @ConfField()
+    public static String event_listener_packages = "";
 }

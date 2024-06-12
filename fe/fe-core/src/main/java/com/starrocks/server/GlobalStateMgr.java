@@ -232,6 +232,7 @@ import com.starrocks.qe.JournalObservable;
 import com.starrocks.qe.SessionVariable;
 import com.starrocks.qe.ShowResultSet;
 import com.starrocks.qe.VariableMgr;
+import com.starrocks.qe.events.StmtEventProcessor;
 import com.starrocks.qe.scheduler.slot.ResourceUsageMonitor;
 import com.starrocks.qe.scheduler.slot.SlotManager;
 import com.starrocks.qe.scheduler.slot.SlotProvider;
@@ -841,6 +842,12 @@ public class GlobalStateMgr {
         nodeMgr.registerLeaderChangeListener(slotProvider::leaderChangeListener);
 
         this.memoryUsageTracker = new MemoryUsageTracker();
+
+        //add stmtEventProcessor postprocessing stmt events
+        //skip when checkpoint
+        if (!isCkptGlobalState) {
+            StmtEventProcessor.startProcessor();
+        }
     }
 
     public static void destroyCheckpoint() {
