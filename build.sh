@@ -526,7 +526,7 @@ if [ ${BUILD_BE} -eq 1 ]; then
       cp -p ${STARROCKS_THIRDPARTY}/installed/gcs_connector/*.jar ${STARROCKS_OUTPUT}/be/lib/hadoop/hdfs
     fi
     mkdir -p ${STARROCKS_OUTPUT}/be/lib/jindosdk
-    cp -r -p ${STARROCKS_THIRDPARTY}/installed/jindosdk/*.so ${STARROCKS_OUTPUT}/be/lib/jindosdk/
+    cp -r -p ${STARROCKS_THIRDPARTY}/installed/jindosdk/libjindosdk_c.so.* ${STARROCKS_OUTPUT}/be/lib/jindosdk/
     cp -r -p ${STARROCKS_THIRDPARTY}/installed/jindosdk/*.jar ${STARROCKS_OUTPUT}/be/lib/hudi-reader-lib/
     cp -r -p ${STARROCKS_THIRDPARTY}/installed/jindosdk/*.jar ${STARROCKS_OUTPUT}/be/lib/odps-reader-lib/
     cp -r -p ${STARROCKS_THIRDPARTY}/installed/jindosdk/*.jar ${STARROCKS_OUTPUT}/be/lib/paimon-reader-lib/
