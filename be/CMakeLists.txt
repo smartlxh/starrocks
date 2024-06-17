@@ -250,7 +250,7 @@ find_package(AWSSDK REQUIRED COMPONENTS core s3 s3-crt transfer identity-managem
 include_directories(${AWSSDK_INCLUDE_DIRS})
 
 add_library(jindo-sdk SHARED IMPORTED)
-set_target_properties(jindo-sdk PROPERTIES IMPORTED_LOCATION ${THIRDPARTY_DIR}/lib/jindosdk/libjindo-csdk.so)
+set_target_properties(jindo-sdk PROPERTIES IMPORTED_LOCATION ${THIRDPARTY_DIR}/lib/jindosdk/libjindosdk_c.so.6)
 
 add_library(libevent STATIC IMPORTED)
 set_target_properties(libevent PROPERTIES IMPORTED_LOCATION ${THIRDPARTY_DIR}/lib/libevent.a)
