@@ -1117,7 +1117,7 @@ public class LeaderImpl {
             if (RunMode.isSharedDataMode() || node instanceof Backend) {
                 TBackendMeta nodeMeta = new TBackendMeta();
                 nodeMeta.setBackend_id(node.getId());
-                nodeMeta.setHost(node.getHost());
+                nodeMeta.setHost(NetUtils.getIpByHost(node.getHost()));
                 nodeMeta.setBe_port(node.getBePort());
                 nodeMeta.setRpc_port(node.getBrpcPort());
                 nodeMeta.setHttp_port(node.getHttpPort());
