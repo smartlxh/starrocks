@@ -26,6 +26,7 @@ import com.starrocks.connector.PartitionInfo;
 import com.starrocks.connector.RemoteFileInfo;
 import com.starrocks.connector.hive.HiveMetadata;
 import com.starrocks.credential.CloudConfiguration;
+import com.starrocks.sql.analyzer.SemanticException;
 import com.starrocks.sql.ast.CreateTableStmt;
 import com.starrocks.sql.ast.DropTableStmt;
 import com.starrocks.sql.optimizer.OptimizerContext;
@@ -44,6 +45,7 @@ import static com.starrocks.catalog.Table.TableType.HIVE;
 import static com.starrocks.catalog.Table.TableType.HUDI;
 import static com.starrocks.catalog.Table.TableType.ICEBERG;
 import static com.starrocks.catalog.Table.TableType.KUDU;
+import static com.starrocks.catalog.Table.TableType.PAIMON;
 import static java.util.Objects.requireNonNull;
 
 public class UnifiedMetadata implements ConnectorMetadata {
@@ -90,6 +92,9 @@ public class UnifiedMetadata implements ConnectorMetadata {
         if (isDeltaLakeTable(table.getProperties())) {
             return DELTALAKE;
         }
+        if (isPaimonTable(table.getProperties())) {
+            return PAIMON;
+        }
         if (table.isKuduTable()) {
             return KUDU;
         }
@@ -102,11 +107,17 @@ public class UnifiedMetadata implements ConnectorMetadata {
 
     private ConnectorMetadata metadataOfTable(String dbName, String tblName) {
         Table.TableType type = getTableType(dbName, tblName);
+        if (!metadataMap.containsKey(type)) {
+            throw new SemanticException("Unified catalog doesn't support " + type.name());
+        }
         return metadataMap.get(type);
     }
 
     private ConnectorMetadata metadataOfTable(Table table) {
         Table.TableType type = getTableType(table);
+        if (!metadataMap.containsKey(type)) {
+            throw new SemanticException("Unified catalog doesn't support " + type.name());
+        }
         return metadataMap.get(type);
     }
 

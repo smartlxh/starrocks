@@ -41,7 +41,7 @@ import static org.apache.paimon.options.CatalogOptions.URI;
 import static org.apache.paimon.options.CatalogOptions.WAREHOUSE;
 
 public class PaimonConnector implements Connector {
-    private static final String PAIMON_CATALOG_TYPE = "paimon.catalog.type";
+    public static final String PAIMON_CATALOG_TYPE = "paimon.catalog.type";
     private static final String PAIMON_CATALOG_WAREHOUSE = "paimon.catalog.warehouse";
     private static final String HIVE_METASTORE_URIS = "hive.metastore.uris";
     private static final String DLF_CATGALOG_ID = "dlf.catalog.id";
