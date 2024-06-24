@@ -86,7 +86,9 @@ public class PaimonConnector implements Connector {
         if (!Strings.isNullOrEmpty(warehousePath) && warehousePath.charAt(warehousePath.length() - 1) != '/') {
             warehousePath += "/";
         }
-        paimonOptions.setString(WAREHOUSE.key(), warehousePath);
+        if (!Strings.isNullOrEmpty(warehousePath)) {
+            paimonOptions.setString(WAREHOUSE.key(), warehousePath);
+        }
         initFsOption(cloudConfiguration);
         String keyPrefix = "paimon.option.";
         Set<String> optionKeys = properties.keySet().stream().filter(k -> k.startsWith(keyPrefix)).collect(Collectors.toSet());
