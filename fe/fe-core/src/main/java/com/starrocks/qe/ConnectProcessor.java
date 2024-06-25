@@ -313,7 +313,7 @@ public class ConnectProcessor {
         // add execution statistics into queryDetail
         queryDetail.setReturnRows(ctx.getReturnRows());
         queryDetail.setDigest(ctx.getAuditEventBuilder().build().digest);
-        PQueryStatistics statistics = executor.getQueryStatisticsForAuditLog();
+        PQueryStatistics statistics = (executor != null) ? executor.getQueryStatisticsForAuditLog() : null;
         if (statistics != null) {
             queryDetail.setScanBytes(statistics.scanBytes);
             queryDetail.setScanRows(statistics.scanRows);
