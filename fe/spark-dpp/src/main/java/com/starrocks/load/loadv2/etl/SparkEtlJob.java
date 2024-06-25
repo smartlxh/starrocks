@@ -97,7 +97,8 @@ public class SparkEtlJob {
         Map<String, String> properties = table.fileGroups.get(0).hiveTableProperties;
 
         SparkSession.Builder builder = SparkSession.builder().config(conf);
-        if ("false".equals(properties.getOrDefault("maxcompute.enable", "false"))) {
+        if (null != properties &&
+                "false".equals(properties.getOrDefault("maxcompute.enable", "false"))) {
             builder = builder.enableHiveSupport();
         }
 
