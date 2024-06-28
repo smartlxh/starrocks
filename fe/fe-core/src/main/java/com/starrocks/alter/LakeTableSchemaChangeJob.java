@@ -943,10 +943,4 @@ public class LakeTableSchemaChangeJob extends LakeTableSchemaChangeJobBase {
             infos.add(info);
         }
     }
-
-    @Override
-    public void write(DataOutput out) throws IOException {
-        String json = GsonUtils.GSON.toJson(this, AlterJobV2.class);
-        Text.writeString(out, json);
-    }
 }
