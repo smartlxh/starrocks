@@ -39,7 +39,7 @@ public class PhysicalPartitionImplTest {
 
     @Test
     public void testPhysicalPartition() throws Exception {
-        PhysicalPartitionImpl p = new PhysicalPartitionImpl(1, 1, 0, new MaterializedIndex());
+        PhysicalPartitionImpl p = new PhysicalPartitionImpl(1, 1, new MaterializedIndex());
         Assert.assertEquals(1, p.getId());
         Assert.assertEquals(1, p.getParentId());
         Assert.assertEquals(0, p.getShardGroupId());
