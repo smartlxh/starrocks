@@ -34,6 +34,7 @@ public interface PhysicalPartition {
     public void setIdForRestore(long id);
     public long getBeforeRestoreId();
 
+    // Deprecated
     public long getShardGroupId();
 
     public List<Long> getShardGroupIds();

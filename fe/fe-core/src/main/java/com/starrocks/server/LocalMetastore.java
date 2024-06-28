@@ -1574,14 +1574,8 @@ public class LocalMetastore implements ConnectorMetadata {
         }
 
         long id = GlobalStateMgr.getCurrentState().getNextId();
-        long shardGroupId = 0;
-        if (olapTable.isCloudNativeTableOrMaterializedView()) {
-            shardGroupId = GlobalStateMgr.getCurrentState().getStarOSAgent().
-                    createShardGroup(db.getId(), olapTable.getId(), id);
-        }
-
         PhysicalPartitionImpl physicalParition = new PhysicalPartitionImpl(
-                id, partition.getId(), shardGroupId, indexMap.get(olapTable.getBaseIndexId()));
+                id, partition.getId(), indexMap.get(olapTable.getBaseIndexId()));
 
         PartitionInfo partitionInfo = olapTable.getPartitionInfo();
         short replicationNum = partitionInfo.getReplicationNum(partitionId);
@@ -1598,6 +1592,9 @@ public class LocalMetastore implements ConnectorMetadata {
                             storageMedium, olapTable.isCloudNativeTableOrMaterializedView());
 
             if (olapTable.isCloudNativeTableOrMaterializedView()) {
+                long shardGroupId = GlobalStateMgr.getCurrentState().getStarOSAgent().
+                            createShardGroup(db.getId(), olapTable.getId(), GlobalStateMgr.getCurrentState().getNextId());
+
                 createLakeTablets(olapTable, id, shardGroupId, index, distributionInfo,
                         tabletMeta, tabletIdSet, warehouseId);
             } else {

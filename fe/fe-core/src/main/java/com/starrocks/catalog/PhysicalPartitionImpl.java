@@ -25,6 +25,7 @@ import com.starrocks.common.FeConstants;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -95,14 +96,13 @@ public class PhysicalPartitionImpl extends MetaObject implements PhysicalPartiti
 
     private volatile long minRetainVersion = 0;
 
-    public PhysicalPartitionImpl(long id, long parentId, long sharedGroupId, MaterializedIndex baseIndex) {
+    public PhysicalPartitionImpl(long id, long parentId, MaterializedIndex baseIndex) {
         this.id = id;
         this.parentId = parentId;
         this.baseIndex = baseIndex;
         this.visibleVersion = PARTITION_INIT_VERSION;
         this.visibleVersionTime = System.currentTimeMillis();
         this.nextVersion = PARTITION_INIT_VERSION + 1;
-        this.shardGroupId = sharedGroupId;
     }
 
     @Override
@@ -135,6 +135,14 @@ public class PhysicalPartitionImpl extends MetaObject implements PhysicalPartiti
     @Override
     public long getShardGroupId() {
         return this.shardGroupId;
+    }
+
+    @Override
+    public List<Long> getShardGroupIds() {
+        List<Long> result = new ArrayList<>();
+        idToVisibleRollupIndex.values().stream().map(MaterializedIndex::getShardGroupId).forEach(result::add);
+        idToShadowIndex.values().stream().map(MaterializedIndex::getShardGroupId).forEach(result::add);
+        return result;
     }
 
     @Override
