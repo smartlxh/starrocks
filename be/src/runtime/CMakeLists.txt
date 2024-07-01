@@ -54,7 +54,7 @@ set(RUNTIME_FILES
     load_channel.cpp
     local_tablets_channel.cpp
     snapshot_loader.cpp
-    query_statistics.cpp 
+    query_statistics.cpp
     message_body_sink.cpp
     stream_load/transaction_mgr.cpp
     stream_load/stream_load_context.cpp
@@ -103,6 +103,7 @@ set(RUNTIME_FILES
     type_pack.cpp
     customized_result_writer.cpp
     blackhole_table_sink.cpp
+    paimon_table_sink.cpp
 )
 
 set(RUNTIME_FILES ${RUNTIME_FILES}

@@ -41,6 +41,7 @@
 #include "exec/pipeline/sink/iceberg_table_sink_operator.h"
 #include "exec/pipeline/sink/memory_scratch_sink_operator.h"
 #include "exec/pipeline/sink/mysql_table_sink_operator.h"
+#include "exec/pipeline/sink/paimon_table_sink_operator.h"
 #include "exec/pipeline/sink/table_function_table_sink_operator.h"
 #include "exec/pipeline/stream_pipeline_driver.h"
 #include "exec/scan_node.h"
@@ -59,6 +60,7 @@
 #include "runtime/memory_scratch_sink.h"
 #include "runtime/multi_cast_data_stream_sink.h"
 #include "runtime/mysql_table_sink.h"
+#include "runtime/paimon_table_sink.h"
 #include "runtime/result_sink.h"
 #include "runtime/stream_load/stream_load_context.h"
 #include "runtime/stream_load/transaction_mgr.h"
@@ -623,7 +625,7 @@ Status FragmentExecutor::_prepare_pipeline_driver(ExecEnv* exec_env, const Unifi
         if (tsink.type == TDataSinkType::RESULT_SINK || tsink.type == TDataSinkType::OLAP_TABLE_SINK ||
             tsink.type == TDataSinkType::MEMORY_SCRATCH_SINK || tsink.type == TDataSinkType::ICEBERG_TABLE_SINK ||
             tsink.type == TDataSinkType::HIVE_TABLE_SINK || tsink.type == TDataSinkType::EXPORT_SINK ||
-            tsink.type == TDataSinkType::BLACKHOLE_TABLE_SINK) {
+            tsink.type == TDataSinkType::BLACKHOLE_TABLE_SINK || tsink.type == TDataSinkType::PAIMON_TABLE_SINK) {
             _query_ctx->set_final_sink();
         }
         RETURN_IF_ERROR(DataSink::create_data_sink(runtime_state, tsink, fragment.output_exprs, params,
@@ -1124,6 +1126,44 @@ Status FragmentExecutor::_decompose_data_sink_to_operator(RuntimeState* runtime_
             context->maybe_interpolate_local_key_partition_exchange_for_sink(
                     runtime_state, Operator::s_pseudo_plan_node_id_for_final_sink, op, partition_expr_ctxs, source_dop,
                     sink_dop);
+        }
+    } else if (typeid(*datasink) == typeid(starrocks::PaimonTableSink)) {
+        auto* paimon_table_sink = down_cast<starrocks::PaimonTableSink*>(datasink.get());
+        const auto& t_paimon_sink = thrift_sink.paimon_table_sink;
+        auto column_types = t_paimon_sink.data_column_types;
+
+        TableDescriptor* table_desc =
+                runtime_state->desc_tbl().get_table_descriptor(thrift_sink.paimon_table_sink.target_table_id);
+        auto* paimon_table_desc = down_cast<PaimonTableDescriptor*>(table_desc);
+
+        DCHECK(thrift_sink.paimon_table_sink.__isset.target_table_id);
+        DCHECK(thrift_sink.paimon_table_sink.__isset.cloud_configuration);
+
+        std::vector<TExpr> partition_exprs;
+        std::vector<std::string> partition_column_names;
+
+        std::vector<ExprContext*> partition_expr_ctxs;
+        RETURN_IF_ERROR(Expr::create_expr_trees(runtime_state->obj_pool(), partition_exprs, &partition_expr_ctxs,
+                                                runtime_state));
+
+        std::vector<ExprContext*> output_expr_ctxs;
+        RETURN_IF_ERROR(
+                Expr::create_expr_trees(runtime_state->obj_pool(), output_exprs, &output_expr_ctxs, runtime_state));
+
+        auto op = std::make_shared<PaimonTableSinkOperatorFactory>(
+                context->next_operator_id(), fragment_ctx, paimon_table_desc, thrift_sink.paimon_table_sink,
+                paimon_table_sink->get_output_expr(), partition_expr_ctxs, output_expr_ctxs, column_types);
+
+        size_t source_dop = fragment_ctx->pipelines().back()->source_operator_factory()->degree_of_parallelism();
+        size_t sink_dop = request.pipeline_sink_dop();
+
+        if (t_paimon_sink.is_static_partition_sink || partition_expr_ctxs.empty()) {
+            context->maybe_interpolate_local_passthrough_exchange_for_sink(
+                    runtime_state, Operator::s_pseudo_plan_node_id_for_final_sink, std::move(op), source_dop, sink_dop);
+        } else {
+            context->maybe_interpolate_local_key_partition_exchange_for_sink(
+                    runtime_state, Operator::s_pseudo_plan_node_id_for_final_sink, std::move(op), partition_expr_ctxs,
+                    source_dop, sink_dop);
         }
     }
 

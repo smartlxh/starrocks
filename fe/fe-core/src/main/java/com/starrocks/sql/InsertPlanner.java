@@ -37,6 +37,7 @@ import com.starrocks.catalog.MaterializedIndexMeta;
 import com.starrocks.catalog.MaterializedView;
 import com.starrocks.catalog.MysqlTable;
 import com.starrocks.catalog.OlapTable;
+import com.starrocks.catalog.PaimonTable;
 import com.starrocks.catalog.Table;
 import com.starrocks.catalog.TableFunctionTable;
 import com.starrocks.catalog.Type;
@@ -51,6 +52,7 @@ import com.starrocks.planner.HiveTableSink;
 import com.starrocks.planner.IcebergTableSink;
 import com.starrocks.planner.MysqlTableSink;
 import com.starrocks.planner.OlapTableSink;
+import com.starrocks.planner.PaimonTableSink;
 import com.starrocks.planner.PlanFragment;
 import com.starrocks.planner.TableFunctionTableSink;
 import com.starrocks.qe.ConnectContext;
@@ -298,13 +300,17 @@ public class InsertPlanner {
                 dataSink = new TableFunctionTableSink((TableFunctionTable) targetTable);
             } else if (targetTable.isBlackHoleTable()) {
                 dataSink = new BlackHoleTableSink();
+            } else if (targetTable instanceof PaimonTable) {
+                descriptorTable.addReferencedTable(targetTable);
+                dataSink = new PaimonTableSink((PaimonTable) targetTable, tupleDesc,
+                        isKeyPartitionStaticInsert(insertStmt, queryRelation), session.getSessionVariable());
             } else {
                 throw new SemanticException("Unknown table type " + insertStmt.getTargetTable().getType());
             }
 
             PlanFragment sinkFragment = execPlan.getFragments().get(0);
             if (canUsePipeline && (targetTable instanceof OlapTable || targetTable.isIcebergTable() ||
-                    targetTable.isHiveTable() || targetTable.isTableFunctionTable())) {
+                    targetTable.isHiveTable() || targetTable.isTableFunctionTable() || targetTable.isPaimonTable())) {
                 if (shuffleServiceEnable) {
                     // For shuffle insert into, we only support tablet sink dop = 1
                     // because for tablet sink dop > 1, local passthourgh exchange will influence the order of sending,
@@ -330,6 +336,8 @@ public class InsertPlanner {
                     sinkFragment.setHasIcebergTableSink();
                 } else if (targetTable.isTableFunctionTable()) {
                     sinkFragment.setHasTableFunctionTableSink();
+                } else if (targetTable.isPaimonTable()) {
+                    sinkFragment.setHasPaimonTableSink();
                 }
 
                 sinkFragment.disableRuntimeAdaptiveDop();
@@ -831,6 +839,8 @@ public class InsertPlanner {
                 return ((IcebergTable) targetTable).partitionColumnIndexes().contains(columnIdx);
             } else if (targetTable.isHiveTable()) {
                 return columnIdx >= targetTable.getFullSchema().size() - targetTable.getPartitionColumnNames().size();
+            } else if (targetTable.isPaimonTable()) {
+                return targetTable.getPartitionColumnNames().contains(targetTable.getColumns().get(columnIdx).getName());
             }
         }
 
@@ -843,7 +853,7 @@ public class InsertPlanner {
         }
 
         Table targetTable = insertStmt.getTargetTable();
-        if (!(targetTable.isHiveTable() || targetTable.isIcebergTable())) {
+        if (!(targetTable.isHiveTable() || targetTable.isIcebergTable() || targetTable.isPaimonTable())) {
             return false;
         }
 

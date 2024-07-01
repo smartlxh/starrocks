@@ -60,8 +60,6 @@ private:
         bool must_nullable;
     };
 
-    [[nodiscard]] static Status _check_jni_exception(JNIEnv* _jni_env, const std::string& message);
-
     [[nodiscard]] Status _init_jni_table_scanner(JNIEnv* _jni_env, RuntimeState* runtime_state);
 
     [[nodiscard]] Status _init_jni_method(JNIEnv* env);

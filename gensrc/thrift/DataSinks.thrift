@@ -55,7 +55,8 @@ enum TDataSinkType {
     ICEBERG_TABLE_SINK,
     HIVE_TABLE_SINK,
     TABLE_FUNCTION_TABLE_SINK,
-    BLACKHOLE_TABLE_SINK
+    BLACKHOLE_TABLE_SINK,
+    PAIMON_TABLE_SINK
 }
 
 enum TResultSinkType {
@@ -250,6 +251,17 @@ struct TTableFunctionTableSink {
     2: optional CloudConfiguration.TCloudConfiguration cloud_configuration
 }
 
+struct TPaimonTableSink {
+    1: optional string location
+    2: optional string file_format
+    3: optional i64 target_table_id
+    4: optional list<string> data_column_names
+    5: optional list<string> data_column_types
+    6: optional Types.TCompressionType compression_type
+    7: optional bool is_static_partition_sink
+    8: optional CloudConfiguration.TCloudConfiguration cloud_configuration
+}
+
 struct TDataSink {
   1: required TDataSinkType type
   2: optional TDataStreamSink stream_sink
@@ -263,4 +275,5 @@ struct TDataSink {
   11: optional TIcebergTableSink iceberg_table_sink
   12: optional THiveTableSink hive_table_sink
   13: optional TTableFunctionTableSink table_function_table_sink
+  14: optional TPaimonTableSink paimon_table_sink
 }

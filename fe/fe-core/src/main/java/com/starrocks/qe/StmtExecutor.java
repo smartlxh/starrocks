@@ -101,6 +101,7 @@ import com.starrocks.persist.CreateInsertOverwriteJobLog;
 import com.starrocks.persist.gson.GsonUtils;
 import com.starrocks.planner.HiveTableSink;
 import com.starrocks.planner.OlapScanNode;
+import com.starrocks.planner.PaimonTableSink;
 import com.starrocks.planner.PlanFragment;
 import com.starrocks.planner.ScanNode;
 import com.starrocks.privilege.AccessDeniedException;
@@ -1930,7 +1931,7 @@ public class StmtExecutor {
 
         if (parsedStmt instanceof InsertStmt && ((InsertStmt) parsedStmt).isOverwrite() &&
                 !((InsertStmt) parsedStmt).hasOverwriteJob() &&
-                !(targetTable.isIcebergTable() || targetTable.isHiveTable())) {
+                !(targetTable.isIcebergTable() || targetTable.isHiveTable() || targetTable.isPaimonTable())) {
             handleInsertOverwrite((InsertStmt) parsedStmt);
             return;
         }
@@ -1992,7 +1993,7 @@ public class StmtExecutor {
 
             context.setStatisticsJob(AnalyzerUtils.isStatisticsJob(context, parsedStmt));
             if (!(targetTable.isIcebergTable() || targetTable.isHiveTable() || targetTable.isTableFunctionTable() ||
-                    targetTable.isBlackHoleTable())) {
+                    targetTable.isBlackHoleTable() || targetTable.isPaimonTable())) {
                 jobId = context.getGlobalStateMgr().getLoadMgr().registerLoadJob(
                         label,
                         database.getFullName(),
@@ -2096,7 +2097,7 @@ public class StmtExecutor {
                         );
                     } else if (targetTable instanceof SystemTable || targetTable.isHiveTable() ||
                             targetTable.isIcebergTable() || targetTable.isTableFunctionTable() ||
-                            targetTable.isBlackHoleTable()) {
+                            targetTable.isBlackHoleTable() || targetTable.isPaimonTable()) {
                         // schema table does not need txn
                     } else {
                         transactionMgr.abortTransaction(
@@ -2122,7 +2123,7 @@ public class StmtExecutor {
                 if (!(targetTable instanceof ExternalOlapTable || targetTable instanceof OlapTable)) {
                     if (!(targetTable instanceof SystemTable || targetTable.isIcebergTable() ||
                             targetTable.isHiveTable() || targetTable.isTableFunctionTable() ||
-                            targetTable.isBlackHoleTable())) {
+                            targetTable.isBlackHoleTable() || targetTable.isPaimonTable())) {
                         // schema table and iceberg table does not need txn
                         mgr.abortTransaction(database.getId(), transactionId, ERR_NO_PARTITIONS_HAVE_DATA_LOAD.formatErrorMsg(),
                                 Coordinator.getCommitInfos(coord), Coordinator.getFailInfos(coord), null);
@@ -2179,6 +2180,20 @@ public class StmtExecutor {
             } else if (targetTable.isTableFunctionTable()) {
                 txnStatus = TransactionStatus.VISIBLE;
                 label = "FAKE_TABLE_FUNCTION_TABLE_SINK_LABEL";
+            } else if (targetTable.isPaimonTable()) {
+                List<TSinkCommitInfo> commitInfos = coord.getSinkCommitInfos();
+                PaimonTableSink paimonTableSink = (PaimonTableSink) execPlan.getFragments().get(0).getSink();
+                if (stmt instanceof InsertStmt) {
+                    InsertStmt insertStmt = (InsertStmt) stmt;
+                    for (TSinkCommitInfo commitInfo : commitInfos) {
+                        if (insertStmt.isOverwrite()) {
+                            commitInfo.setIs_overwrite(true);
+                        }
+                    }
+                }
+                context.getGlobalStateMgr().getMetadataMgr().finishSink(catalogName, dbName, tableName, commitInfos);
+                txnStatus = TransactionStatus.VISIBLE;
+                label = "FAKE_PAIMON_SINK_LABEL";
             } else if (targetTable.isBlackHoleTable()) {
                 txnStatus = TransactionStatus.VISIBLE;
                 label = "FAKE_BLACKHOLE_TABLE_SINK_LABEL";

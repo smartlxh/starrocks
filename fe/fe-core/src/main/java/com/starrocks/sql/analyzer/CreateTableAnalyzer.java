@@ -77,6 +77,7 @@ public class CreateTableAnalyzer {
     private static final String ELASTICSEARCH = "elasticsearch";
     private static final String ICEBERG = "iceberg";
     private static final String HIVE = "hive";
+    private static final String PAIMON = "paimon";
 
     public enum CharsetType {
         UTF8,
@@ -271,7 +272,7 @@ public class CreateTableAnalyzer {
             statement.setKeysDesc(keysDesc);
         } else {
             // mysql, broker, iceberg, hudi and hive do not need key desc
-            if (keysDesc != null) {
+            if (keysDesc != null && !engineName.equalsIgnoreCase(PAIMON)) {
                 throw new SemanticException("Create " + engineName + " table should not contain keys desc", keysDesc.getPos());
             }
 
@@ -378,7 +379,9 @@ public class CreateTableAnalyzer {
         } else {
             if (engineName.equalsIgnoreCase(ELASTICSEARCH)) {
                 EsUtil.analyzePartitionAndDistributionDesc(partitionDesc, distributionDesc);
-            } else if (engineName.equalsIgnoreCase(ICEBERG) || engineName.equalsIgnoreCase(HIVE)) {
+            } else if (engineName.equalsIgnoreCase(ICEBERG)
+                    || engineName.equalsIgnoreCase(HIVE)
+                    || engineName.equalsIgnoreCase(PAIMON)) {
                 if (partitionDesc != null) {
                     ((ListPartitionDesc) partitionDesc).analyzeExternalPartitionColumns(columnDefs, engineName);
                 }
@@ -402,9 +405,10 @@ public class CreateTableAnalyzer {
         List<Index> indexes = statement.getIndexes();
         for (ColumnDef columnDef : columnDefs) {
             Column col = columnDef.toColumn();
-            if (keysDesc != null && (keysDesc.getKeysType() == KeysType.UNIQUE_KEYS
-                    || keysDesc.getKeysType() == KeysType.PRIMARY_KEYS ||
-                    keysDesc.getKeysType() == KeysType.DUP_KEYS)) {
+            if (!engineName.equalsIgnoreCase(PAIMON) && keysDesc != null &&
+                    (keysDesc.getKeysType() == KeysType.UNIQUE_KEYS
+                            || keysDesc.getKeysType() == KeysType.PRIMARY_KEYS
+                            || keysDesc.getKeysType() == KeysType.DUP_KEYS)) {
                 if (!col.isKey()) {
                     col.setAggregationTypeImplicit(true);
                 }

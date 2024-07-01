@@ -536,8 +536,8 @@ public class StatementPlanner {
                     new TransactionState.TxnCoordinator(TransactionState.TxnSourceType.FE, FrontendOptions.getLocalHostAddress()),
                     sourceType, session.getSessionVariable().getQueryTimeoutS(), authenticateParams);
         } else if (targetTable instanceof SystemTable || targetTable.isIcebergTable() || targetTable.isHiveTable()
-                || targetTable.isTableFunctionTable() || targetTable.isBlackHoleTable()) {
-            // schema table and iceberg and hive table does not need txn
+                || targetTable.isTableFunctionTable() || targetTable.isBlackHoleTable() || targetTable.isPaimonTable()) {
+            // schema table and iceberg/hive/paimon table does not need txn
         } else {
             long dbId = db.getId();
             txnId = transactionMgr.beginTransaction(

@@ -200,6 +200,17 @@ JdoOptions_t JindoClientFactory::get_or_create_jindo_opts(const S3URI& uri, cons
     if (!endpoint.empty()) {
         jdo_setOption(jdo_options, OSS_ENDPOINT_KEY, endpoint.c_str());
     }
+    if (!security_token.empty()) {
+        jdo_setOption(jdo_options, OSS_SECURITY_TOKEN, security_token.c_str());
+    }
+    if (!bucket.empty() && uri.scheme() == "dls") {
+        for (auto& option : options) {
+            jdo_setOption(jdo_options, option.first.c_str(), option.second.c_str());
+        }
+        // Override Jindo no-password config in DLF 2.0
+        jdo_setOption(jdo_options, "fs.oss.provider.format", "");
+        jdo_setOption(jdo_options, "fs.oss.provider.endpoint", "");
+    }
     if (!bucket.empty() && endpoint.find("oss-dls")) {
         jdo_setOption(jdo_options, OSS_HDFS_BUCKET, bucket.c_str());
     }

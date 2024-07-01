@@ -52,6 +52,7 @@
 #include "runtime/memory_scratch_sink.h"
 #include "runtime/multi_cast_data_stream_sink.h"
 #include "runtime/mysql_table_sink.h"
+#include "runtime/paimon_table_sink.h"
 #include "runtime/result_sink.h"
 #include "runtime/runtime_state.h"
 #include "runtime/schema_table_sink.h"
@@ -169,6 +170,13 @@ Status DataSink::create_data_sink(RuntimeState* state, const TDataSink& thrift_s
     }
     case TDataSinkType::BLACKHOLE_TABLE_SINK: {
         *sink = std::make_unique<BlackHoleTableSink>(state->obj_pool());
+        break;
+    }
+    case TDataSinkType::PAIMON_TABLE_SINK: {
+        if (!thrift_sink.__isset.paimon_table_sink) {
+            return Status::InternalError("Missing paimon table sink");
+        }
+        *sink = std::make_unique<PaimonTableSink>(state->obj_pool(), output_exprs);
         break;
     }
 

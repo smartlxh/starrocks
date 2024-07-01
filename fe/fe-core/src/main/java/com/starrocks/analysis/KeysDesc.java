@@ -76,6 +76,10 @@ public class KeysDesc implements ParseNode, Writable {
         return type;
     }
 
+    public List<String> getKeysColumnNames() {
+        return keysColumnNames;
+    }
+
     public int keysColumnSize() {
         return keysColumnNames.size();
     }
