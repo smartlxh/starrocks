@@ -57,7 +57,8 @@ enum TDataSinkType {
     TABLE_FUNCTION_TABLE_SINK,
     BLACKHOLE_TABLE_SINK,
     DICTIONARY_CACHE_SINK,
-    MULTI_OLAP_TABLE_SINK
+    MULTI_OLAP_TABLE_SINK,
+    PAIMON_TABLE_SINK
 }
 
 enum TResultSinkType {
@@ -267,6 +268,17 @@ struct TTableFunctionTableSink {
     2: optional CloudConfiguration.TCloudConfiguration cloud_configuration
 }
 
+struct TPaimonTableSink {
+    1: optional string location
+    2: optional string file_format
+    3: optional i64 target_table_id
+    4: optional list<string> data_column_names
+    5: optional list<string> data_column_types
+    6: optional Types.TCompressionType compression_type
+    7: optional bool is_static_partition_sink
+    8: optional CloudConfiguration.TCloudConfiguration cloud_configuration
+}
+
 struct TDataSink {
   1: required TDataSinkType type
   2: optional TDataStreamSink stream_sink
@@ -283,4 +295,5 @@ struct TDataSink {
   14: optional TDictionaryCacheSink dictionary_cache_sink
   15: optional list<TDataSink> multi_olap_table_sinks
   16: optional i64 sink_id
+  17: optional TPaimonTableSink paimon_table_sink
 }

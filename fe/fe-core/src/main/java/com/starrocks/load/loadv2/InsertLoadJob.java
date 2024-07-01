@@ -42,6 +42,7 @@ import com.starrocks.catalog.Database;
 import com.starrocks.catalog.ExternalOlapTable;
 import com.starrocks.catalog.HiveTable;
 import com.starrocks.catalog.IcebergTable;
+import com.starrocks.catalog.PaimonTable;
 import com.starrocks.catalog.Table;
 import com.starrocks.catalog.system.SystemTable;
 import com.starrocks.common.Config;
@@ -238,7 +239,8 @@ public class InsertLoadJob extends LoadJob {
         if (table instanceof SystemTable
                 || table instanceof IcebergTable
                 || table instanceof HiveTable
-                || table instanceof ExternalOlapTable) {
+                || table instanceof ExternalOlapTable
+                || table instanceof PaimonTable) {
             return false;
         } else {
             return true;

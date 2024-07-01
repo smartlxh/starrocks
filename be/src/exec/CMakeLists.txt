@@ -85,6 +85,7 @@ set(EXEC_FILES
     file_scanner.cpp
     orc_scanner.cpp
     jni_scanner.cpp
+    jni_writer.cpp
     arrow_to_starrocks_converter.cpp
     arrow_to_json_converter.cpp
     parquet_scanner.cpp
@@ -213,6 +214,7 @@ set(EXEC_FILES
     pipeline/sink/iceberg_table_sink_operator.cpp
     pipeline/sink/sink_io_buffer.cpp
     pipeline/sink/hive_table_sink_operator.cpp
+    pipeline/sink/paimon_table_sink_operator.cpp
     pipeline/sink/table_function_table_sink_operator.cpp
     pipeline/sink/blackhole_table_sink_operator.cpp
     pipeline/scan/morsel.cpp
