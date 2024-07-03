@@ -3056,28 +3056,20 @@ public class Config extends ConfigBase {
     public static boolean enable_colocate_restore = false;
 
     /**
-     * if enable stmt event listener
-     */
-    @ConfField(mutable = true)
-    public static boolean enable_stmt_event_listener = true;
-
-    /**
-     * if enable stmt listener log, skip all events when false
-     */
-    @ConfField(mutable = true)
-    public static boolean enable_lineage_log = true;
-
-    /**
      * blocking queue size
      */
     @ConfField()
     public static int stmt_event_processor_queue_size = 1000;
 
     /**
-     * stmt event listener scan packages, separated by comma
-     * like com.starrocks.a,com.starrocks.b
+     * Listener classes for handling statement events.
+     * The values should be fully qualified names for listener classes which are separated by comma,
+     * like com.starrocks.a.StmtListener1,com.starrocks.b.StmtListener2
+     * the default value is: com.starrocks.qe.events.listener.LineageStmtEventListener
      */
-    @ConfField()
-    public static String event_listener_packages = "";
->>>>>>> 0d6a83646c ([EMR][Feature] Add stmt event listener, support table and column lineage and changelog)
+    @ConfField(comment = "Listener classes for handling statement events. "
+            + "Values should be fully qualified names for listener classes which are separated by comma.\n"
+            + "The default value is: com.starrocks.qe.events.listener.LineageStmtEventListener"
+    )
+    public static String stmt_event_listeners = "com.starrocks.qe.events.listener.LineageStmtEventListener";
 }
