@@ -43,12 +43,13 @@ import static com.starrocks.connector.hive.HiveConnector.HIVE_METASTORE_TYPE;
 import static com.starrocks.connector.iceberg.IcebergConnector.ICEBERG_CATALOG_TYPE;
 import static com.starrocks.connector.kudu.KuduConnector.KUDU_CATALOG_TYPE;
 import static com.starrocks.connector.paimon.PaimonConnector.PAIMON_CATALOG_TYPE;
+import static com.starrocks.connector.paimon.PaimonConnector.PAIMON_CATALOG_WAREHOUSE;
 
 public class UnifiedConnector implements Connector {
     private static final String DLF_METASTORE = "dlf";
     public static final String UNIFIED_METASTORE_TYPE = "unified.metastore.type";
     public static final List<String> SUPPORTED_METASTORE_TYPE = ImmutableList.of("hive", "glue", "dlf");
-    private final Map<Table.TableType, Connector> connectorMap;
+    private Map<Table.TableType, Connector> connectorMap;
 
     public UnifiedConnector(ConnectorContext context) {
         String metastoreType = context.getProperties().get(UNIFIED_METASTORE_TYPE);
@@ -65,24 +66,25 @@ public class UnifiedConnector implements Connector {
 
         ConnectorContext derivedContext = new ConnectorContext(context.getCatalogName(), context.getType(),
                 derivedProperties.build());
+        // There may lead to multi errors when PAIMON_CATALOG_WAREHOUSE is not configured
+        boolean shouldCreatePaimonConnector = null != context.getProperties().get(PAIMON_CATALOG_WAREHOUSE);
 
+        ImmutableMap.Builder<Table.TableType, Connector> builder = ImmutableMap.builder();
         if (DLF_METASTORE.equalsIgnoreCase(metastoreType)) {
-            connectorMap = ImmutableMap.of(
-                    HIVE, new HiveConnector(derivedContext),
-                    HUDI, new HudiConnector(derivedContext),
-                    DELTALAKE, new DeltaLakeConnector(derivedContext),
-                    PAIMON, new PaimonConnector(derivedContext)
-            );
+            builder.put(HIVE, new HiveConnector(derivedContext))
+                    .put(HUDI, new HudiConnector(derivedContext))
+                    .put(DELTALAKE, new DeltaLakeConnector(derivedContext));
         } else {
-            connectorMap = ImmutableMap.of(
-                    HIVE, new HiveConnector(derivedContext),
-                    ICEBERG, new IcebergConnector(derivedContext),
-                    HUDI, new HudiConnector(derivedContext),
-                    DELTALAKE, new DeltaLakeConnector(derivedContext),
-                    PAIMON, new PaimonConnector(derivedContext),
-                    KUDU, new KuduConnector(derivedContext)
-            );
+            builder.put(HIVE, new HiveConnector(derivedContext))
+                    .put(ICEBERG, new IcebergConnector(derivedContext))
+                    .put(HUDI, new HudiConnector(derivedContext))
+                    .put(DELTALAKE, new DeltaLakeConnector(derivedContext))
+                    .put(KUDU, new KuduConnector(derivedContext));
         }
+        if (shouldCreatePaimonConnector) {
+            builder.put(PAIMON, new PaimonConnector(derivedContext));
+        }
+        connectorMap = builder.build();
     }
 
     @Override
