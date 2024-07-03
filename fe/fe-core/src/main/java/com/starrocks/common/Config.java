@@ -3055,6 +3055,9 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true)
     public static boolean enable_colocate_restore = false;
 
+    @ConfField(mutable = true)
+    public static boolean emr_internal_redirect = true;
+
     /**
      * blocking queue size
      */
