@@ -15,6 +15,8 @@
 package com.starrocks.sql.analyzer;
 
 import com.google.common.base.Strings;
+import com.starrocks.authentication.AuthenticationMgr;
+import com.starrocks.common.Config;
 import com.starrocks.common.ErrorCode;
 import com.starrocks.common.ErrorReport;
 import com.starrocks.qe.ConnectContext;
@@ -39,8 +41,19 @@ public class WarehouseAnalyzer {
             visit(statement, session);
         }
 
+        private void restrictOperationCheck(ConnectContext context) {
+            // emr product restrictions
+            if (Config.enable_emr_product_restrictions
+                    && context.getCurrentUserIdentity() != null
+                    && !context.getCurrentUserIdentity().getUser().equals(AuthenticationMgr.ROOT_USER)) {
+                throw new SemanticException(
+                        "EMR Serverless StarRocks policies: Only root user can operate warehouses.");
+            }
+        }
+
         @Override
         public Void visitCreateWarehouseStatement(CreateWarehouseStmt statement, ConnectContext context) {
+            restrictOperationCheck(context);
             String whName = statement.getWarehouseName();
             if (Strings.isNullOrEmpty(whName)) {
                 ErrorReport.reportSemanticException(ErrorCode.ERR_INVALID_WAREHOUSE_NAME);
@@ -51,6 +64,7 @@ public class WarehouseAnalyzer {
 
         @Override
         public Void visitSuspendWarehouseStatement(SuspendWarehouseStmt statement, ConnectContext context) {
+            restrictOperationCheck(context);
             String whName = statement.getWarehouseName();
             if (Strings.isNullOrEmpty(whName)) {
                 ErrorReport.reportSemanticException(ErrorCode.ERR_INVALID_WAREHOUSE_NAME);
@@ -59,6 +73,7 @@ public class WarehouseAnalyzer {
         }
 
         public Void visitResumeWarehouseStatement(ResumeWarehouseStmt statement, ConnectContext context) {
+            restrictOperationCheck(context);
             String whName = statement.getWarehouseName();
             if (Strings.isNullOrEmpty(whName)) {
                 ErrorReport.reportSemanticException(ErrorCode.ERR_INVALID_WAREHOUSE_NAME);
@@ -68,6 +83,7 @@ public class WarehouseAnalyzer {
 
         @Override
         public Void visitDropWarehouseStatement(DropWarehouseStmt statement, ConnectContext context) {
+            restrictOperationCheck(context);
             String whName = statement.getWarehouseName();
             if (Strings.isNullOrEmpty(whName)) {
                 ErrorReport.reportSemanticException(ErrorCode.ERR_INVALID_WAREHOUSE_NAME);
