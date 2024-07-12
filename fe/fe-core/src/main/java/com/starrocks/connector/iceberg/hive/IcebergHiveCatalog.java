@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 import static com.starrocks.connector.ConnectorTableId.CONNECTOR_ID_GENERATOR;
 import static com.starrocks.connector.iceberg.IcebergConnector.HIVE_METASTORE_TIMEOUT;
 import static com.starrocks.connector.iceberg.IcebergConnector.HIVE_METASTORE_URIS;
+import static com.starrocks.connector.iceberg.IcebergConnector.ICEBERG_CATALOG_TYPE;
 import static com.starrocks.connector.iceberg.IcebergConnector.ICEBERG_METASTORE_URIS;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREWAREHOUSE;
 
@@ -63,10 +64,12 @@ public class IcebergHiveCatalog implements IcebergCatalog {
 
     private final Configuration conf;
     private final HiveCatalog delegate;
+    private final Map<String, String> properties;
 
     @VisibleForTesting
     public IcebergHiveCatalog(String name, Configuration conf, Map<String, String> properties) {
         this.conf = conf;
+        this.properties = properties;
         String hmsTimeout = properties.getOrDefault(HIVE_METASTORE_TIMEOUT, String.valueOf(Config.hive_meta_store_timeout_s));
         this.conf.set(MetastoreConf.ConfVars.CLIENT_SOCKET_TIMEOUT.getHiveName(), hmsTimeout);
         if (conf.get(METASTOREWAREHOUSE.varname) == null) {
@@ -74,14 +77,15 @@ public class IcebergHiveCatalog implements IcebergCatalog {
         }
 
         Map<String, String> copiedProperties = Maps.newHashMap(properties);
-
-        String metastoreURI = properties.get(HIVE_METASTORE_URIS);
-        if (metastoreURI == null) {
-            metastoreURI = properties.get(ICEBERG_METASTORE_URIS);
+        if (!"dlf".equalsIgnoreCase(properties.get(ICEBERG_CATALOG_TYPE))) {
+            String metastoreURI = properties.get(HIVE_METASTORE_URIS);
+            if (metastoreURI == null) {
+                metastoreURI = properties.get(ICEBERG_METASTORE_URIS);
+            }
+            Util.validateMetastoreUris(metastoreURI);
+            copiedProperties.put(CatalogProperties.URI, metastoreURI);
         }
-        Util.validateMetastoreUris(metastoreURI);
 
-        copiedProperties.put(CatalogProperties.URI, metastoreURI);
         copiedProperties.put(CatalogProperties.FILE_IO_IMPL, IcebergCachingFileIO.class.getName());
         copiedProperties.put(AwsProperties.CLIENT_FACTORY, IcebergAwsClientFactory.class.getName());
         copiedProperties.put(CatalogProperties.METRICS_REPORTER_IMPL, IcebergMetricsReporter.class.getName());
@@ -95,6 +99,9 @@ public class IcebergHiveCatalog implements IcebergCatalog {
 
     @Override
     public IcebergCatalogType getIcebergCatalogType() {
+        if ("dlf".equalsIgnoreCase(properties.get(ICEBERG_CATALOG_TYPE))) {
+            return IcebergCatalogType.DLF_CATALOG;
+        }
         return IcebergCatalogType.HIVE_CATALOG;
     }
 
@@ -182,7 +189,7 @@ public class IcebergHiveCatalog implements IcebergCatalog {
             PartitionSpec partitionSpec,
             String location,
             Map<String, String> properties) {
-        Table nativeTable =  delegate.buildTable(TableIdentifier.of(dbName, tableName), schema)
+        Table nativeTable = delegate.buildTable(TableIdentifier.of(dbName, tableName), schema)
                 .withLocation(location)
                 .withPartitionSpec(partitionSpec)
                 .withProperties(properties)
