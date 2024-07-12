@@ -141,6 +141,7 @@ import static com.starrocks.connector.iceberg.IcebergApiConverter.filterManifest
 import static com.starrocks.connector.iceberg.IcebergApiConverter.mayHaveEqualityDeletes;
 import static com.starrocks.connector.iceberg.IcebergApiConverter.parsePartitionFields;
 import static com.starrocks.connector.iceberg.IcebergApiConverter.toIcebergApiSchema;
+import static com.starrocks.connector.iceberg.IcebergCatalogType.DLF_CATALOG;
 import static com.starrocks.connector.iceberg.IcebergCatalogType.GLUE_CATALOG;
 import static com.starrocks.connector.iceberg.IcebergCatalogType.HIVE_CATALOG;
 import static com.starrocks.connector.iceberg.IcebergCatalogType.REST_CATALOG;
@@ -339,7 +340,9 @@ public class IcebergMetadata implements ConnectorMetadata {
             org.apache.iceberg.Table icebergTable = icebergCatalog.getTable(dbName, tblName);
             IcebergCatalogType catalogType = icebergCatalog.getIcebergCatalogType();
             // Hive/Glue catalog table name is case-insensitive, normalize it to lower case
-            if (catalogType == IcebergCatalogType.HIVE_CATALOG || catalogType == IcebergCatalogType.GLUE_CATALOG) {
+            if (catalogType == IcebergCatalogType.HIVE_CATALOG
+                    || catalogType == IcebergCatalogType.GLUE_CATALOG
+                    || catalogType == IcebergCatalogType.DLF_CATALOG) {
                 dbName = dbName.toLowerCase();
                 tblName = tblName.toLowerCase();
             }
@@ -374,7 +377,10 @@ public class IcebergMetadata implements ConnectorMetadata {
     public List<String> listPartitionNames(String dbName, String tblName, long snapshotId) {
         IcebergCatalogType nativeType = icebergCatalog.getIcebergCatalogType();
 
-        if (nativeType != HIVE_CATALOG && nativeType != REST_CATALOG && nativeType != GLUE_CATALOG) {
+        if (nativeType != HIVE_CATALOG
+                && nativeType != REST_CATALOG
+                && nativeType != GLUE_CATALOG
+                && nativeType != DLF_CATALOG) {
             throw new StarRocksConnectorException(
                     "Do not support get partitions from catalog type: " + nativeType);
         }
@@ -777,7 +783,7 @@ public class IcebergMetadata implements ConnectorMetadata {
 
         Tracers.Module module = Tracers.Module.EXTERNAL;
         if (metrics.isPresent()) {
-            String name = "ICEBERG.ScanMetrics." + metrics.get().tableName() + "["  + icebergPredicate + "]";
+            String name = "ICEBERG.ScanMetrics." + metrics.get().tableName() + "[" + icebergPredicate + "]";
             String value = metrics.get().scanMetrics().toString();
             if (tracers == null) {
                 Tracers.record(module, name, value);
