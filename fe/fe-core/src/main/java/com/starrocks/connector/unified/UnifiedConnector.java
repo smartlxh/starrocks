@@ -72,6 +72,7 @@ public class UnifiedConnector implements Connector {
         ImmutableMap.Builder<Table.TableType, Connector> builder = ImmutableMap.builder();
         if (DLF_METASTORE.equalsIgnoreCase(metastoreType)) {
             builder.put(HIVE, new HiveConnector(derivedContext))
+                    .put(ICEBERG, new IcebergConnector(derivedContext))
                     .put(HUDI, new HudiConnector(derivedContext))
                     .put(DELTALAKE, new DeltaLakeConnector(derivedContext));
         } else {
