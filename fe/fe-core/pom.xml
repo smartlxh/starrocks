@@ -42,7 +42,7 @@ under the License.
         <awsv2.version>2.17.257</awsv2.version>
         <paimon.version>0.9-20240531-9615fc-SNAPSHOT</paimon.version>
         <paimon.ali.dlf.version>0.9-ali-2-SNAPSHOT</paimon.ali.dlf.version>
-        <staros.version>3.2.1-SNAPSHOT</staros.version>
+        <staros.version>3.2.2-SNAPSHOT</staros.version>
         <python>python</python>
     </properties>
 
