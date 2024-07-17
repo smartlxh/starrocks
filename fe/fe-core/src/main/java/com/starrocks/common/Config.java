@@ -3030,6 +3030,9 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true)
     public static boolean emr_internal_redirect = true;
 
+    @ConfField(mutable = true)
+    public static boolean emr_serverless_allow_get_metrics_without_auth = true;
+
     /**
      * blocking queue size
      */
