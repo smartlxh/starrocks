@@ -3028,7 +3028,7 @@ public class Config extends ConfigBase {
     public static String emr_serverless_full_domain = "";
 
     @ConfField(mutable = true)
-    public static boolean emr_internal_redirect = true;
+    public static boolean emr_internal_redirect = false;
 
     @ConfField(mutable = true)
     public static boolean emr_serverless_allow_get_metrics_without_auth = true;
