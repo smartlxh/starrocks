@@ -74,6 +74,7 @@ import com.starrocks.sql.analyzer.FeNameFormat;
 import com.starrocks.thrift.TTransactionStatus;
 import com.starrocks.thrift.TUniqueId;
 import com.starrocks.transaction.InsertTxnCommitAttachment;
+import com.starrocks.warehouse.Warehouse;
 import io.opentelemetry.api.trace.Span;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -185,8 +186,10 @@ public class DatabaseTransactionMgr {
 
         long tid = globalStateMgr.getGlobalTransactionMgr().getTransactionIDGenerator().getNextTransactionId();
         boolean combinedTxnLog = LakeTableHelper.supportCombinedTxnLog(dbId, tableIdList, sourceType);
-        LOG.info("begin transaction: txn_id: {} with label {} from coordinator {}, listner id: {}, combinedTxnLog: {}",
-                tid, label, coordinator, listenerId, combinedTxnLog);
+        Warehouse warehouse = GlobalStateMgr.getCurrentState().getWarehouseMgr().getWarehouse(warehouseId);
+        LOG.info("begin transaction: txn_id: {} with label {} from coordinator {}, listner id: {}, " +
+                        "combinedTxnLog: {}, warehouse: {}",
+                tid, label, coordinator, listenerId, combinedTxnLog, warehouse.getName());
         TransactionState transactionState = new TransactionState(dbId, tableIdList, tid, label, requestId, sourceType,
                 coordinator, listenerId, timeoutSecond * 1000);
         transactionState.setPrepareTime(System.currentTimeMillis());
