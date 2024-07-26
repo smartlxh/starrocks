@@ -25,6 +25,7 @@ import com.starrocks.catalog.Table;
 import com.starrocks.catalog.Type;
 import com.starrocks.common.AlreadyExistsException;
 import com.starrocks.common.AnalysisException;
+import com.starrocks.common.Config;
 import com.starrocks.common.DdlException;
 import com.starrocks.common.ExceptionChecker;
 import com.starrocks.common.FeConstants;
@@ -452,6 +453,7 @@ public class HiveMetadataTest {
 
     @Test(expected = StarRocksConnectorException.class)
     public void testAppendPartition() {
+        Config.update_statistics_after_insert = true;
         String stagingDir = "hdfs://127.0.0.1:10000/tmp/starrocks/queryid";
         THiveFileInfo fileInfo = new THiveFileInfo();
         fileInfo.setFile_name("myfile.parquet");
@@ -485,6 +487,7 @@ public class HiveMetadataTest {
             }
         };
         hiveMetadata.finishSink("hive_db", "hive_table", Lists.newArrayList(tSinkCommitInfo));
+        Config.update_statistics_after_insert = false;
     }
 
     @Test
