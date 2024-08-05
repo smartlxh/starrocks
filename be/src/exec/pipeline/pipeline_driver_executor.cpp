@@ -287,10 +287,9 @@ void GlobalDriverExecutor::report_exec_state(QueryContext* query_ctx, FragmentCo
                                              const Status& status, bool done, bool attach_profile) {
     if (query_ctx->enable_profile() && fragment_ctx->lifetime() < query_ctx->get_fragment_profile_drop_threshold()) {
         attach_profile = false;
-        LOG(WARNING) << "Drop profile for query " << print_id(query_ctx->query_id()) << " fragment "
-                     << print_id(fragment_ctx->fragment_instance_id()) << " since its lifetime "
-                     << fragment_ctx->lifetime() << " ns is shorter than threshold "
-                     << query_ctx->get_fragment_profile_drop_threshold() << " ns.";
+        VLOG(5) << "Drop profile for query " << print_id(query_ctx->query_id()) << " fragment "
+                << print_id(fragment_ctx->fragment_instance_id()) << " since its lifetime " << fragment_ctx->lifetime()
+                << " ns is shorter than threshold " << query_ctx->get_fragment_profile_drop_threshold() << " ns.";
     }
 
     RuntimeProfile* profile = nullptr;
