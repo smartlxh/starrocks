@@ -432,11 +432,11 @@ private:
                              bool is_compaction = false);
 
     Status _commit_compaction(std::unique_ptr<CompactionInfo>* info, const RowsetSharedPtr& rowset,
-                              EditVersion* commit_version);
+                              EditVersion* commit_version, uint64_t task_id);
 
     void _stop_and_wait_apply_done();
 
-    Status _do_compaction(std::unique_ptr<CompactionInfo>* pinfo);
+    Status _do_compaction(std::unique_ptr<CompactionInfo>* pinfo, uint64_t task_id);
 
     int32_t _calc_compaction_level(RowsetStats* stats);
     void _calc_compaction_score(RowsetStats* stats);
