@@ -117,7 +117,8 @@ StorageEngine::StorageEngine(const EngineOptions& options)
           _memtable_flush_executor(nullptr),
           _update_manager(new UpdateManager(options.update_mem_tracker)),
           _compaction_manager(new CompactionManager()),
-          _publish_version_manager(new PublishVersionManager()) {
+          _publish_version_manager(new PublishVersionManager()),
+          _compaction_task_id(0) {
 #ifdef BE_TEST
     _p_instance = _s_instance;
     _s_instance = this;
