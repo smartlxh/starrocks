@@ -593,13 +593,29 @@ public class GlobalStateMgr {
         return nodeMgr.getOrCreateSystemInfo(clusterId);
     }
 
+    public TNodesInfo createNodesInfo(Integer clusterId, boolean isExternalCluster) {
+        if (isExternalCluster) {
+            return createNodesInfo(getOrCreateSystemInfo(clusterId), null);
+        } else {
+            return createNodesInfo(clusterId);
+        }
+    }
+
     public TNodesInfo createNodesInfo(Integer clusterId) {
-        TNodesInfo nodesInfo = new TNodesInfo();
         SystemInfoService systemInfoService = getOrCreateSystemInfo(clusterId);
-        // use default warehouse
-        Warehouse warehouse = warehouseMgr.getDefaultWarehouse();
-        // TODO: need to refactor after be split into cn + dn
-        if (warehouse != null && RunMode.isSharedDataMode()) {
+        if (RunMode.isSharedDataMode()) {
+            Warehouse warehouse = warehouseMgr.getDefaultWarehouse();
+            return createNodesInfo(systemInfoService, warehouse);
+        } else {
+            return createNodesInfo(systemInfoService, null);
+        }
+    }
+
+    private TNodesInfo createNodesInfo(SystemInfoService systemInfoService, Warehouse warehouse) {
+        TNodesInfo nodesInfo = new TNodesInfo();
+        if (warehouse != null) {
+            // use default warehouse
+            // TODO: need to refactor after be split into cn + dn
             com.starrocks.warehouse.Cluster cluster = warehouse.getAnyAvailableCluster();
             for (Long cnId : cluster.getComputeNodeIds()) {
                 ComputeNode cn = systemInfoService.getBackendOrComputeNode(cnId);
@@ -611,7 +627,6 @@ public class GlobalStateMgr {
                 nodesInfo.addToNodes(new TNodeInfo(backend.getId(), 0, backend.getIP(), backend.getBrpcPort()));
             }
         }
-
         return nodesInfo;
     }
 
