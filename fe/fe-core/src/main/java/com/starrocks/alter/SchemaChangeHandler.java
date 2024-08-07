@@ -2608,6 +2608,7 @@ public class SchemaChangeHandler extends AlterHandler {
 
             // for now table's state can only be NORMAL
             Preconditions.checkState(olapTable.getState() == OlapTableState.NORMAL, olapTable.getState().name());
+            olapTable.setState(OlapTableState.UPDATING_META);
             SchemaChangeJobV2 schemaChangeJob = new SchemaChangeJobV2(jobId, db.getId(), olapTable.getId(),
                                                                       olapTable.getName(), 1000);
             // update base index schema
@@ -2692,6 +2693,7 @@ public class SchemaChangeHandler extends AlterHandler {
             LOG.info("finished modify table's add or drop column(field). table: {}, is replay: {}", olapTable.getName(),
                     isReplay);
         } finally {
+            olapTable.setState(OlapTableState.NORMAL);
             db.writeUnlock();
         }
     }
