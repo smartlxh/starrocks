@@ -291,6 +291,28 @@ struct OlapReaderStatistics {
     int64_t prefetch_hit_count = 0;
     int64_t prefetch_wait_finish_ns = 0;
     int64_t prefetch_pending_ns = 0;
+
+    int64_t shared_buffered_shared_io_count = 0;
+    int64_t shared_buffered_shared_io_bytes = 0;
+    int64_t shared_buffered_hit_io_count = 0;
+    int64_t shared_buffered_hit_io_bytes = 0;
+    int64_t shared_buffered_shared_align_io_bytes = 0;
+    int64_t shared_buffered_shared_io_time_ns = 0;
+    int64_t shared_buffered_direct_io_count = 0;
+    int64_t shared_buffered_direct_io_bytes = 0;
+    int64_t shared_buffered_direct_io_time_ns = 0;
+
+    // for index
+    int64_t ordinal_index_page_io_count = 0;
+
+    int64_t ordinal_index_page_count = 0;
+    int64_t ordinal_index_page_bytes = 0;
+    int64_t ordinal_index_load_time_ns = 0;
+
+    int64_t dict_page_io_count = 0;
+    int64_t dict_page_bytes = 0;
+    int64_t dict_page_load_time_ns = 0;
+
     // ------ for lake tablet ------
 };
 
@@ -308,6 +330,16 @@ const char* const kIONsRemote = "io_ns_remote";
 const char* const kPrefetchHitCount = "prefetch_hit_count";
 const char* const kPrefetchWaitFinishNs = "prefetch_wait_finish_ns";
 const char* const kPrefetchPendingNs = "prefetch_pending_ns";
+
+const char* const kSharedIoCount = "shared_io_count";
+const char* const kSharedIoBytes = "shared_io_bytes";
+const char* const kHitIoCount = "hit_io_count";
+const char* const kHitIoBytes = "hit_io_bytes";
+const char* const kSharedAlignIoBytes = "shared_align_io_bytes";
+const char* const kSharedIoTimer = "shared_io_timer";
+const char* const kDirectIoCount = "direct_io_count";
+const char* const kDirectIoBytes = "direct_io_bytes";
+const char* const kDirectIoTimer = "direct_io_timer";
 
 typedef uint32_t ColumnId;
 typedef int32_t ColumnUID;
