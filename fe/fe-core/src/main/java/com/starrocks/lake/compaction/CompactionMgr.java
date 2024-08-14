@@ -16,6 +16,8 @@ package com.starrocks.lake.compaction;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.annotations.SerializedName;
+import com.starrocks.catalog.Database;
+import com.starrocks.catalog.OlapTable;
 import com.starrocks.common.Config;
 import com.starrocks.common.io.Text;
 import com.starrocks.persist.gson.GsonUtils;
@@ -176,11 +178,35 @@ public class CompactionMgr {
         partitionStatisticsHashMap.clear();
     }
 
+    @Deprecated
     public long saveCompactionManager(DataOutput out, long checksum) throws IOException {
         String json = GsonUtils.GSON.toJson(this);
         Text.writeString(out, json);
         checksum ^= getChecksum();
         return checksum;
+    }
+
+    public void cleanNonExistedPartitions() {
+        // clean non-existent partitions first
+        this.getAllPartitions()
+                .stream()
+                .filter(p -> !isPartitionExist(p))
+                .forEach(this::removePartition);
+    }
+
+    protected boolean isPartitionExist(PartitionIdentifier partition) {
+        Database db = GlobalStateMgr.getCurrentState().getDb(partition.getDbId());
+        if (db == null) {
+            return false;
+        }
+        db.readLock();
+        try {
+            // lake table or lake materialized view
+            OlapTable table = (OlapTable) db.getTable(partition.getTableId());
+            return table != null && table.getPhysicalPartition(partition.getPartitionId()) != null;
+        } finally {
+            db.readUnlock();
+        }
     }
 
     public long getChecksum() {

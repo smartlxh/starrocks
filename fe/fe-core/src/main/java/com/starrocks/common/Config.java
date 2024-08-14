@@ -2342,6 +2342,13 @@ public class Config extends ConfigBase {
     @ConfField
     public static long star_mgr_meta_sync_interval_sec = 600L;
 
+    /**
+     * EMR Serverless
+     * max block bytes length allowed to deserialize while loading image
+     */
+    @ConfField(mutable = true)
+    public static long max_allowed_metadata_bytes_length = Integer.MAX_VALUE / 3;
+
     // ***********************************************************
     // * BEGIN: Cloud native meta server related configurations
     // ***********************************************************
