@@ -1805,7 +1805,7 @@ class StarrocksSQLApiLib(object):
 
         try:
             if params:
-                cursor.execute(query, ['2'])
+                cursor.execute(query, params)
             else:
                 cursor.execute(query)
             cursor.fetchall()
