@@ -77,18 +77,18 @@ public class CurrentQueryStatisticsProcDirTest {
         // QueryId
         Assert.assertEquals("queryId1", list1.get(2));
         // Warehouse
-        Assert.assertEquals("wh1", list1.get(12));
+        Assert.assertEquals("wh1", list1.get(13));
         // ResourceGroupName
-        Assert.assertEquals("wg1", list1.get(14));
+        Assert.assertEquals("wg1", list1.get(15));
 
         List<String> list2 = rows.get(1);
         Assert.assertEquals(list2.size(), CurrentQueryStatisticsProcDir.TITLE_NAMES.size());
         // QueryId
         Assert.assertEquals("queryId2", list2.get(2));
         // Warehouse
-        Assert.assertEquals("wh1", list2.get(12));
+        Assert.assertEquals("wh1", list2.get(13));
         // ResourceGroupName
-        Assert.assertEquals("wg2", list2.get(14));
+        Assert.assertEquals("wg2", list2.get(15));
     }
 
     @Test
