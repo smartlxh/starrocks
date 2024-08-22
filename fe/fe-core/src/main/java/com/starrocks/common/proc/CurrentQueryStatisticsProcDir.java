@@ -58,6 +58,7 @@ public class CurrentQueryStatisticsProcDir implements ProcDirInterface {
     public static final ImmutableList<String> TITLE_NAMES = new ImmutableList.Builder<String>()
             .add("StartTime")
             .add("QueryId")
+            .add("Sql")
             .add("ConnectionId")
             .add("Database")
             .add("User")
@@ -111,6 +112,7 @@ public class CurrentQueryStatisticsProcDir implements ProcDirInterface {
             final List<String> values = Lists.newArrayList();
             values.add(TimeUtils.longToTimeString(item.getQueryStartTime()));
             values.add(item.getQueryId());
+            values.add(item.getSql());
             values.add(item.getConnId());
             values.add(item.getDb());
             values.add(item.getUser());
