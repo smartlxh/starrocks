@@ -64,10 +64,10 @@ public class PaimonConnector implements Connector {
         if (Strings.isNullOrEmpty(catalogType)) {
             throw new StarRocksConnectorException("The property %s must be set.", PAIMON_CATALOG_TYPE);
         }
-        paimonOptions.setString(METASTORE.key(), catalogType);
+        this.paimonOptions.setString(METASTORE.key(), catalogType);
         if (catalogType.equals("hive")) {
             if (!Strings.isNullOrEmpty(metastoreUris)) {
-                paimonOptions.setString(URI.key(), metastoreUris);
+                this.paimonOptions.setString(URI.key(), metastoreUris);
             } else {
                 throw new StarRocksConnectorException("The property %s must be set if paimon catalog is hive.",
                         HIVE_METASTORE_URIS);
@@ -75,7 +75,7 @@ public class PaimonConnector implements Connector {
         } else if (catalogType.equalsIgnoreCase("dlf")) {
             String dlfCatalogId = properties.get(DLF_CATGALOG_ID);
             if (null != dlfCatalogId && !dlfCatalogId.isEmpty()) {
-                paimonOptions.setString(DLF_CATGALOG_ID, dlfCatalogId);
+                this.paimonOptions.setString(DLF_CATGALOG_ID, dlfCatalogId);
             }
         }
         if (Strings.isNullOrEmpty(warehousePath)
@@ -88,44 +88,47 @@ public class PaimonConnector implements Connector {
             warehousePath += "/";
         }
         if (!Strings.isNullOrEmpty(warehousePath)) {
-            paimonOptions.setString(WAREHOUSE.key(), warehousePath);
+            this.paimonOptions.setString(WAREHOUSE.key(), warehousePath);
         }
         initFsOption(cloudConfiguration);
+        // default cache config, 2h
+        this.paimonOptions.set("cache.expiration-interval", "7200");
+
         String keyPrefix = "paimon.option.";
         Set<String> optionKeys = properties.keySet().stream().filter(k -> k.startsWith(keyPrefix)).collect(Collectors.toSet());
         for (String k : optionKeys) {
             String key = k.substring(keyPrefix.length());
-            paimonOptions.setString(key, properties.get(k));
+            this.paimonOptions.setString(key, properties.get(k));
         }
     }
 
     public void initFsOption(CloudConfiguration cloudConfiguration) {
         if (cloudConfiguration.getCloudType() == CloudType.AWS) {
             AWSCloudConfiguration awsCloudConfiguration = (AWSCloudConfiguration) cloudConfiguration;
-            paimonOptions.set("s3.connection.ssl.enabled", String.valueOf(awsCloudConfiguration.getEnableSSL()));
-            paimonOptions.set("s3.path.style.access", String.valueOf(awsCloudConfiguration.getEnablePathStyleAccess()));
+            this.paimonOptions.set("s3.connection.ssl.enabled", String.valueOf(awsCloudConfiguration.getEnableSSL()));
+            this.paimonOptions.set("s3.path.style.access", String.valueOf(awsCloudConfiguration.getEnablePathStyleAccess()));
             AWSCloudCredential awsCloudCredential = awsCloudConfiguration.getAWSCloudCredential();
             if (!awsCloudCredential.getEndpoint().isEmpty()) {
-                paimonOptions.set("s3.endpoint", awsCloudCredential.getEndpoint());
+                this.paimonOptions.set("s3.endpoint", awsCloudCredential.getEndpoint());
             }
             if (!awsCloudCredential.getAccessKey().isEmpty()) {
-                paimonOptions.set("s3.access-key", awsCloudCredential.getAccessKey());
+                this.paimonOptions.set("s3.access-key", awsCloudCredential.getAccessKey());
             }
             if (!awsCloudCredential.getSecretKey().isEmpty()) {
-                paimonOptions.set("s3.secret-key", awsCloudCredential.getSecretKey());
+                this.paimonOptions.set("s3.secret-key", awsCloudCredential.getSecretKey());
             }
         }
         if (cloudConfiguration.getCloudType() == CloudType.ALIYUN) {
             AliyunCloudConfiguration aliyunCloudConfiguration = (AliyunCloudConfiguration) cloudConfiguration;
             AliyunCloudCredential aliyunCloudCredential = aliyunCloudConfiguration.getAliyunCloudCredential();
             if (!aliyunCloudCredential.getEndpoint().isEmpty()) {
-                paimonOptions.set("fs.oss.endpoint", aliyunCloudCredential.getEndpoint());
+                this.paimonOptions.set("fs.oss.endpoint", aliyunCloudCredential.getEndpoint());
             }
             if (!aliyunCloudCredential.getAccessKey().isEmpty()) {
-                paimonOptions.set("fs.oss.accessKeyId", aliyunCloudCredential.getAccessKey());
+                this.paimonOptions.set("fs.oss.accessKeyId", aliyunCloudCredential.getAccessKey());
             }
             if (!aliyunCloudCredential.getSecretKey().isEmpty()) {
-                paimonOptions.set("fs.oss.accessKeySecret", aliyunCloudCredential.getSecretKey());
+                this.paimonOptions.set("fs.oss.accessKeySecret", aliyunCloudCredential.getSecretKey());
             }
         }
     }

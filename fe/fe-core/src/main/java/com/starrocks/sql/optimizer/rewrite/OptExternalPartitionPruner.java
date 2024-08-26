@@ -34,8 +34,6 @@ import com.starrocks.catalog.RangePartitionInfo;
 import com.starrocks.catalog.Table;
 import com.starrocks.common.AnalysisException;
 import com.starrocks.common.Pair;
-import com.starrocks.connector.RemoteFileDesc;
-import com.starrocks.connector.RemoteFileInfo;
 import com.starrocks.connector.elasticsearch.EsShardPartitions;
 import com.starrocks.connector.elasticsearch.EsTablePartitions;
 import com.starrocks.planner.PartitionColumnFilter;
@@ -57,7 +55,6 @@ import com.starrocks.sql.optimizer.operator.scalar.ScalarOperator;
 import com.starrocks.sql.optimizer.rule.transformation.ListPartitionPruner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.paimon.table.source.Split;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -71,7 +68,6 @@ import java.util.stream.Collectors;
 
 import static com.starrocks.connector.PartitionUtil.createPartitionKey;
 import static com.starrocks.connector.PartitionUtil.toPartitionValues;
-import static com.starrocks.connector.paimon.PaimonMetadata.getRowCount;
 
 public class OptExternalPartitionPruner {
     private static final Logger LOG = LogManager.getLogger(OptExternalPartitionPruner.class);
@@ -341,28 +337,7 @@ public class OptExternalPartitionPruner {
             scanOperatorPredicates.getIdToPartitionKey().putAll(partitionKeyMap);
             scanOperatorPredicates.setSelectedPartitionIds(partitionKeyMap.keySet());
         } else if (table instanceof PaimonTable) {
-            PaimonTable paimonTable = (PaimonTable) table;
-            List<String> fieldNames = operator.getColRefToColumnMetaMap().keySet().stream()
-                    .map(ColumnRefOperator::getName)
-                    .collect(Collectors.toList());
-            List<RemoteFileInfo> fileInfos = GlobalStateMgr.getCurrentState().getMetadataMgr().getRemoteFileInfos(
-                    paimonTable.getCatalogName(), table, null, -1, operator.getPredicate(), fieldNames, -1);
-            if (fileInfos.isEmpty()) {
-                return;
-            }
-
-            RemoteFileDesc remoteFileDesc = fileInfos.get(0).getFiles().get(0);
-            if (remoteFileDesc == null) {
-                return;
-            }
-            List<Split> splits = remoteFileDesc.getPaimonSplitsInfo().getPaimonSplits();
-            if (splits.isEmpty()) {
-                return;
-            }
-            long rowCount = getRowCount(splits);
-            if (rowCount > 0) {
-                scanOperatorPredicates.getSelectedPartitionIds().add(1L);
-            }
+            scanOperatorPredicates.getSelectedPartitionIds().add(1L);
         }
     }
 

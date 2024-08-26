@@ -40,8 +40,8 @@ under the License.
         <jacoco.version>0.8.7</jacoco.version>
         <iceberg.version>1.4.2</iceberg.version>
         <awsv2.version>2.17.257</awsv2.version>
-        <paimon.version>0.9-20240531-9615fc-SNAPSHOT</paimon.version>
-        <paimon.ali.dlf.version>0.9-ali-2-SNAPSHOT</paimon.ali.dlf.version>
+        <paimon.version>0.9-20240827-ed48b6b75-SNAPSHOT</paimon.version>
+        <paimon.ali.dlf.version>0.9.0-20240807-68f2a6-4</paimon.ali.dlf.version>
         <staros.version>3.2.2-SNAPSHOT</staros.version>
         <python>python</python>
     </properties>

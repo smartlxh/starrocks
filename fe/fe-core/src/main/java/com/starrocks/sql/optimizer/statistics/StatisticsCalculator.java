@@ -32,7 +32,6 @@ import com.starrocks.catalog.KuduTable;
 import com.starrocks.catalog.ListPartitionInfo;
 import com.starrocks.catalog.MaterializedView;
 import com.starrocks.catalog.OlapTable;
-import com.starrocks.catalog.PaimonTable;
 import com.starrocks.catalog.Partition;
 import com.starrocks.catalog.PartitionInfo;
 import com.starrocks.catalog.PartitionKey;
@@ -477,12 +476,13 @@ public class StatisticsCalculator extends OperatorVisitor<Void, ExpressionContex
 
     private Void computePaimonScanNode(Operator node, ExpressionContext context, Table table,
                                        Map<ColumnRefOperator, Column> columnRefOperatorColumnMap) {
-        if (context.getStatistics() == null) {
-            String catalogName = ((PaimonTable) table).getCatalogName();
-            Statistics stats = GlobalStateMgr.getCurrentState().getMetadataMgr().getTableStatistics(
-                    optimizerContext, catalogName, table, columnRefOperatorColumnMap, null, node.getPredicate(), -1);
-            context.setStatistics(stats);
+        // Use default statistics for now.
+        Statistics.Builder builder = Statistics.builder();
+        for (ColumnRefOperator columnRefOperator : columnRefOperatorColumnMap.keySet()) {
+            builder.addColumnStatistic(columnRefOperator, ColumnStatistic.unknown());
         }
+        builder.setOutputRowCount(1);
+        context.setStatistics(builder.build());
 
         return visitOperator(node, context);
     }
