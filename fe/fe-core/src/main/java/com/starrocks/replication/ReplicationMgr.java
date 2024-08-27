@@ -36,7 +36,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -109,16 +109,19 @@ public class ReplicationMgr extends FrontendDaemon {
                 job.getDatabaseId(), job.getTableId(), job.getReplicationDataSize(), replicatingDataSizeMB);
     }
 
-    public Collection<ReplicationJob> getRunningJobs() {
-        return runningJobs.values();
-    }
-
-    public Collection<ReplicationJob> getCommittedJobs() {
-        return committedJobs.values();
-    }
-
-    public Collection<ReplicationJob> getAbortedJobs() {
-        return abortedJobs.values();
+    public boolean cancelRunningJob(long tableId) {
+        ReplicationJob job = this.runningJobs.get(tableId);
+        if (job == null) {
+            LOG.info("Cannot find the replication job of table {}.", tableId);
+            return false;
+        }
+        job.cancel();
+        if (job.getState().equals(ReplicationJobState.ABORTED)) {
+            this.abortedJobs.put(job.getTableId(), job);
+        }
+        this.runningJobs.remove(job.getTableId(), job);
+        LOG.info("Canceled replication job {}.", job.getJobId());
+        return true;
     }
 
     public void cancelRunningJobs() {
@@ -130,11 +133,24 @@ public class ReplicationMgr extends FrontendDaemon {
                 toRemovedJobs.add(job);
                 abortedJobs.put(job.getTableId(), job);
             }
+            LOG.info("Canceled replication job {}.", job.getJobId());
         }
 
         for (ReplicationJob job : toRemovedJobs) {
             runningJobs.remove(job.getTableId(), job);
         }
+    }
+
+    public List<ReplicationJob> getRunningJobs() {
+        return new ArrayList<>(this.runningJobs.values());
+    }
+
+    public List<ReplicationJob> getAbortedJobs() {
+        return new ArrayList<>(this.abortedJobs.values());
+    }
+
+    public List<ReplicationJob> getCommittedJobs() {
+        return new ArrayList<>(this.committedJobs.values());
     }
 
     public void finishRemoteSnapshotTask(RemoteSnapshotTask task, TFinishTaskRequest request) {

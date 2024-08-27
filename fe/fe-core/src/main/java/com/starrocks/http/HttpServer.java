@@ -79,6 +79,7 @@ import com.starrocks.http.rest.MigrationAction;
 import com.starrocks.http.rest.ProfileAction;
 import com.starrocks.http.rest.QueryDetailAction;
 import com.starrocks.http.rest.QueryDumpAction;
+import com.starrocks.http.rest.ReplicationAction;
 import com.starrocks.http.rest.RowCountAction;
 import com.starrocks.http.rest.SetConfigAction;
 import com.starrocks.http.rest.ShowDataAction;
@@ -220,6 +221,7 @@ public class HttpServer {
         TableRowCountAction.registerAction(controller);
         TableSchemaAction.registerAction(controller);
         TableQueryPlanAction.registerAction(controller);
+        ReplicationAction.registerAction(controller);
 
         BootstrapFinishAction.registerAction(controller);
     }
