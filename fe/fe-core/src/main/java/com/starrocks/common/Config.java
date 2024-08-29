@@ -2457,6 +2457,12 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true)
     public static int starmgr_grpc_timeout_seconds = 5;
 
+    @ConfField(mutable = true)
+    public static boolean enable_balance_shard_num_between_workers = false;
+
+    @ConfField(mutable = true)
+    public static double balance_worker_shards_threshold_in_percent = 0.15;
+
     // ***********************************************************
     // * END: of Cloud native meta server related configurations
     // ***********************************************************
