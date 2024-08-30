@@ -76,6 +76,7 @@ class LocalPkIndexManager;
 namespace starrocks {
 
 class DataDir;
+class DNSCache;
 class EngineTask;
 class MemTableFlushExecutor;
 class Tablet;
@@ -244,6 +245,8 @@ public:
     SegmentFlushExecutor* segment_flush_executor() { return _segment_flush_executor.get(); }
 
     UpdateManager* update_manager() { return _update_manager.get(); }
+
+    DNSCache* dns_cache() { return _dns_cache.get(); }
 
 #ifdef USE_STAROS
     lake::LocalPkIndexManager* local_pk_index_manager() { return _local_pk_index_manager.get(); }
@@ -419,6 +422,8 @@ private:
 
     size_t _compaction_check_one_round();
 
+    void* _refresh_dns_cache_callback(void* arg);
+
 private:
     EngineOptions _options;
     std::mutex _store_lock;
@@ -514,6 +519,8 @@ private:
 
     std::unique_ptr<DictionaryCacheManager> _dictionary_cache_manager;
 
+    std::thread _dns_cache_refresh_thread;
+
     std::unordered_map<int64_t, std::shared_ptr<AutoIncrementMeta>> _auto_increment_meta_map;
 
     std::mutex _auto_increment_mutex;
@@ -537,6 +544,8 @@ private:
 #ifdef USE_STAROS
     std::unique_ptr<lake::LocalPkIndexManager> _local_pk_index_manager;
 #endif
+
+    std::unique_ptr<DNSCache> _dns_cache;
 };
 
 /// Load min_garbage_sweep_interval and max_garbage_sweep_interval from config,
