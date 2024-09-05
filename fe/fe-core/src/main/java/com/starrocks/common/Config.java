@@ -3066,6 +3066,9 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true)
     public static boolean emr_serverless_allow_get_metrics_without_auth = true;
 
+    @ConfField(mutable = true)
+    public static long dlf_data_token_refresh_check_interval_second = 1800;
+
     /**
      * blocking queue size
      */

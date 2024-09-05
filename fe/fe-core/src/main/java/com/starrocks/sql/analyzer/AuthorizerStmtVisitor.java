@@ -27,15 +27,18 @@ import com.starrocks.catalog.InternalCatalog;
 import com.starrocks.catalog.Resource;
 import com.starrocks.catalog.Table;
 import com.starrocks.common.AnalysisException;
+import com.starrocks.common.Config;
 import com.starrocks.common.DdlException;
 import com.starrocks.common.ErrorCode;
 import com.starrocks.common.ErrorReport;
 import com.starrocks.common.MetaNotFoundException;
+import com.starrocks.common.Pair;
 import com.starrocks.common.util.PropertyAnalyzer;
 import com.starrocks.load.ExportJob;
 import com.starrocks.load.loadv2.LoadJob;
 import com.starrocks.load.loadv2.SparkLoadJob;
 import com.starrocks.load.routineload.RoutineLoadJob;
+import com.starrocks.mysql.privilege.Auth;
 import com.starrocks.privilege.AccessDeniedException;
 import com.starrocks.privilege.AuthorizationMgr;
 import com.starrocks.privilege.ColumnPrivilege;
@@ -205,6 +208,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import static com.starrocks.authentication.UserProperty.PROP_RAM_USER;
 
 public class AuthorizerStmtVisitor extends AstVisitor<Void, ConnectContext> {
     // For show tablet detail command, if user has any privilege on the corresponding table, user can run it
@@ -1279,6 +1284,17 @@ public class AuthorizerStmtVisitor extends AstVisitor<Void, ConnectContext> {
 
     @Override
     public Void visitSetUserPropertyStatement(SetUserPropertyStmt statement, ConnectContext context) {
+        for (Pair<String, String> list : statement.getPropertyPairList()) {
+            if (list.first.equalsIgnoreCase(PROP_RAM_USER)) {
+                // emr product restrictions
+                if (Config.enable_emr_product_restrictions
+                        && context.getCurrentUserIdentity() != null
+                        && !context.getCurrentUserIdentity().getUser().equals(Auth.ROOT_USER)) {
+                    throw new SemanticException("EMR Serverless StarRocks policies: " +
+                            "Only support setting RAM property for user on EMR StarRocks Manager.");
+                }
+            }
+        }
         String user = statement.getUser();
         if (user != null && !user.equals(context.getCurrentUserIdentity().getUser())) {
             try {

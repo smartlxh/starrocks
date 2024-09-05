@@ -71,7 +71,9 @@ public class ShowUserPropertyStmt extends ShowStmt {
 
         // Currently only "max_user_connections" is supported
         long maxConn = authenticationManager.getMaxConn(user);
+        String ramUser = authenticationManager.getRamUser(user);
         rows.add(Lists.newArrayList("max_user_connections", String.valueOf(maxConn)));
+        rows.add(Lists.newArrayList("ram_user", ramUser));
 
         if (pattern == null) {
             return rows;

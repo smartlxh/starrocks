@@ -27,7 +27,11 @@ public class UserProperty {
     @SerializedName(value = "m")
     private long maxConn = 1024;
 
+    @SerializedName(value = "ram")
+    private String ramUser;
+
     private static final String PROP_MAX_USER_CONNECTIONS = "max_user_connections";
+    public static final String PROP_RAM_USER = "aliyun_ram_user";
 
     public long getMaxConn() {
         return maxConn;
@@ -35,6 +39,14 @@ public class UserProperty {
 
     public void setMaxConn(long maxConn) {
         this.maxConn = maxConn;
+    }
+
+    public String getRamUser() {
+        return ramUser;
+    }
+
+    public void setRamUser(String ramUser) {
+        this.ramUser = ramUser;
     }
 
     public void update(List<Pair<String, String>> properties) throws DdlException {
@@ -69,6 +81,8 @@ public class UserProperty {
                                     " is not valid, the value must be less than qe_max_connection("
                                     + Config.qe_max_connection + ")");
                 }
+            } else if (keyArr[0].equalsIgnoreCase(PROP_RAM_USER)) {
+                ramUser = value;
             } else {
                 throw new DdlException("Unknown user property(" + key + ")");
             }

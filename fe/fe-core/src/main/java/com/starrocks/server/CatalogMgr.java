@@ -42,6 +42,7 @@ import com.starrocks.connector.ConnectorMgr;
 import com.starrocks.connector.ConnectorTableId;
 import com.starrocks.connector.ConnectorType;
 import com.starrocks.connector.exception.StarRocksConnectorException;
+import com.starrocks.connector.paimon.PaimonConnector;
 import com.starrocks.persist.AlterCatalogLog;
 import com.starrocks.persist.DropCatalogLog;
 import com.starrocks.persist.gson.GsonUtils;
@@ -50,6 +51,7 @@ import com.starrocks.persist.metablock.SRMetaBlockException;
 import com.starrocks.persist.metablock.SRMetaBlockID;
 import com.starrocks.persist.metablock.SRMetaBlockReader;
 import com.starrocks.persist.metablock.SRMetaBlockWriter;
+import com.starrocks.privilege.DlfAccessController;
 import com.starrocks.privilege.NativeAccessController;
 import com.starrocks.privilege.ranger.hive.RangerHiveAccessController;
 import com.starrocks.privilege.ranger.starrocks.RangerStarRocksAccessController;
@@ -119,6 +121,9 @@ public class CatalogMgr {
                 if (serviceName == null || serviceName.isEmpty()) {
                     if (Config.access_control.equals("ranger")) {
                         Authorizer.getInstance().setAccessControl(catalogName, new RangerStarRocksAccessController());
+                    } else if (properties.get(PaimonConnector.PAIMON_CATALOG_TYPE) != null
+                            && properties.get(PaimonConnector.PAIMON_CATALOG_TYPE).equalsIgnoreCase("dlf-paimon")) {
+                        Authorizer.getInstance().setAccessControl(catalogName, new DlfAccessController(properties));
                     } else {
                         Authorizer.getInstance().setAccessControl(catalogName, new NativeAccessController());
                     }

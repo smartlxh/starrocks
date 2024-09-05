@@ -14,6 +14,8 @@
 
 package com.starrocks.planner;
 
+import com.aliyun.datalake.common.impl.Base64Util;
+import com.aliyun.datalake.paimon.fs.DlfPaimonFileIO;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
@@ -23,11 +25,13 @@ import com.starrocks.analysis.TupleDescriptor;
 import com.starrocks.catalog.Column;
 import com.starrocks.catalog.PaimonTable;
 import com.starrocks.catalog.Type;
+import com.starrocks.common.util.DlfUtil;
 import com.starrocks.connector.CatalogConnector;
 import com.starrocks.connector.RemoteFileDesc;
 import com.starrocks.connector.RemoteFileInfo;
 import com.starrocks.connector.paimon.PaimonSplitsInfo;
 import com.starrocks.credential.CloudConfiguration;
+import com.starrocks.credential.CloudConfigurationFactory;
 import com.starrocks.qe.ConnectContext;
 import com.starrocks.qe.SessionVariable;
 import com.starrocks.server.GlobalStateMgr;
@@ -48,12 +52,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.paimon.data.BinaryRow;
 import org.apache.paimon.io.DataFileMeta;
+import org.apache.paimon.table.DataTable;
 import org.apache.paimon.table.source.DataSplit;
 import org.apache.paimon.table.source.DeletionFile;
 import org.apache.paimon.table.source.RawFile;
 import org.apache.paimon.table.source.Split;
 import org.apache.paimon.utils.InstantiationUtil;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -359,10 +365,27 @@ public class PaimonScanNode extends ScanNode {
 
         if (paimonTable != null) {
             msg.hdfs_scan_node.setTable_name(paimonTable.getName());
+            try {
+                String dataTokenPath = DlfUtil.getDataTokenPath(paimonTable.getTableLocation());
+                dataTokenPath = "/secret/DLF/data/" + Base64Util.encodeBase64WithoutPadding(dataTokenPath);
+                File dataTokenFile = new File(dataTokenPath);
+
+                if (dataTokenFile.exists()) {
+                    Map<String, String> options = ((DlfPaimonFileIO)((DataTable) paimonTable.getNativeTable()).fileIO())
+                                .dlsFileSystemOptions(false);
+                    cloudConfiguration = CloudConfigurationFactory.buildDlfConfigurationForStorage(
+                            DlfUtil.setDataToken(dataTokenFile), options);
+                } else {
+                    LOG.warn("Cannot find data token file " + dataTokenPath);
+                }
+            } catch (Exception e) {
+                LOG.warn("Fail to get datatoken: " + e.getMessage());
+            }
         }
 
+        LOG.debug(cloudConfiguration.toConfString());
         HdfsScanNode.setScanOptimizeOptionToThrift(tHdfsScanNode, this);
-        HdfsScanNode.setCloudConfigurationToThrift(tHdfsScanNode, cloudConfiguration);
+        HdfsScanNode.setCloudConfigurationToThrift(tHdfsScanNode, this.cloudConfiguration);
         HdfsScanNode.setNonEvalPartitionConjunctsToThrift(tHdfsScanNode, this, this.getScanNodePredicates());
         HdfsScanNode.setMinMaxConjunctsToThrift(tHdfsScanNode, this, this.getScanNodePredicates());
         HdfsScanNode.setNonPartitionConjunctsToThrift(msg, this, this.getScanNodePredicates());

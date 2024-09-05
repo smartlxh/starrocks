@@ -144,6 +144,8 @@ JdoOptions_t JindoClientFactory::get_or_create_jindo_opts(const S3URI& uri, cons
     std::string endpoint = "";
     std::string ak_id = "";
     std::string ak_secret = "";
+    std::string security_token = "";
+    std::unordered_map<std::string, std::string> options;
 
     // load default configs from jindosdk.cfg and be.conf (_jindo_config_map)
     JdoOptions_t jdo_options = jdo_createOptions();
@@ -172,6 +174,12 @@ JdoOptions_t JindoClientFactory::get_or_create_jindo_opts(const S3URI& uri, cons
         }
         if (!aliyun_cloud_credential.secret_key.empty()) {
             ak_secret = aliyun_cloud_credential.secret_key;
+        }
+        if (!aliyun_cloud_credential.security_token.empty()) {
+            security_token = aliyun_cloud_credential.security_token;
+        }
+        if (!aliyun_cloud_credential.options.empty()) {
+            options = aliyun_cloud_credential.options;
         }
     } else if (hdfs_properties != nullptr) {
         if (hdfs_properties->__isset.end_point) {

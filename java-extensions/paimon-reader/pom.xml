@@ -15,7 +15,8 @@
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
         <java-extensions.home>${basedir}/../</java-extensions.home>
-        <paimon.version>0.9-20240531-9615fc-SNAPSHOT</paimon.version>
+        <paimon.version>0.9-20240903-c574ae-SNAPSHOT</paimon.version>
+        <dlf.sdk.version>2.1.1-SNAPSHOT</dlf.sdk.version>
         <slf4j.version>1.7.32</slf4j.version>
         <hive.version>3.1.2</hive.version>
         <hadoop.version>3.4.0</hadoop.version>
@@ -211,6 +212,18 @@
             <groupId>org.apache.paimon</groupId>
             <artifactId>paimon-oss</artifactId>
             <version>${paimon.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.aliyun.datalake</groupId>
+            <artifactId>dlf-sdk-assembly</artifactId>
+            <version>${dlf.sdk.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
     </dependencies>
 
