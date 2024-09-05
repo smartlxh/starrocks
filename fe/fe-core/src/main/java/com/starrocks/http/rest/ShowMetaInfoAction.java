@@ -40,11 +40,8 @@ import com.starrocks.catalog.MaterializedIndex;
 import com.starrocks.catalog.MaterializedIndex.IndexExtState;
 import com.starrocks.catalog.OlapTable;
 import com.starrocks.catalog.Partition;
-import com.starrocks.catalog.PhysicalPartition;
 import com.starrocks.catalog.Table;
-import com.starrocks.catalog.Table.TableType;
 import com.starrocks.catalog.Tablet;
-import com.starrocks.catalog.system.SystemTable;
 import com.starrocks.common.Config;
 import com.starrocks.ha.HAProtocol;
 import com.starrocks.http.ActionController;
@@ -186,30 +183,12 @@ public class ShowMetaInfoAction extends RestBaseAction {
             List<Table> tables = db.getTables();
             for (int j = 0; j < tables.size(); j++) {
                 Table table = tables.get(j);
-                if (table.getType() == TableType.OLAP || table.getType() == TableType.CLOUD_NATIVE) {
-                    // in implementation, cloud native table is a subtype of olap table
+                if (table.isNativeTableOrMaterializedView()) {
                     totalSize += calculateSizeForOlapTable((OlapTable) table, singleReplica);
-                } else if (table instanceof SystemTable) {
-                    continue;
                 }
-
-                OlapTable olapTable = (OlapTable) table;
-                long tableSize = 0;
-                for (PhysicalPartition partition : olapTable.getAllPhysicalPartitions()) {
-                    long partitionSize = 0;
-                    for (MaterializedIndex mIndex : partition.getMaterializedIndices(IndexExtState.VISIBLE)) {
-                        long indexSize = 0;
-                        for (Tablet tablet : mIndex.getTablets()) {
-                            indexSize += tablet.getDataSize(singleReplica);
-                        } // end for tablets
-                        partitionSize += indexSize;
-                    } // end for tables
-                    tableSize += partitionSize;
-                } // end for partitions
-                totalSize += tableSize;
-            } // end for tables
+            }
             result.put(dbName, Long.valueOf(totalSize));
-        } // end for dbs
+        }
         return result;
     }
 
