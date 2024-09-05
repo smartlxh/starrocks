@@ -203,6 +203,24 @@ public class AuthenticationMgr {
         }
     }
 
+    public String getRamUser(UserIdentity currUserIdentity) {
+        if (currUserIdentity.isEphemeral()) {
+            return "";
+        } else {
+            String userName = currUserIdentity.getUser();
+            return getRamUser(userName);
+        }
+    }
+
+    public String getRamUser(String userName) {
+        UserProperty userProperty = userNameToProperty.get(userName);
+        if (userProperty == null) {
+            throw new SemanticException("Unknown user: " + userName);
+        } else {
+            return userNameToProperty.get(userName).getRamUser();
+        }
+    }
+
     public String getDefaultPlugin() {
         return DEFAULT_PLUGIN;
     }

@@ -55,6 +55,7 @@ static const std::string AWS_S3_ENABLE_SSL = "aws.s3.enable_ssl";
 static const std::string ALIYUN_OSS_ACCESS_KEY = "aliyun.oss.access_key";
 static const std::string ALIYUN_OSS_SECRET_KEY = "aliyun.oss.secret_key";
 static const std::string ALIYUN_OSS_ENDPOINT = "aliyun.oss.endpoint";
+static const std::string ALIYUN_OSS_SECURITY_TOKEN = "aliyun.oss.sts_token";
 
 class CloudConfigurationFactory {
 public:
@@ -107,6 +108,14 @@ public:
         aliyun_cloud_credential.access_key = get_or_default(properties, ALIYUN_OSS_ACCESS_KEY, std::string());
         aliyun_cloud_credential.secret_key = get_or_default(properties, ALIYUN_OSS_SECRET_KEY, std::string());
         aliyun_cloud_credential.endpoint = get_or_default(properties, ALIYUN_OSS_ENDPOINT, std::string());
+        aliyun_cloud_credential.security_token = get_or_default(properties, ALIYUN_OSS_SECURITY_TOKEN, std::string());
+        std::string prefix = "dlf_config.";
+        for (const auto& pair : properties) {
+            // get dlf config
+            if (pair.first.rfind(prefix, 0) == 0) {
+                aliyun_cloud_credential.options[pair.first.substr(prefix.size())] = pair.second;
+            }
+        }
 
         aliyun_cloud_configuration.aliyun_cloud_credential = aliyun_cloud_credential;
         return aliyun_cloud_configuration;
