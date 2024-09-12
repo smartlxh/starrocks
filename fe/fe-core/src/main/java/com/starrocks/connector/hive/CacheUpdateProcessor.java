@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package com.starrocks.connector.hive;
 
 import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -26,6 +26,7 @@ import com.starrocks.catalog.HiveView;
 import com.starrocks.catalog.Table;
 import com.starrocks.connector.CachingRemoteFileIO;
 import com.starrocks.connector.RemoteFileIO;
+import com.starrocks.connector.RemoteFileScanContext;
 import com.starrocks.connector.RemotePathKey;
 import com.starrocks.connector.exception.StarRocksConnectorException;
 import com.starrocks.connector.hive.events.MetastoreNotificationFetchException;
@@ -152,7 +153,7 @@ public class CacheUpdateProcessor {
             for (Map.Entry<HivePartitionName, Partition> partitionEntry : partitions.entrySet()) {
                 Optional<String> partitionName = partitionEntry.getKey().getPartitionNames();
                 partitionName.ifPresent(s -> toCheckUpdatedPartitionInfoMap.put(new BasePartitionInfo(dbName, tblName, s),
-                                partitionEntry.getValue()));
+                        partitionEntry.getValue()));
             }
         }
 
@@ -203,11 +204,15 @@ public class CacheUpdateProcessor {
 
         if (remoteFileIO.isPresent()) {
             Map<String, Partition> partitions = metastore.getPartitionsByNames(hiveDbName, hiveTableName, hivePartitionNames);
-            Optional<String> hudiBasePath = table.isHiveTable() ? Optional.empty() : Optional.of(hmsTable.getTableLocation());
             List<RemotePathKey> remotePathKeys = partitions.values().stream()
-                    .map(partition -> RemotePathKey.of(partition.getFullPath(), isRecursive, hudiBasePath))
+                    .map(partition -> RemotePathKey.of(partition.getFullPath(), isRecursive))
                     .collect(Collectors.toList());
-            remotePathKeys.forEach(path -> remoteFileIO.get().updateRemoteFiles(path));
+            RemoteFileScanContext scanContext = new RemoteFileScanContext();
+            scanContext.hudiTableLocation = hmsTable.getTableLocation();
+            remotePathKeys.forEach(path -> {
+                path.setScanContext(scanContext);
+                remoteFileIO.get().updateRemoteFiles(path);
+            });
         }
     }
 
@@ -263,9 +268,7 @@ public class CacheUpdateProcessor {
             }
             List<RemotePathKey> updateKeys = Lists.newArrayList();
             List<RemotePathKey> invalidateKeys = Lists.newArrayList();
-            RemotePathKey.HudiContext hudiContext = new RemotePathKey.HudiContext();
             presentPathKey.forEach(pathKey -> {
-                pathKey.setHudiContext(hudiContext);
                 String pathWithSlash = pathKey.getPath().endsWith("/") ? pathKey.getPath() : pathKey.getPath() + "/";
                 if (operator == Operator.UPDATE && existPaths.contains(pathWithSlash)) {
                     updateKeys.add(pathKey);
@@ -273,7 +276,6 @@ public class CacheUpdateProcessor {
                     invalidateKeys.add(pathKey);
                 }
             });
-
             refreshRemoteFilesImpl(tableLocation, updateKeys, invalidateKeys, executor);
         }
     }
@@ -281,11 +283,20 @@ public class CacheUpdateProcessor {
     private void refreshRemoteFilesImpl(String tableLocation, List<RemotePathKey> updateKeys,
                                         List<RemotePathKey> invalidateKeys,
                                         ExecutorService refreshExecutor) {
+        Preconditions.checkArgument(remoteFileIO.isPresent());
+        RemoteFileScanContext scanContext = new RemoteFileScanContext();
+        scanContext.hudiTableLocation = tableLocation;
         List<Future<?>> futures = Lists.newArrayList();
-        updateKeys.forEach(pathKey -> futures.add(refreshExecutor.submit(() ->
-                remoteFileIO.get().updateRemoteFiles(pathKey))));
-        invalidateKeys.forEach(pathKey -> futures.add(refreshExecutor.submit(() ->
-                remoteFileIO.get().invalidatePartition(pathKey))));
+        updateKeys.forEach(pathKey -> {
+            pathKey.setScanContext(scanContext);
+            futures.add(refreshExecutor.submit(() ->
+                    remoteFileIO.get().updateRemoteFiles(pathKey)));
+        });
+        invalidateKeys.forEach(pathKey -> {
+            pathKey.setScanContext(scanContext);
+            futures.add(refreshExecutor.submit(() ->
+                    remoteFileIO.get().invalidatePartition(pathKey)));
+        });
 
         for (Future<?> future : futures) {
             try {
@@ -411,5 +422,5 @@ public class CacheUpdateProcessor {
             return Objects.hashCode(dbName, tableName, partitionName);
         }
     }
-    
+
 }

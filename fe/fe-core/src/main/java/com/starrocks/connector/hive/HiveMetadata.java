@@ -240,7 +240,7 @@ public class HiveMetadata implements ConnectorMetadata {
             useRemoteFileCache = ((HiveTable) table).isUseMetadataCache();
         }
 
-        return fileOps.getRemoteFiles(partitions.build(), useRemoteFileCache);
+        return fileOps.getRemoteFiles(partitions.build(), RemoteFileOperations.Options.toUseCache(useRemoteFileCache));
     }
 
     @Override

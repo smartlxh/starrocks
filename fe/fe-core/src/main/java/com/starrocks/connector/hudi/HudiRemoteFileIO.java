@@ -20,6 +20,7 @@ import com.google.common.collect.Lists;
 import com.starrocks.connector.ObjectStorageUtils;
 import com.starrocks.connector.RemoteFileDesc;
 import com.starrocks.connector.RemoteFileIO;
+import com.starrocks.connector.RemoteFileScanContext;
 import com.starrocks.connector.RemotePathKey;
 import com.starrocks.connector.exception.StarRocksConnectorException;
 import org.apache.hadoop.conf.Configuration;
@@ -42,7 +43,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static org.apache.hudi.common.table.view.FileSystemViewManager.createInMemoryFileSystemViewWithTimeline;
@@ -51,14 +51,11 @@ public class HudiRemoteFileIO implements RemoteFileIO {
     private static final Logger LOG = LogManager.getLogger(HudiRemoteFileIO.class);
     private final Configuration configuration;
 
-    // table location -> HoodieTableMetaClient
-    private final Map<String, HoodieTableMetaClient> hudiClients = new ConcurrentHashMap<>();
-
     public HudiRemoteFileIO(Configuration configuration) {
         this.configuration = configuration;
     }
 
-    private void createHudiContext(RemotePathKey.HudiContext ctx, String hudiTableLocation) {
+    private void createHudiContext(RemoteFileScanContext ctx) {
         if (ctx.init.get()) {
             return;
         }
@@ -70,14 +67,14 @@ public class HudiRemoteFileIO implements RemoteFileIO {
             HoodieLocalEngineContext engineContext = new HoodieLocalEngineContext(configuration);
             HoodieMetadataConfig metadataConfig = HoodieMetadataConfig.newBuilder().enable(true).build();
             HoodieTableMetaClient metaClient =
-                    HoodieTableMetaClient.builder().setConf(configuration).setBasePath(hudiTableLocation).build();
+                    HoodieTableMetaClient.builder().setConf(configuration).setBasePath(ctx.hudiTableLocation).build();
             // metaClient.reloadActiveTimeline();
             HoodieTimeline timeline = metaClient.getCommitsAndCompactionTimeline().filterCompletedInstants();
             Option<HoodieInstant> lastInstant = timeline.lastInstant();
             if (lastInstant.isPresent()) {
-                ctx.fsView = createInMemoryFileSystemViewWithTimeline(engineContext, metaClient, metadataConfig, timeline);
-                ctx.lastInstant = lastInstant.get();
-                ctx.timeline = timeline;
+                ctx.hudiFsView = createInMemoryFileSystemViewWithTimeline(engineContext, metaClient, metadataConfig, timeline);
+                ctx.hudiLastInstant = lastInstant.get();
+                ctx.hudiTimeline = timeline;
             }
             ctx.init.set(true);
         } finally {
@@ -87,24 +84,25 @@ public class HudiRemoteFileIO implements RemoteFileIO {
 
     @Override
     public Map<RemotePathKey, List<RemoteFileDesc>> getRemoteFiles(RemotePathKey pathKey) {
-        String tableLocation = pathKey.getHudiTableLocation().orElseThrow(() ->
-                new StarRocksConnectorException("Missing hudi table base location on %s", pathKey));
+        RemoteFileScanContext scanContext = pathKey.getScanContext();
+        String tableLocation = scanContext.hudiTableLocation;
+        if (tableLocation == null) {
+            throw new StarRocksConnectorException("Missing hudi table base location on %s", pathKey);
+        }
 
         String partitionPath = ObjectStorageUtils.formatObjectStoragePath(pathKey.getPath());
         String partitionName = FSUtils.getRelativePartitionPath(new Path(tableLocation), new Path(partitionPath));
 
         ImmutableMap.Builder<RemotePathKey, List<RemoteFileDesc>> resultPartitions = ImmutableMap.builder();
         List<RemoteFileDesc> fileDescs = Lists.newArrayList();
-
-        RemotePathKey.HudiContext hudiContext = pathKey.getHudiContext();
-        createHudiContext(hudiContext, tableLocation);
-        if (hudiContext.lastInstant == null) {
+        createHudiContext(scanContext);
+        if (scanContext.hudiLastInstant == null) {
             return resultPartitions.put(pathKey, fileDescs).build();
         }
 
         try {
-            Iterator<FileSlice> hoodieFileSliceIterator = hudiContext.fsView
-                    .getLatestMergedFileSlicesBeforeOrOn(partitionName, hudiContext.lastInstant.getTimestamp()).iterator();
+            Iterator<FileSlice> hoodieFileSliceIterator = scanContext.hudiFsView
+                    .getLatestMergedFileSlicesBeforeOrOn(partitionName, scanContext.hudiLastInstant.getTimestamp()).iterator();
             while (hoodieFileSliceIterator.hasNext()) {
                 FileSlice fileSlice = hoodieFileSliceIterator.next();
                 Optional<HoodieBaseFile> baseFile = fileSlice.getBaseFile().toJavaOptional();
@@ -114,7 +112,7 @@ public class HudiRemoteFileIO implements RemoteFileIO {
                 // The file name of HoodieBaseFile contains "instantTime", so we set the `modificationTime` to 0.
                 RemoteFileDesc res = new RemoteFileDesc(fileName, "", fileLength, 0,
                         ImmutableList.of(), ImmutableList.copyOf(logs));
-                res.setHudiInstant(hudiContext.lastInstant);
+                res.setHudiInstant(scanContext.hudiLastInstant);
                 fileDescs.add(res);
             }
         } catch (Exception e) {
