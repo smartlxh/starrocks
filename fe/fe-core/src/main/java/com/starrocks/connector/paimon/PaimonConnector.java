@@ -76,11 +76,15 @@ public class PaimonConnector implements Connector {
                 throw new StarRocksConnectorException("The property %s must be set if paimon catalog is hive.",
                         HIVE_METASTORE_URIS);
             }
-        } else if (catalogType.equalsIgnoreCase("dlf")) {
+        } else if (catalogType.equalsIgnoreCase("dlf") || catalogType.equalsIgnoreCase("dlf-hive")) {
             String dlfCatalogId = properties.get(DLF_CATALOG_ID);
             if (null != dlfCatalogId && !dlfCatalogId.isEmpty()) {
                 this.paimonOptions.setString(DLF_CATALOG_ID, dlfCatalogId);
             }
+            // By default, dlf-sdk-assembly uses hive2 to access dlf 1.0, however StarRocks only include hive3 in its
+            // dependency, so we set this config to let dlf-sdk-assembly use hive3 manually.
+            this.paimonOptions.setString("hive.dlf.imetastoreclient.class",
+                    "com.aliyun.datalake.metastore.hive3.ProxyMetaStoreClient");
         } else if (catalogType.equalsIgnoreCase("dlf-paimon")) {
             properties.keySet().stream()
                     .filter(k -> k.startsWith("dlf.") && !k.equals(DLF_AUTH_USER_NAME))
@@ -89,6 +93,7 @@ public class PaimonConnector implements Connector {
         if (Strings.isNullOrEmpty(warehousePath)
                 && !catalogType.equals("hive")
                 && !catalogType.equalsIgnoreCase("dlf")
+                && !catalogType.equalsIgnoreCase("dlf-hive")
                 && !catalogType.equalsIgnoreCase("dlf-paimon")) {
             throw new StarRocksConnectorException("The property %s must be set.", PAIMON_CATALOG_WAREHOUSE);
         }
