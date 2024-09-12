@@ -119,6 +119,8 @@ public class RangerHiveAccessController extends RangerAccessController {
             hiveAccessType = HiveAccessType.SELECT;
         } else if (privilegeType == PrivilegeType.INSERT) {
             hiveAccessType = HiveAccessType.UPDATE;
+        } else if (privilegeType == PrivilegeType.DELETE) {
+            hiveAccessType = HiveAccessType.UPDATE;
         } else if (privilegeType == PrivilegeType.CREATE_DATABASE
                 || privilegeType == PrivilegeType.CREATE_TABLE
                 || privilegeType == PrivilegeType.CREATE_VIEW) {
