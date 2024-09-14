@@ -39,7 +39,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
-import static com.aliyun.datalake.core.constant.DataLakeConfig.CATALOG_INSTANCE_ID;
+import static com.aliyun.datalake.core.constant.DataLakeConfig.CATALOG_ID;
 import static com.aliyun.datalake.core.constant.DataLakeConfig.DLF_ENDPOINT;
 import static com.aliyun.datalake.core.constant.DataLakeConfig.DLF_REGION;
 import static com.aliyun.datalake.core.constant.DataLakeConfig.META_CREDENTIAL_PROVIDER;
@@ -153,7 +153,7 @@ public class DlfAccessController extends ExternalAccessController implements Acc
 
         CheckPermissionsRequest request = new CheckPermissionsRequest()
                 .setExecUser(userName)
-                .setCatalogId(this.options.get(CATALOG_INSTANCE_ID))
+                .setCatalogId(this.options.get(CATALOG_ID))
                 .setPrincipal(principal)
                 .setPrivilegeResources(Collections.singletonList(privilegeResource));
 

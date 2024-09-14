@@ -100,7 +100,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-import static com.aliyun.datalake.core.constant.DataLakeConfig.CATALOG_INSTANCE_ID;
+import static com.aliyun.datalake.core.constant.DataLakeConfig.CATALOG_ID;
 import static com.aliyun.datalake.core.constant.DataLakeConfig.DATA_CREDENTIAL_PROVIDER_URL;
 import static com.aliyun.datalake.core.constant.DataLakeConfig.DLF_ENDPOINT;
 import static com.aliyun.datalake.core.constant.DataLakeConfig.DLF_REGION;
@@ -563,7 +563,7 @@ public class PaimonMetadata implements ConnectorMetadata {
                 ? paimonNativeCatalog.options().get(META_CREDENTIAL_PROVIDER_URL) : conf.get(META_CREDENTIAL_PROVIDER_URL));
 
         DlfResource.Builder builder = DlfResource.builder()
-                .catalogInstanceId(paimonNativeCatalog.options().get(CATALOG_INSTANCE_ID))
+                .catalogInstanceId(paimonNativeCatalog.options().get(CATALOG_ID))
                 .databaseName(dbName);
         // For creating table operation, we don't need table name.
         if (!tblName.isEmpty()) {

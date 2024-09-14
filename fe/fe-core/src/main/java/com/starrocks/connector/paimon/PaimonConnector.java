@@ -38,6 +38,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static com.aliyun.datalake.core.constant.DataLakeConfig.CATALOG_ID;
+import static com.aliyun.datalake.core.constant.DataLakeConfig.CATALOG_INSTANCE_ID;
 import static com.aliyun.datalake.core.constant.DataLakeConfig.DLF_AUTH_USER_NAME;
 import static org.apache.paimon.options.CatalogOptions.METASTORE;
 import static org.apache.paimon.options.CatalogOptions.URI;
@@ -86,6 +88,15 @@ public class PaimonConnector implements Connector {
             this.paimonOptions.setString("hive.dlf.imetastoreclient.class",
                     "com.aliyun.datalake.metastore.hive3.ProxyMetaStoreClient");
         } else if (catalogType.equalsIgnoreCase("dlf-paimon")) {
+            if (Strings.isNullOrEmpty(properties.get(CATALOG_ID))) {
+                // CATALOG_INSTANCE_ID is deprecated
+                if (null != properties.get(CATALOG_INSTANCE_ID)) {
+                    properties.put(CATALOG_ID, properties.get(CATALOG_INSTANCE_ID));
+                    properties.remove(CATALOG_INSTANCE_ID);
+                } else {
+                    throw new StarRocksConnectorException("The property %s must be set.", CATALOG_ID);
+                }
+            }
             properties.keySet().stream()
                     .filter(k -> k.startsWith("dlf.") && !k.equals(DLF_AUTH_USER_NAME))
                     .forEach(k -> paimonOptions.setString(k, properties.get(k)));
@@ -181,10 +192,12 @@ public class PaimonConnector implements Connector {
             Configuration configuration = new Configuration();
             hdfsEnvironment.getCloudConfiguration().applyToConfiguration(configuration);
             this.paimonNativeCatalog = CatalogFactory.createCatalog(CatalogContext.create(getPaimonOptions(), configuration));
-        } catch (NullPointerException e) {
-            throw new RuntimeException("Current user is not a ram user.");
         } catch (Exception e) {
-            throw new RuntimeException("Error creating a paimon catalog. " + e.getMessage());
+            if (e instanceof NullPointerException ||
+                    (e.getMessage() != null && e.getMessage().contains(DLF_AUTH_USER_NAME))) {
+                throw new StarRocksConnectorException("Current user is not a ram user.");
+            }
+            throw new StarRocksConnectorException("Error creating a paimon catalog. " + e.getMessage());
         }
         return paimonNativeCatalog;
     }

@@ -204,6 +204,9 @@ public class CatalogMgr {
                 if (serviceName.isEmpty()) {
                     if (Config.access_control.equals("ranger")) {
                         Authorizer.getInstance().setAccessControl(catalogName, new RangerStarRocksAccessController());
+                    } else if (properties.get(PaimonConnector.PAIMON_CATALOG_TYPE) != null
+                            && properties.get(PaimonConnector.PAIMON_CATALOG_TYPE).equalsIgnoreCase("dlf-paimon")) {
+                        Authorizer.getInstance().setAccessControl(catalogName, new DlfAccessController(properties));
                     } else {
                         Authorizer.getInstance().setAccessControl(catalogName, new NativeAccessController());
                     }
@@ -287,6 +290,9 @@ public class CatalogMgr {
             if (serviceName == null || serviceName.isEmpty()) {
                 if (Config.access_control.equals("ranger")) {
                     Authorizer.getInstance().setAccessControl(catalogName, new RangerStarRocksAccessController());
+                } else if (properties.get(PaimonConnector.PAIMON_CATALOG_TYPE) != null
+                        && properties.get(PaimonConnector.PAIMON_CATALOG_TYPE).equalsIgnoreCase("dlf-paimon")) {
+                    Authorizer.getInstance().setAccessControl(catalogName, new DlfAccessController(properties));
                 } else {
                     Authorizer.getInstance().setAccessControl(catalogName, new NativeAccessController());
                 }
@@ -353,6 +359,9 @@ public class CatalogMgr {
             if (serviceName.isEmpty()) {
                 if (Config.access_control.equals("ranger")) {
                     Authorizer.getInstance().setAccessControl(catalogName, new RangerStarRocksAccessController());
+                } else if (properties.get(PaimonConnector.PAIMON_CATALOG_TYPE) != null
+                        && properties.get(PaimonConnector.PAIMON_CATALOG_TYPE).equalsIgnoreCase("dlf-paimon")) {
+                    Authorizer.getInstance().setAccessControl(catalogName, new DlfAccessController(properties));
                 } else {
                     Authorizer.getInstance().setAccessControl(catalogName, new NativeAccessController());
                 }
