@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.starrocks.connector.ConnectorTableId.CONNECTOR_ID_GENERATOR;
+import static com.starrocks.connector.iceberg.IcebergConnector.DLF_CATALOG_ID;
 import static com.starrocks.connector.iceberg.IcebergConnector.HIVE_METASTORE_TIMEOUT;
 import static com.starrocks.connector.iceberg.IcebergConnector.HIVE_METASTORE_URIS;
 import static com.starrocks.connector.iceberg.IcebergConnector.ICEBERG_CATALOG_TYPE;
@@ -84,6 +85,8 @@ public class IcebergHiveCatalog implements IcebergCatalog {
             }
             Util.validateMetastoreUris(metastoreURI);
             copiedProperties.put(CatalogProperties.URI, metastoreURI);
+        } else if (!Strings.isNullOrEmpty(properties.get(DLF_CATALOG_ID))) {
+            conf.set(DLF_CATALOG_ID, properties.get(DLF_CATALOG_ID));
         }
 
         copiedProperties.put(CatalogProperties.FILE_IO_IMPL, IcebergCachingFileIO.class.getName());
