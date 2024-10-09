@@ -104,7 +104,8 @@ void FragmentContext::count_down_pipeline(size_t val) {
 
     destroy_pass_through_chunk_buffer();
 
-    finish();
+    // Release driver token here because we need to release driver quota as soon as possible.
+    clear_driver_token();
 
     async_finalize_fragment();
 }
@@ -117,6 +118,7 @@ void FragmentContext::async_finalize_fragment() {
     const auto& fragment_id = print_id(fragment_instance_id());
 
     auto task = [this, exec_env, query_ctx]() -> void {
+        finish();
         auto status = final_status();
         exec_env->wg_driver_executor()->report_exec_state(query_ctx, this, status, true, true);
         query_ctx->count_down_fragments();

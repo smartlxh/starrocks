@@ -116,6 +116,10 @@ public:
     void destroy_pass_through_chunk_buffer();
 
     void set_driver_token(DriverLimiter::TokenPtr driver_token) { _driver_token = std::move(driver_token); }
+    void clear_driver_token() {
+        _driver_token.reset(nullptr);
+        _driver_token = nullptr;
+    }
 
     query_cache::CacheParam& cache_param() { return _cache_param; }
 
