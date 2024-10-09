@@ -47,7 +47,6 @@
 #include "runtime/health_check/monitor_manager.h"
 #include "runtime/health_check/thread_pool_checker.h"
 #include "storage/options.h"
-#include "util/profile_writer.h"
 #include "util/threadpool.h"
 // NOTE: Be careful about adding includes here. This file is included by many files.
 // Unnecssary includes will cause compilatio very slow.
@@ -341,8 +340,6 @@ public:
 
     MonitorManager* get_monitor_manager() { return _monitor_manager; }
 
-    std::unique_ptr<ProfileWriter>& get_profile_writer() { return _profile_writer; }
-
 private:
     void _wait_for_fragments_finish();
 
@@ -416,8 +413,6 @@ private:
     query_cache::CacheManagerRawPtr _cache_mgr;
     BlockCache* _block_cache = nullptr;
     std::shared_ptr<spill::DirManager> _spill_dir_mgr;
-
-    std::unique_ptr<ProfileWriter> _profile_writer;
 };
 
 template <>
