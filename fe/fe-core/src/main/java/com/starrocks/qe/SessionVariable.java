@@ -129,7 +129,6 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
     public static final String MAX_EXECUTION_TIME = "max_execution_time";
     public static final String IS_REPORT_SUCCESS = "is_report_success";
     public static final String ENABLE_PROFILE = "enable_profile";
-    public static final String FRAGMENT_PROFILE_DROP_THRESHOLD_MS = "fragment_profile_drop_threshold_ms";
 
     // Used by product like starrocks manager not by users
     public static final String ENABLE_RECAPTURE_PROFILE = "enable_recapture_profile";
@@ -825,9 +824,6 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
     // queryDeliveryTimeoutS is the timeout of the first phase.
     @VariableMgr.VarAttr(name = QUERY_DELIVERY_TIMEOUT)
     private int queryDeliveryTimeoutS = 300;
-
-    @VariableMgr.VarAttr(name = FRAGMENT_PROFILE_DROP_THRESHOLD_MS)
-    private int fragmentProfileDropThresholdMs = 1000;
 
     // if true, need report to coordinator when plan fragment execute successfully.
     @VariableMgr.VarAttr(name = ENABLE_PROFILE, alias = IS_REPORT_SUCCESS)
@@ -2139,13 +2135,6 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
 
     public void setEnableProfile(boolean enableProfile) {
         this.enableProfile = enableProfile;
-    }
-
-    public int getFragmentProfileDropThresholdMs() {
-        return this.fragmentProfileDropThresholdMs;
-    }
-    public void setFragmentProfileDropThresholdMs(int fragmentProfileDropThresholdMs) {
-        this.fragmentProfileDropThresholdMs = fragmentProfileDropThresholdMs;
     }
 
     public boolean isEnableLoadProfile() {
@@ -3573,7 +3562,6 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
         tResult.setQuery_timeout(Math.min(Integer.MAX_VALUE / 1000, queryTimeoutS));
         tResult.setQuery_delivery_timeout(Math.min(Integer.MAX_VALUE / 1000, queryDeliveryTimeoutS));
         tResult.setEnable_profile(enableProfile);
-        tResult.setFragment_profile_drop_threshold_ms(fragmentProfileDropThresholdMs);
         tResult.setBig_query_profile_threshold(TimeValue.parseTimeValue(bigQueryProfileThreshold).getMillis());
         tResult.setBig_query_profile_threshold_unit(TTimeUnit.MILLISECOND);
         tResult.setEnable_tablet_scan_stat(enableTabletScanStat);

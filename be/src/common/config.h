@@ -1312,13 +1312,4 @@ CONF_mBool(enable_lake_compaction_use_partial_segments, "false");
 // chunk size used by lake compaction
 CONF_mInt32(lake_compaction_chunk_size, "4096");
 
-CONF_mInt32(exec_state_reporter_min_threads, "1");
-CONF_mInt32(exec_state_reporter_max_threads, "2");
-CONF_mInt32(exec_state_reporter_max_queue_size, "1000");
-CONF_mInt32(exec_state_reporter_idle_timeout_ms, "2000");
-CONF_mInt32(fragment_finalizer_min_threads, "1");
-CONF_mInt32(fragment_finalizer_max_threads, "2");
-CONF_mInt32(fragment_finalizer_max_queue_size, "1000");
-CONF_mInt32(fragment_finalizer_idle_timeout_ms, "2000");
-
 } // namespace starrocks::config

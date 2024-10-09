@@ -47,6 +47,7 @@ TReportExecStatusParams ExecStateReporter::create_report_exec_status_params(Quer
     TReportExecStatusParams params;
     auto* runtime_state = fragment_ctx->runtime_state();
     DCHECK(runtime_state != nullptr);
+    DCHECK(profile != nullptr);
     auto* exec_env = fragment_ctx->runtime_state()->exec_env();
     DCHECK(exec_env != nullptr);
     params.protocol_version = FrontendServiceVersion::V1;
@@ -61,7 +62,7 @@ TReportExecStatusParams ExecStateReporter::create_report_exec_status_params(Quer
         runtime_state->update_report_load_status(&params);
         params.__set_load_type(runtime_state->query_options().load_job_type);
 
-        if (query_ctx->enable_profile() && profile != nullptr) {
+        if (query_ctx->enable_profile()) {
             profile->to_thrift(&params.profile);
             params.__isset.profile = true;
         }
@@ -70,7 +71,7 @@ TReportExecStatusParams ExecStateReporter::create_report_exec_status_params(Quer
             runtime_state->update_report_load_status(&params);
             params.__set_load_type(runtime_state->query_options().load_job_type);
         }
-        if (query_ctx->enable_profile() && profile != nullptr) {
+        if (query_ctx->enable_profile()) {
             profile->to_thrift(&params.profile);
             params.__isset.profile = true;
         }
@@ -178,6 +179,7 @@ Status ExecStateReporter::report_exec_status(const TReportExecStatusParams& para
                 return rpc_status;
             }
         }
+
         rpc_status = Status(res.status);
     } catch (TException& e) {
         (void)coord.reopen(config::thrift_rpc_timeout_ms);
@@ -305,31 +307,30 @@ Status ExecStateReporter::report_epoch(const TMVMaintenanceTasks& params, ExecEn
 
 ExecStateReporter::ExecStateReporter() {
     auto status = ThreadPoolBuilder("ex_state_report") // exec state reporter
-                          .set_min_threads(config::exec_state_reporter_min_threads)
-                          .set_max_threads(config::exec_state_reporter_max_threads)
-                          .set_max_queue_size(config::exec_state_reporter_max_queue_size)
-                          .set_idle_timeout(MonoDelta::FromMilliseconds(config::exec_state_reporter_idle_timeout_ms))
+                          .set_min_threads(1)
+                          .set_max_threads(2)
+                          .set_max_queue_size(1000)
+                          .set_idle_timeout(MonoDelta::FromMilliseconds(2000))
                           .build(&_thread_pool);
     if (!status.ok()) {
         LOG(FATAL) << "Cannot create thread pool for ExecStateReport: error=" << status.to_string();
     }
 
     status = ThreadPoolBuilder("priority_ex_state_report") // priority exec state reporter with infinite queue
-                     .set_min_threads(config::exec_state_reporter_min_threads)
-                     .set_max_threads(config::exec_state_reporter_max_threads)
-                     .set_max_queue_size(config::exec_state_reporter_max_queue_size)
-                     .set_idle_timeout(MonoDelta::FromMilliseconds(config::exec_state_reporter_idle_timeout_ms))
+                     .set_min_threads(1)
+                     .set_max_threads(2)
+                     .set_idle_timeout(MonoDelta::FromMilliseconds(2000))
                      .build(&_priority_thread_pool);
     if (!status.ok()) {
         LOG(FATAL) << "Cannot create thread pool for priority ExecStateReport: error=" << status.to_string();
     }
 }
 
-Status ExecStateReporter::submit(std::function<void()>&& report_task, bool priority) {
+void ExecStateReporter::submit(std::function<void()>&& report_task, bool priority) {
     if (priority) {
-        return _priority_thread_pool->submit_func(std::move(report_task));
+        (void)_priority_thread_pool->submit_func(std::move(report_task));
     } else {
-        return _thread_pool->submit_func(std::move(report_task));
+        (void)_thread_pool->submit_func(std::move(report_task));
     }
 }
 
