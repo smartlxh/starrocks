@@ -2692,10 +2692,10 @@ public class Config extends ConfigBase {
 
     /**
      * Whether compress profile content or not.
-     * Default value: true
+     * Default value: false
      */
     @ConfField(mutable = true)
-    public static boolean profile_enable_compression = true;
+    public static boolean profile_enable_compression = false;
 
     /**
      * When the session variable `enable_profile` is set to `false` and `big_query_profile_threshold` is set to 0,
@@ -2784,6 +2784,10 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true)
     public static long safe_mode_checker_interval_sec = 5;
 
+    /**
+     * enable profile or not, this config is used by serverless EMR StarRocks
+     * Default value: false
+     */
     @ConfField(mutable = true)
     public static boolean enable_emr_product_restrictions = false;
 
@@ -2792,6 +2796,20 @@ public class Config extends ConfigBase {
 
     @ConfField(mutable = true)
     public static boolean emr_serveless_replication_enable = false;
+
+    @ConfField(mutable = true)
+    public static boolean profile_enable = false;
+
+    /**
+     * This config is used by serverless EMR StarRocks and aimed to reduce profile collection overhead by dropping
+     * short life fragment's profile in BE.
+     * The feature can be enabled by setting this config's value to an integer bigger than 0.
+     * By default, we disable dropping fragment profile here. The unit is millisecond(ms).
+     *
+     * EMR user should only control this config by session variable.
+     */
+    @ConfField
+    public static int fragment_profile_drop_threshold_ms = 0;
 
     /**
      * Enable auto create tablet when creating table and add partition
