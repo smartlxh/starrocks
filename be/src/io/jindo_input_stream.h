@@ -24,6 +24,7 @@
 #include "jindo_utils.h"
 #include "jindosdk/jdo_api.h"
 #include "jindosdk/jdo_defines.h"
+#include "util/uid_util.h"
 
 namespace starrocks::io {
 
@@ -35,7 +36,10 @@ public:
     }
 
     ~JindoInputStream() override {
-        get_numeric_statistics();
+        auto status = get_numeric_statistics();
+        if (status.ok()) {
+            LOG(INFO) << fmt::format("JindoInputStream[{}] get_numeric_statistics: {}", _stream_uuid, status.value());
+        }
         if (_open_handle != nullptr) {
             auto jdo_ctx = jdo_createHandleCtx2(*(_jindo_client->jdo_store), _open_handle);
             jdo_close(jdo_ctx, nullptr);
