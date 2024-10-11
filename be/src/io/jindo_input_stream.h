@@ -38,7 +38,7 @@ public:
     ~JindoInputStream() override {
         auto status = get_numeric_statistics();
         if (status.ok()) {
-            LOG(INFO) << fmt::format("JindoInputStream[{}] get_numeric_statistics: {}", _stream_uuid, status.value());
+            LOG(INFO) << fmt::format("JindoInputStream[{}] get_numeric_statistics success", _stream_uuid);
         }
         if (_open_handle != nullptr) {
             auto jdo_ctx = jdo_createHandleCtx2(*(_jindo_client->jdo_store), _open_handle);
