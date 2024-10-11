@@ -17,6 +17,8 @@
 #include <fmt/format.h>
 
 #include "jindosdk/jdo_file_status.h"
+#include "jindosdk/jdo_option_keys.h"
+#include "jindosdk/jdo_options.h"
 
 namespace starrocks::io {
 
