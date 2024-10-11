@@ -23,6 +23,9 @@ namespace starrocks::io {
 StatusOr<int64_t> JindoInputStream::read(void* out, int64_t count) {
     if (_open_handle == nullptr) {
         JdoHandleCtx_t jdo_ctx = jdo_createHandleCtx1(*(_jindo_client->jdo_store));
+        // specify uuid when get this stream metrics with the uuid
+        jdo_setOption(_jindo_client->option, JDO_OPEN_OPTS_READ_WRITE_UUID, _stream_uuid.c_str());
+
         _open_handle = jdo_open(jdo_ctx, _file_path.c_str(), JDO_OPEN_FLAG_READ_ONLY, 0777, _jindo_client->option);
         Status init_status = io::check_jindo_status(jdo_ctx);
         jdo_freeHandleCtx(jdo_ctx);
@@ -108,6 +111,45 @@ StatusOr<int64_t> JindoInputStream::get_size() {
         }
     }
     return _size;
+}
+
+StatusOr<std::unique_ptr<NumericStatistics>> JindoInputStream::get_numeric_statistics() {
+    auto jdo_ctx = jdo_createHandleCtx1(*(_jindo_client->jdo_store));
+    // dumper_type indicates the jindo metrics type, the definition is as follows:
+    /* enum JdoMetricsDumperType {
+            SYSTEM_ONLY,
+            STATIC_ONLY,
+            Dynamic_ONLY,
+            SYSTEM_STATIC_ONLY,
+            SYSTEM_STATIC_BUCKET_ONLY,
+            ALL
+       };*/
+    // result_type: 0 indicates the result is a json string, others indicates it is prometheus string
+    // here 5 means ALL, 0 means json string
+
+    jdo_setOption(_jindo_client->option, JDO_METRICS_FILTER_OPTION_LABEL_REGREX, _stream_uuid.c_str());
+    char* result_ptr = jdo_dumpMetrics(jdo_ctx, 5, 0, _jindo_client->option);
+    if (resultPtr) {
+        auto metrics = std::make_shared<std::string>(resultPtr);
+        LOG(INFO) << "metrics label: " << metrics;
+        free(result_ptr);
+    }
+    jdo_setOption(_jindo_client->option, JDO_METRICS_FILTER_OPTION_NAME_REGREX, _stream_uuid.c_str());
+    result_ptr = jdo_dumpMetrics(jdo_ctx, 5, 0, _jindo_client->option);
+    if (resultPtr) {
+        auto metrics = std::make_shared<std::string>(resultPtr);
+        LOG(INFO) << "metrics name: " << metrics;
+        free(result_ptr);
+    }
+    Status status = io::check_jindo_status(jdo_ctx);
+    jdo_freeHandleCtx(jdo_ctx);
+    if (UNLIKELY(!status.ok())) {
+        std::string msg = fmt::format("Failed to execute jdo_dumpMetrics for {}", _stream_uuid);
+        LOG(ERROR) << msg;
+        return Status::IOError(msg);
+    }
+
+    return nullptr;
 }
 
 void JindoInputStream::set_size(int64_t value) {
