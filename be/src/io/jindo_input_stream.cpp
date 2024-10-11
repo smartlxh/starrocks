@@ -131,14 +131,14 @@ StatusOr<std::unique_ptr<NumericStatistics>> JindoInputStream::get_numeric_stati
     char* result_ptr = jdo_dumpMetrics(jdo_ctx, 5, 0, _jindo_client->option);
     if (result_ptr) {
         auto metrics = std::make_shared<std::string>(result_ptr);
-        LOG(INFO) << "metrics label: " << metrics;
+        LOG(INFO) << "metrics label: " << (*metrics);
         free(result_ptr);
     }
     jdo_setOption(_jindo_client->option, JDO_METRICS_FILTER_OPTION_NAME_REGREX, _stream_uuid.c_str());
     result_ptr = jdo_dumpMetrics(jdo_ctx, 5, 0, _jindo_client->option);
-    if (resultPtr) {
-        auto metrics = std::make_shared<std::string>(resultPtr);
-        LOG(INFO) << "metrics name: " << metrics;
+    if (result_ptr) {
+        auto metrics = std::make_shared<std::string>(result_ptr);
+        LOG(INFO) << "metrics name: " << (*metrics);
         free(result_ptr);
     }
     Status status = io::check_jindo_status(jdo_ctx);
