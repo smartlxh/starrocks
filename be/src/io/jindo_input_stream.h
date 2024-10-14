@@ -33,6 +33,7 @@ public:
     explicit JindoInputStream(std::shared_ptr<JindoClient> client, std::string file_path)
             : _jindo_client(std::move(client)), _open_handle(nullptr), _file_path(std::move(file_path)) {
         _stream_uuid = generate_uuid_string();
+        LOG(INFO) << "stream uuid " << _stream_uuid;
     }
 
     ~JindoInputStream() override {
