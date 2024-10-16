@@ -240,6 +240,7 @@ StatusOr<TabletMetadataPtr> TabletManager::load_tablet_metadata(std::shared_ptr<
                                                                 const string& metadata_location, bool fill_cache) {
     TEST_ERROR_POINT("TabletManager::load_tablet_metadata");
     LOG(INFO) << "begin read tablet metadata " << metadata_location;
+    std::cout << "begin read tablet metadata " << metadata_location;
     auto t0 = butil::gettimeofday_us();
     auto metadata = std::make_shared<TabletMetadataPB>();
     ProtobufFile file(metadata_location, std::move(fs));

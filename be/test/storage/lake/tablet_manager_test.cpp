@@ -846,6 +846,10 @@ TEST_F(LakeTabletManagerTest, capture_tablet_and_rowsets) {
     rowset_meta_pb3->set_num_rows(5);
     EXPECT_OK(_tablet_manager->put_tablet_metadata(metadata3));
 
+    EXPECT_OK(_tablet_manager->tablet_metadata_exists(123, 1));
+    EXPECT_OK(_tablet_manager->tablet_metadata_exists(123, 2));
+    EXPECT_OK(_tablet_manager->tablet_metadata_exists(123, 3));
+
     {
         auto res = _tablet_manager->capture_tablet_and_rowsets(123, 0, 3);
         EXPECT_TRUE(res.ok());
