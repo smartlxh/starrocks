@@ -844,33 +844,33 @@ TEST_F(LakeTabletManagerTest, capture_tablet_and_rowsets) {
     rowset_meta_pb3->set_num_rows(5);
     EXPECT_OK(_tablet_manager->put_tablet_metadata(metadata));
 
-    EXPECT_OK(_tablet_manager->tablet_metadata_exists(123, 1));
-    EXPECT_OK(_tablet_manager->tablet_metadata_exists(123, 2));
-    EXPECT_OK(_tablet_manager->tablet_metadata_exists(123, 3));
+    EXPECT_OK(_tablet_manager->tablet_metadata_exists(12345, 1));
+    EXPECT_OK(_tablet_manager->tablet_metadata_exists(12345, 2));
+    EXPECT_OK(_tablet_manager->tablet_metadata_exists(12345, 3));
 
     {
-        auto res = _tablet_manager->capture_tablet_and_rowsets(123, 0, 3);
+        auto res = _tablet_manager->capture_tablet_and_rowsets(12345, 0, 3);
         EXPECT_TRUE(res.ok());
         auto& [tablet, rowsets] = res.value();
         ASSERT_EQ(2, rowsets.size());
     }
 
     {
-        auto res = _tablet_manager->capture_tablet_and_rowsets(123, 1, 3);
+        auto res = _tablet_manager->capture_tablet_and_rowsets(12345, 1, 3);
         EXPECT_TRUE(res.ok());
         auto& [tablet, rowsets] = res.value();
         ASSERT_EQ(2, rowsets.size());
     }
 
     {
-        auto res = _tablet_manager->capture_tablet_and_rowsets(123, 2, 3);
+        auto res = _tablet_manager->capture_tablet_and_rowsets(12345, 2, 3);
         EXPECT_TRUE(res.ok());
         auto& [tablet, rowsets] = res.value();
         ASSERT_EQ(2, rowsets.size());
     }
 
     {
-        auto res = _tablet_manager->capture_tablet_and_rowsets(123, 3, 3);
+        auto res = _tablet_manager->capture_tablet_and_rowsets(12345, 3, 3);
         EXPECT_TRUE(res.ok());
         auto& [tablet, rowsets] = res.value();
         ASSERT_EQ(1, rowsets.size());
