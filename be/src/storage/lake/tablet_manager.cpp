@@ -239,6 +239,7 @@ Status TabletManager::put_tablet_metadata(const TabletMetadata& metadata) {
 StatusOr<TabletMetadataPtr> TabletManager::load_tablet_metadata(std::shared_ptr<FileSystem> fs,
                                                                 const string& metadata_location, bool fill_cache) {
     TEST_ERROR_POINT("TabletManager::load_tablet_metadata");
+    LOG(INFO) << "begin read tablet metadata " << metadata_location;
     auto t0 = butil::gettimeofday_us();
     auto metadata = std::make_shared<TabletMetadataPB>();
     ProtobufFile file(metadata_location, std::move(fs));
@@ -272,6 +273,8 @@ StatusOr<TabletMetadataPtr> TabletManager::get_tablet_metadata(const string& pat
 StatusOr<TabletMetadataPtr> TabletManager::get_tablet_metadata(std::shared_ptr<FileSystem> fs, const string& path,
                                                                bool fill_cache) {
     if (auto ptr = _metacache->lookup_tablet_metadata(path); ptr != nullptr) {
+        LOG(INFO) << "ddd";
+        std::cout << "ddd";
         TRACE("got cached tablet metadata");
         return ptr;
     }
