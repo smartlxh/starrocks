@@ -821,8 +821,14 @@ StatusOr<TabletAndRowsets> TabletManager::capture_tablet_and_rowsets(int64_t tab
     std::vector<std::shared_ptr<BaseRowset>> rowsets;
 
     if (from_version == 0 || from_version == kInitialVersion) {
+        LOG(INFO) << "dddd";
+        std::cout << "dddd";
         ASSIGN_OR_RETURN(auto current_version_tablet_meta, get_tablet_metadata(tablet_id, to_version));
+        LOG(INFO) << "mmmm";
+        std::cout << "mmmm";
         for (int i = 0, size = current_version_tablet_meta->rowsets_size(); i < size; i++) {
+            LOG(INFO) << "nnnn";
+            std::cout << "nnnn";
             // inc rowset
             auto rowset = std::make_shared<Rowset>(this, current_version_tablet_meta, i, 0);
             rowsets.emplace_back(std::static_pointer_cast<BaseRowset>(rowset));
