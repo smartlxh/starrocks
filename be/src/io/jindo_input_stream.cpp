@@ -128,23 +128,8 @@ StatusOr<std::unique_ptr<NumericStatistics>> JindoInputStream::get_numeric_stati
        };*/
     // result_type: 0 indicates the result is a json string, others indicates it is prometheus string
     // here 5 means ALL, 0 means json string
-    char* result_ptr = jdo_dumpMetrics(jdo_ctx, 5, 0, _jindo_client->option);
-    if (result_ptr) {
-        auto metrics = std::make_shared<std::string>(result_ptr);
-        LOG(INFO) << "metrics all: " << (*metrics);
-        free(result_ptr);
-    }
-
-    //auto uuid_pattern = fmt::format(".*{}.*", _stream_uuid);
     LOG(INFO) << "uuid_pattern: " << _stream_uuid;
-    jdo_setOption(_jindo_client->option, JDO_METRICS_FILTER_OPTION_LABEL_REGREX, _stream_uuid.c_str());
-    result_ptr = jdo_dumpMetrics(jdo_ctx, 2, 0, _jindo_client->option);
-    if (result_ptr) {
-        auto metrics = std::make_shared<std::string>(result_ptr);
-        LOG(INFO) << "metrics dynamic label: " << (*metrics);
-        free(result_ptr);
-    }
-
+    jdo_setOption(_jindo_client->option, JDO_METRICS_FILTER_OPTION_LABEL_VALUE_REGEX, _stream_uuid.c_str());
     result_ptr = jdo_dumpMetrics(jdo_ctx, 5, 0, _jindo_client->option);
     if (result_ptr) {
         auto metrics = std::make_shared<std::string>(result_ptr);
