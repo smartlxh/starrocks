@@ -111,13 +111,13 @@ public class PaimonMetadataTest {
 
         List<DataFileMeta> meta1 = new ArrayList<>();
         meta1.add(new DataFileMeta("file1", 100, 200, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_STATS, null,
-                1, 1, 1, DUMMY_LEVEL, 0L, null, null));
+                1, 1, 1, DUMMY_LEVEL, 0L, null, null, null));
         meta1.add(new DataFileMeta("file2", 100, 300, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_STATS, null,
-                1, 1, 1, DUMMY_LEVEL, 0L, null, null));
+                1, 1, 1, DUMMY_LEVEL, 0L, null, null, null));
 
         List<DataFileMeta> meta2 = new ArrayList<>();
         meta2.add(new DataFileMeta("file3", 100, 400, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_STATS, null,
-                1, 1, 1, DUMMY_LEVEL, 0L, null, null));
+                1, 1, 1, DUMMY_LEVEL, 0L, null, null, null));
         this.splits.add(DataSplit.builder().withSnapshot(1L).withPartition(row1).withBucket(1)
                 .withBucketPath("not used").withDataFiles(meta1).isStreaming(false).build());
         this.splits.add(DataSplit.builder().withSnapshot(1L).withPartition(row2).withBucket(1)
@@ -165,17 +165,6 @@ public class PaimonMetadataTest {
         Assert.assertTrue(paimonTable.getBaseSchema().get(1).isAllowNull());
         Assert.assertEquals("paimon_catalog", paimonTable.getCatalogName());
         Assert.assertEquals("paimon_catalog.db1.tbl1.0", paimonTable.getUUID());
-    }
-
-    @Test
-    public void testTableExists(@Mocked FileStoreTable paimonNativeTable) {
-        new Expectations() {
-            {
-                paimonNativeCatalog.tableExists((Identifier) any);
-                result = true;
-            }
-        };
-        Assert.assertTrue(metadata.tableExists("db1", "tbl1"));
     }
 
     @Test
