@@ -626,17 +626,7 @@ under the License.
                     <groupId>com.aliyun</groupId>
                     <artifactId>tea-util</artifactId>
                 </exclusion>
-                <exclusion>
-                    <groupId>com.aliyun</groupId>
-                    <artifactId>datalake20200710</artifactId>
-                </exclusion>
             </exclusions>
-        </dependency>
-        <!--Fix CVE from aliyun dlf-->
-        <dependency>
-            <groupId>com.aliyun</groupId>
-            <artifactId>datalake20200710</artifactId>
-            <version>2.0.12</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/com.github.ben-manes.caffeine/caffeine -->
@@ -860,6 +850,14 @@ under the License.
                 <exclusion>
                     <groupId>org.apache.paimon</groupId>
                     <artifactId>paimon-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.paimon</groupId>
+                    <artifactId>paimon-common</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.paimon</groupId>
+                    <artifactId>paimon-hive-catalog</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
