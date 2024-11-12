@@ -17,7 +17,6 @@
 #include <fmt/format.h>
 #include <google/protobuf/message.h>
 
-#include "fs/fs.h"
 #include "storage/olap_define.h"
 #include "storage/utils.h"
 #include "testutil/sync_point.h"
@@ -141,7 +140,8 @@ Status ProtobufFile::save(const ::google::protobuf::Message& message, bool sync)
                 fmt::format("failed to serialize protobuf to string, maybe the protobuf is too large. path={}", _path));
     }
     ASSIGN_OR_RETURN(auto fs, FileSystem::CreateSharedFromString(_path));
-    WritableFileOptions opts{.sync_on_close = sync, .mode = FileSystem::CREATE_OR_OPEN_WITH_TRUNCATE};
+    WritableFileOptions opts{
+            .sync_on_close = sync, .mode = FileSystem::CREATE_OR_OPEN_WITH_TRUNCATE, .op_type = _op_type};
     ASSIGN_OR_RETURN(auto output_file, fs->new_writable_file(opts, _path));
     RETURN_IF_ERROR(output_file->append(serialized_message));
     RETURN_IF_ERROR(output_file->close());
@@ -149,7 +149,7 @@ Status ProtobufFile::save(const ::google::protobuf::Message& message, bool sync)
 }
 
 Status ProtobufFile::load(::google::protobuf::Message* message, bool fill_cache) {
-    RandomAccessFileOptions opts{.skip_fill_local_cache = !fill_cache};
+    RandomAccessFileOptions opts{.skip_fill_local_cache = !fill_cache, .op_type = _op_type};
     ASSIGN_OR_RETURN(auto fs, FileSystem::CreateSharedFromString(_path));
     ASSIGN_OR_RETURN(auto input_file, fs->new_random_access_file(opts, _path));
     ASSIGN_OR_RETURN(auto serialized_string, input_file->read_all());

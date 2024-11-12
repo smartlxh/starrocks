@@ -78,6 +78,7 @@ protected:
     virtual Status flush_segment_writer(SegmentPB* segment = nullptr);
 
     std::unique_ptr<SegmentWriter> _seg_writer;
+    bool _is_compaction = false;
 };
 
 class VerticalGeneralTabletWriter : public TabletWriter {
@@ -139,6 +140,7 @@ protected:
 
     std::unique_ptr<ConcurrencyLimitedThreadPoolToken> _segment_writer_finalize_token;
     std::vector<std::future<Status>> _futures;
+    bool _is_compaction = false;
 };
 
 } // namespace starrocks::lake

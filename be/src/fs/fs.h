@@ -43,6 +43,8 @@ struct SpaceInfo {
     int64_t available = 0;
 };
 
+enum class OperationKind { QUERY, LOAD, COMPACTION, TABLET_METADATA, TXN_LOG, DEL_VECTOR, SCHEMA, UNDEFINED };
+
 struct FSOptions {
 private:
     FSOptions(const TBrokerScanRangeParams* scan_range_params, const TExportSink* export_sink,
@@ -99,6 +101,7 @@ struct RandomAccessFileOptions {
     // Specify different buffer size for different read scenarios
     int64_t buffer_size = -1;
     FileEncryptionInfo encryption_info;
+    OperationKind op_type = OperationKind::UNDEFINED;
 };
 
 struct DirEntry {
@@ -317,6 +320,7 @@ struct WritableFileOptions {
     // See OpenMode for details.
     FileSystem::OpenMode mode = FileSystem::MUST_CREATE;
     FileEncryptionInfo encryption_info;
+    OperationKind op_type = OperationKind::UNDEFINED;
 };
 
 // A `SequentialFile` is an `io::InputStream` with a name.
