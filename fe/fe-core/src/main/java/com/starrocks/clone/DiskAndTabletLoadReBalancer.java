@@ -553,6 +553,10 @@ public class DiskAndTabletLoadReBalancer extends Rebalancer {
                             continue;
                         }
 
+                        if (!olapTable.needSchedule(false)) {
+                            continue;
+                        }
+
                         if (isDestBackendLocationMismatch(olapTable, hBackend.getId(), lBackend.getId(),
                                 physicalPartition.getParentId(), tabletId)) {
                             continue;
@@ -799,6 +803,11 @@ public class DiskAndTabletLoadReBalancer extends Rebalancer {
                 if (olapTable == null) {
                     continue;
                 }
+
+                if (!olapTable.needSchedule(true)) {
+                    continue;
+                }
+
                 // check tablet healthy
                 if (isTabletUnhealthy(tabletMeta.getDbId(), olapTable, tabletId, tabletMeta, aliveBeIds)) {
                     continue;
@@ -1643,6 +1652,10 @@ public class DiskAndTabletLoadReBalancer extends Rebalancer {
                     // Table not in NORMAL state is not allowed to do balance,
                     // because the change of tablet location can cause Schema change or rollup failed
                     if (olapTbl.getState() != OlapTable.OlapTableState.NORMAL) {
+                        continue;
+                    }
+
+                    if (!olapTbl.needSchedule(isLocalBalance)) {
                         continue;
                     }
 
