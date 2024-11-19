@@ -82,7 +82,7 @@ public class CatalogConnectorMetadata implements ConnectorMetadata {
     }
 
     private ConnectorMetadata metadataOfTable(String tableName) {
-        if (TableMetaMetadata.isMetadataTable(tableName)) {
+        if (getTableType() == Table.TableType.ICEBERG && TableMetaMetadata.isMetadataTable(tableName)) {
             return tableMetadata;
         }
         return null;
