@@ -115,6 +115,7 @@ AgentStatus MasterServerClient::report(const TReportRequest& request, TMasterRes
 
                 client->report(*result, request);
             } else {
+                (void)client.reopen(config::thrift_rpc_timeout_ms);
                 // TIMED_OUT exception. do not retry
                 // actually we don't care what FE returns.
                 LOG(WARNING) << "Fail to report to master: " << e.what();
