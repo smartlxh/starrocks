@@ -93,7 +93,7 @@ public class PaimonConnector implements Connector {
         this.paimonOptions.setString(WAREHOUSE.key(), warehousePath);
         initFsOption(cloudConfiguration);
         // default cache config, 2h
-        this.paimonOptions.set("cache.expiration-interval", "7200");
+        this.paimonOptions.set("cache.expiration-interval", "7200s");
 
         String keyPrefix = "paimon.option.";
         Set<String> optionKeys = properties.keySet().stream().filter(k -> k.startsWith(keyPrefix)).collect(Collectors.toSet());

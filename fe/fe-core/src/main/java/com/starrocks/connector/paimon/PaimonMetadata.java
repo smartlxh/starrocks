@@ -369,7 +369,7 @@ public class PaimonMetadata implements ConnectorMetadata {
             DataType updateTimeType = rowType.getTypeAt(rowType.getFieldIndex("update_time"));
             int[] projected = new int[] {0, 6};
             PredicateBuilder predicateBuilder = new PredicateBuilder(rowType);
-            Predicate equal = predicateBuilder.equal(predicateBuilder.indexOf("schema_id"), 0);
+            Predicate equal = predicateBuilder.equal(predicateBuilder.indexOf("schema_id"), 0L);
             RecordReader<InternalRow> recordReader = table.newReadBuilder().withProjection(projected)
                     .withFilter(equal).newRead().createReader(table.newScan().plan());
             iterator = new RecordReaderIterator<>(recordReader);
