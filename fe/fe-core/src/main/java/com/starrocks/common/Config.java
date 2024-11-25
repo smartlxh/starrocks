@@ -2544,6 +2544,9 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true)
     public static boolean meta_sync_force_delete_shard_meta = false;
 
+    @ConfField(mutable = true)
+    public static boolean meta_sync_delete_shard_meta_in_fe_only = false;
+
     // ***********************************************************
     // * BEGIN: Cloud native meta server related configurations
     // ***********************************************************

@@ -197,17 +197,29 @@ public class StarMgrMetaSyncer extends FrontendDaemon {
         long nowMs = System.currentTimeMillis();
         List<Long> emptyShardGroup = new ArrayList<>();
         for (long groupId : diffList) {
-            if (Config.shard_group_clean_threshold_sec * 1000L + Long.parseLong(groupToCreateTimeMap.get(groupId)) < nowMs) {
-                try {
-                    List<Long> shardIds = starOSAgent.listShard(groupId);
-                    if (shardIds.isEmpty()) {
-                        emptyShardGroup.add(groupId);
-                    } else {
-                        dropTabletAndDeleteShard(shardIds, starOSAgent);
-                    }
-                } catch (Exception e) {
+            if (Config.shard_group_clean_threshold_sec * 1000L + Long.parseLong(groupToCreateTimeMap.get(groupId)) >= nowMs) {
+                continue;
+            }
+            try {
+                List<Long> shardIds = starOSAgent.listShard(groupId);
+                if (shardIds.isEmpty()) {
+                    emptyShardGroup.add(groupId);
                     continue;
                 }
+
+                // delete shard from star manager only, not considering tablet data on be/cn
+                if (Config.meta_sync_delete_shard_meta_in_fe_only) {
+                    LOG.debug("delete shards from starMgr only, shard group: {}", groupId);
+                    try {
+                        starOSAgent.deleteShards(new HashSet<>(shardIds));
+                    } catch (DdlException e) {
+                        LOG.warn("failed to delete shards from starMgr");
+                    }
+                } else {
+                    dropTabletAndDeleteShard(shardIds, starOSAgent);
+                }
+            } catch (Exception e) {
+                // not throw exception
             }
         }
 
