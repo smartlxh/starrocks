@@ -292,14 +292,18 @@ Status SegmentWriter::finalize_columns(uint64_t* index_size) {
         RETURN_IF_ERROR(column_writer->finish());
         // write data
         RETURN_IF_ERROR(column_writer->write_data());
-        //        // write index
-        //        uint64_t index_offset = _wfile->size();
-        //        RETURN_IF_ERROR(column_writer->write_ordinal_index());
-        //        RETURN_IF_ERROR(column_writer->write_zone_map());
-        //        RETURN_IF_ERROR(column_writer->write_bitmap_index());
-        //        RETURN_IF_ERROR(column_writer->write_bloom_filter_index());
-        //        RETURN_IF_ERROR(column_writer->write_inverted_index());
-        //        *index_size += _wfile->size() - index_offset;
+        if (!config::enable_index_group) {
+            // write index
+            uint64_t index_offset = _wfile->size();
+            RETURN_IF_ERROR(column_writer->write_ordinal_index());
+            RETURN_IF_ERROR(column_writer->write_zone_map());
+            RETURN_IF_ERROR(column_writer->write_bitmap_index());
+            RETURN_IF_ERROR(column_writer->write_bloom_filter_index());
+            RETURN_IF_ERROR(column_writer->write_inverted_index());
+            *index_size += _wfile->size() - index_offset;
+            LOG(INFO) << "flush index size false filename:size " << _wfile->filename() << ":"
+                      << std::to_string(*index_size);
+        }
 
         // check global dict valid
         const auto& column = _tablet_schema->column(column_index);
@@ -308,9 +312,12 @@ Status SegmentWriter::finalize_columns(uint64_t* index_size) {
             _global_dict_columns_valid_info[col_name] = false;
         }
 
+        if (config::enable_index_group) {
+            temp_column_writers.emplace_back(std::move(column_writer));
+            group_column_writers.emplace_back(std::move(temp_column_writers));
+        }
+
         // reset to release memory
-        temp_column_writers.emplace_back(std::move(column_writer));
-        group_column_writers.emplace_back(std::move(temp_column_writers));
         column_writer.reset();
     }
     _column_writers.clear();
@@ -335,7 +342,8 @@ Status SegmentWriter::_flush_index() {
             RETURN_IF_ERROR(column_writer->write_bloom_filter_index());
             RETURN_IF_ERROR(column_writer->write_inverted_index());
             auto index_size = _wfile->size() - index_offset;
-            LOG(INFO) << "flush index size " << index_size;
+            LOG(INFO) << "flush index size true filename:size " << _wfile->filename() << ":"
+                      << std::to_string(index_size);
         }
     }
     return Status::OK();
