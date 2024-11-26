@@ -280,6 +280,7 @@ Status SegmentWriter::finalize_columns(uint64_t* index_size) {
     _num_rows_written = 0;
 
     size_t num_columns = _tablet_schema->num_columns();
+    std::vector<std::unique_ptr<ColumnWriter>> temp_column_writers;
     for (size_t i = 0; i < _column_indexes.size(); ++i) {
         uint32_t column_index = _column_indexes[i];
         if (column_index >= num_columns) {
@@ -291,14 +292,14 @@ Status SegmentWriter::finalize_columns(uint64_t* index_size) {
         RETURN_IF_ERROR(column_writer->finish());
         // write data
         RETURN_IF_ERROR(column_writer->write_data());
-        // write index
-        uint64_t index_offset = _wfile->size();
-        RETURN_IF_ERROR(column_writer->write_ordinal_index());
-        RETURN_IF_ERROR(column_writer->write_zone_map());
-        RETURN_IF_ERROR(column_writer->write_bitmap_index());
-        RETURN_IF_ERROR(column_writer->write_bloom_filter_index());
-        RETURN_IF_ERROR(column_writer->write_inverted_index());
-        *index_size += _wfile->size() - index_offset;
+        //        // write index
+        //        uint64_t index_offset = _wfile->size();
+        //        RETURN_IF_ERROR(column_writer->write_ordinal_index());
+        //        RETURN_IF_ERROR(column_writer->write_zone_map());
+        //        RETURN_IF_ERROR(column_writer->write_bitmap_index());
+        //        RETURN_IF_ERROR(column_writer->write_bloom_filter_index());
+        //        RETURN_IF_ERROR(column_writer->write_inverted_index());
+        //        *index_size += _wfile->size() - index_offset;
 
         // check global dict valid
         const auto& column = _tablet_schema->column(column_index);
@@ -308,6 +309,8 @@ Status SegmentWriter::finalize_columns(uint64_t* index_size) {
         }
 
         // reset to release memory
+        temp_column_writers.emplace_back(std::move(column_writer));
+        group_column_writers.emplace_back(std::move(temp_column_writers));
         column_writer.reset();
     }
     _column_writers.clear();
@@ -322,10 +325,27 @@ Status SegmentWriter::finalize_columns(uint64_t* index_size) {
     return Status::OK();
 }
 
+Status SegmentWriter::_flush_index() {
+    for (auto& column_writer_group : group_column_writers) {
+        for (auto& column_writer : column_writer_group) {
+            uint64_t index_offset = _wfile->size();
+            RETURN_IF_ERROR(column_writer->write_ordinal_index());
+            RETURN_IF_ERROR(column_writer->write_zone_map());
+            RETURN_IF_ERROR(column_writer->write_bitmap_index());
+            RETURN_IF_ERROR(column_writer->write_bloom_filter_index());
+            RETURN_IF_ERROR(column_writer->write_inverted_index());
+            auto index_size = _wfile->size() - index_offset;
+            LOG(INFO) << "flush index size " << index_size;
+        }
+    }
+    return Status::OK();
+}
+
 Status SegmentWriter::finalize_footer(uint64_t* segment_file_size, uint64_t* footer_position) {
     if (footer_position != nullptr) {
         *footer_position = _wfile->size();
     }
+    RETURN_IF_ERROR(_flush_index());
     RETURN_IF_ERROR(_write_footer());
     *segment_file_size = _wfile->size();
     return _wfile->close();

@@ -148,6 +148,7 @@ public:
     const std::string& encryption_meta() const { return _opts.encryption_meta; }
 
 private:
+    Status _flush_index();
     Status _write_short_key_index();
     Status _write_footer();
     Status _write_raw_data(const std::vector<Slice>& slices);
@@ -164,6 +165,7 @@ private:
     std::unique_ptr<ShortKeyIndexBuilder> _index_builder;
     std::vector<std::unique_ptr<ColumnWriter>> _column_writers;
     std::vector<uint32_t> _column_indexes;
+    std::vector<std::vector<std::unique_ptr<ColumnWriter>>> group_column_writers;
     bool _has_key = true;
     std::vector<uint32_t> _sort_column_indexes;
     std::unique_ptr<Schema> _schema_without_full_row_column;
