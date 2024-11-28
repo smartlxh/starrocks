@@ -92,8 +92,14 @@ public class PaimonConnector implements Connector {
         }
         this.paimonOptions.setString(WAREHOUSE.key(), warehousePath);
         initFsOption(cloudConfiguration);
-        // default cache config, 2h
+        // cache expire time, set to 2h
         this.paimonOptions.set("cache.expiration-interval", "7200s");
+        // max num of cached partitions of a Paimon catalog
+        this.paimonOptions.set("cache.partition.max-num", "1000");
+        // max size of cached manifest files, 10m means cache all since files usually no more than 8m
+        this.paimonOptions.set("cache.manifest.small-file-threshold", "10m");
+        // max size of memory manifest cache uses
+        this.paimonOptions.set("cache.manifest.small-file-memory", "1g");
 
         String keyPrefix = "paimon.option.";
         Set<String> optionKeys = properties.keySet().stream().filter(k -> k.startsWith(keyPrefix)).collect(Collectors.toSet());

@@ -39,7 +39,7 @@ under the License.
         <fe_ut_parallel>${env.FE_UT_PARALLEL}</fe_ut_parallel>
         <jacoco.version>0.8.7</jacoco.version>
         <iceberg.version>1.6.0</iceberg.version>
-        <paimon.version>1.0-SNAPSHOT</paimon.version>
+        <paimon.version>1.0-20241125-be2488-SNAPSHOT</paimon.version>
         <paimon.ali.dlf.version>1.0-ali-SNAPSHOT</paimon.ali.dlf.version>
         <delta-kernel.version>4.0.0rc1</delta-kernel.version>
         <staros.version>3.3.0</staros.version>
@@ -802,7 +802,7 @@ under the License.
         <dependency>
             <groupId>org.apache.paimon</groupId>
             <artifactId>paimon-bundle</artifactId>
-            <version>1.0-20241107.081339-27</version>
+            <version>${paimon.version}</version>
         </dependency>
 
         <dependency>
