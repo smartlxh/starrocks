@@ -3014,6 +3014,9 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true)
     public static long dlf_data_token_refresh_check_interval_second = 1800;
 
+    @ConfField(mutable = true)
+    public static boolean enable_paimon_refresh_manifest_files = false;
+
     /**
      * Enable auto create tablet when creating table and add partition
      **/

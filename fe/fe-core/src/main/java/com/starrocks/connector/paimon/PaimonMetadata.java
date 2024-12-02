@@ -296,6 +296,7 @@ public class PaimonMetadata implements ConnectorMetadata {
                         DataTypeChecks.getPrecision(lastUpdateTimeType));
                 String[] partitionValues = partition.replace("[", "").replace("]", "")
                         .split(",");
+
                 String partitionName = getPartitionName(partitionColumnNames, partitionColumnTypes, partitionValues);
                 this.partitionInfos.put(partitionName, lastUpdateTime.getMillisecond());
             }
@@ -706,6 +707,20 @@ public class PaimonMetadata implements ConnectorMetadata {
                 this.refreshPartitionInfo(identifier);
             } else {
                 this.refreshPartitionInfo(identifier);
+            }
+            // Preheat manifest files, disabled by default
+            if (Config.enable_paimon_refresh_manifest_files) {
+                if (partitionNames == null || partitionNames.isEmpty()) {
+                    ((PaimonTable) table).getNativeTable().newReadBuilder().newScan().plan();
+                } else {
+                    List<String> partitionColumnNames = table.getPartitionColumnNames();
+                    Map<String, String> partitionSpec = new HashMap<>();
+                    for (String partitionName : partitionNames) {
+                        partitionSpec.put(String.join(",", partitionColumnNames), partitionName);
+                    }
+                    ((PaimonTable) table).getNativeTable().newReadBuilder()
+                            .withPartitionFilter(partitionSpec).newScan().plan();
+                }
             }
             tables.put(identifier, table);
         } catch (Exception e) {
