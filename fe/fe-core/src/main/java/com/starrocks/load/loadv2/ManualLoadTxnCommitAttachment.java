@@ -125,4 +125,13 @@ public class ManualLoadTxnCommitAttachment extends TxnCommitAttachment {
         //     loadedBytes = in.readLong();
         // }
     }
+
+    @Override
+    public String toString() {
+        return "ManualLoadTxnCommitAttachment [filteredRows=" + filteredRows
+                + ", loadedRows=" + loadedRows
+                + ", loadBytes=" + loadedBytes
+                + ", unselectedRows=" + unselectedRows
+                + ", receivedBytes=" + receivedBytes + "]";
+    }
 }
