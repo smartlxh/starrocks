@@ -555,6 +555,18 @@ under the License.
                     <groupId>org.apache.commons</groupId>
                     <artifactId>commons-compress</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>org.glassfish.jersey.core</groupId>
+                    <artifactId>jersey-common</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.glassfish.jersey.core</groupId>
+                    <artifactId>jersey-client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.glassfish.jersey.core</groupId>
+                    <artifactId>jersey-server</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 
