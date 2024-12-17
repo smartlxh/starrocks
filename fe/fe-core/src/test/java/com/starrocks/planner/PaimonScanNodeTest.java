@@ -149,7 +149,7 @@ public class PaimonScanNodeTest {
         desc.setTable(table);
         PaimonScanNode scanNode = new PaimonScanNode(new PlanNodeId(0), desc, "XXX");
 
-        DeletionFile deletionFile = new DeletionFile("dummy", 1, 22);
+        DeletionFile deletionFile = new DeletionFile("dummy", 1, 22, null);
         scanNode.splitRawFileScanRangeLocations(rawFile, deletionFile);
         scanNode.splitScanRangeLocations(rawFile, 0, 256 * 1024 * 1024, 64 * 1024 * 1024, null);
         scanNode.addSplitScanRangeLocations(split, null, 256 * 1024 * 1024);

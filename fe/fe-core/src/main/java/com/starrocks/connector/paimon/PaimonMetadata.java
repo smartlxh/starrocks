@@ -34,6 +34,8 @@ import com.starrocks.common.AlreadyExistsException;
 import com.starrocks.common.Config;
 import com.starrocks.common.DdlException;
 import com.starrocks.common.MetaNotFoundException;
+import com.starrocks.common.profile.Timer;
+import com.starrocks.common.profile.Tracers;
 import com.starrocks.common.util.DlfUtil;
 import com.starrocks.connector.ColumnTypeConverter;
 import com.starrocks.connector.ConnectorMetadata;
@@ -65,7 +67,11 @@ import org.apache.paimon.catalog.CachingCatalog;
 import org.apache.paimon.catalog.Catalog;
 import org.apache.paimon.catalog.Identifier;
 import org.apache.paimon.data.InternalRow;
+import org.apache.paimon.io.DataFileMeta;
 import org.apache.paimon.manifest.PartitionEntry;
+import org.apache.paimon.metrics.Gauge;
+import org.apache.paimon.metrics.Metric;
+import org.apache.paimon.operation.metrics.ScanMetrics;
 import org.apache.paimon.predicate.Predicate;
 import org.apache.paimon.predicate.PredicateBuilder;
 import org.apache.paimon.reader.RecordReader;
@@ -76,6 +82,8 @@ import org.apache.paimon.table.sink.BatchTableCommit;
 import org.apache.paimon.table.sink.BatchWriteBuilder;
 import org.apache.paimon.table.sink.CommitMessage;
 import org.apache.paimon.table.sink.CommitMessageSerializer;
+import org.apache.paimon.table.source.DataSplit;
+import org.apache.paimon.table.source.InnerTableScan;
 import org.apache.paimon.table.source.ReadBuilder;
 import org.apache.paimon.table.source.Split;
 import org.apache.paimon.table.system.PartitionsTable;
@@ -104,6 +112,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static com.aliyun.datalake.core.constant.DataLakeConfig.CATALOG_ID;
@@ -414,7 +423,10 @@ public class PaimonMetadata implements ConnectorMetadata {
             ReadBuilder readBuilder = paimonTable.getNativeTable().newReadBuilder();
             int[] projected = fieldNames.stream().mapToInt(name -> (paimonTable.getFieldNames().indexOf(name))).toArray();
             List<Predicate> predicates = extractPredicates(paimonTable, predicate);
-            List<Split> splits = readBuilder.withFilter(predicates).withProjection(projected).newScan().plan().splits();
+            InnerTableScan scan = (InnerTableScan) readBuilder.withFilter(predicates).withProjection(projected).newScan();
+            PaimonMetricRegistry paimonMetricRegistry = new PaimonMetricRegistry();
+            List<Split> splits = scan.withMetricsRegistry(paimonMetricRegistry).plan().splits();
+            traceScanMetrics(paimonMetricRegistry, splits, ((PaimonTable) table).getTableName(), predicates);
             PaimonSplitsInfo paimonSplitsInfo = new PaimonSplitsInfo(predicates, splits);
             paimonSplits.put(filter, paimonSplitsInfo);
             List<RemoteFileDesc> remoteFileDescs = ImmutableList.of(
@@ -429,6 +441,55 @@ public class PaimonMetadata implements ConnectorMetadata {
         return Lists.newArrayList(remoteFileInfo);
     }
 
+    private void traceScanMetrics(PaimonMetricRegistry metricRegistry,
+                                  List<Split> splits,
+                                  String tableName,
+                                  List<Predicate> predicates) {
+        // Don't need scan metrics when selecting system table, in which metric group is null.
+        if (metricRegistry.getMetricGroup() == null) {
+            return;
+        }
+        String prefix = "Paimon.plan.";
+
+        if (paimonNativeCatalog instanceof CachingCatalog) {
+            CachingCatalog.CacheSizes cacheSizes = ((CachingCatalog) paimonNativeCatalog).estimatedCacheSizes();
+            Tracers.record(prefix + "total.cachedDatabaseNumInCatalog", String.valueOf(cacheSizes.databaseCacheSize()));
+            Tracers.record(prefix + "total.cachedTableNumInCatalog", String.valueOf(cacheSizes.tableCacheSize()));
+            Tracers.record(prefix + "total.cachedManifestNumInCatalog", String.valueOf(cacheSizes.manifestCacheSize()));
+            Tracers.record(prefix + "total.cachedManifestBytesInCatalog", cacheSizes.manifestCacheBytes() + " B");
+            Tracers.record(prefix + "total.cachedPartitionNumInCatalog", String.valueOf(cacheSizes.partitionCacheSize()));
+        }
+
+        for (int i = 0; i < predicates.size(); i++) {
+            Tracers.record(prefix + tableName + ".filter." + i, predicates.get(i).toString());
+        }
+
+        Map<String, Metric> metrics = metricRegistry.getMetrics();
+        long manifestFileReadTime = (long) ((Gauge<?>) metrics.get(ScanMetrics.LAST_SCAN_DURATION)).getValue();
+        long scannedManifestFileNum = (long) ((Gauge<?>) metrics.get(ScanMetrics.LAST_SCANNED_MANIFESTS)).getValue();
+        long skippedDataFilesNum = (long) ((Gauge<?>) metrics.get(ScanMetrics.LAST_SCAN_SKIPPED_TABLE_FILES)).getValue();
+        long resultedDataFilesNum = (long) ((Gauge<?>) metrics.get(ScanMetrics.LAST_SCAN_RESULTED_TABLE_FILES)).getValue();
+        long manifestNumReadFromCache = (long) ((Gauge<?>) metrics.get(ScanMetrics.MANIFEST_HIT_CACHE)).getValue();
+        long manifestNumReadFromRemote = (long) ((Gauge<?>) metrics.get(ScanMetrics.MANIFEST_MISSED_CACHE)).getValue();
+
+        Tracers.record(prefix + tableName + "." + "manifestFileReadTime", manifestFileReadTime + "ms");
+        Tracers.record(prefix + tableName + "." + "scannedManifestFileNum", String.valueOf(scannedManifestFileNum));
+        Tracers.record(prefix + tableName + "." + "skippedDataFilesNum", String.valueOf(skippedDataFilesNum));
+        Tracers.record(prefix + tableName + "." + "resultedDataFilesNum", String.valueOf(resultedDataFilesNum));
+        Tracers.record(prefix + tableName + "." + "manifestNumReadFromCache",
+                String.valueOf(manifestNumReadFromCache));
+        Tracers.record(prefix + tableName + "." + "manifestNumReadFromRemote",
+                String.valueOf(manifestNumReadFromRemote));
+        Tracers.record(prefix + "total.resultSplitsNum", String.valueOf(splits.size()));
+
+        AtomicLong resultedTableFilesSize = new AtomicLong(0);
+        for (Split split : splits) {
+            List<DataFileMeta> dataFileMetas = ((DataSplit) split).dataFiles();
+            dataFileMetas.forEach(dataFileMeta -> resultedTableFilesSize.addAndGet(dataFileMeta.fileSize()));
+        }
+        Tracers.record(prefix + tableName + "." + "resultedDataFilesSize", resultedTableFilesSize.get() + " B");
+    }
+
     @Override
     public Statistics getTableStatistics(OptimizerContext session,
                                          Table table,
@@ -437,22 +498,23 @@ public class PaimonMetadata implements ConnectorMetadata {
                                          ScalarOperator predicate,
                                          long limit) {
         Statistics.Builder builder = Statistics.builder();
-        for (ColumnRefOperator columnRefOperator : columns.keySet()) {
-            builder.addColumnStatistic(columnRefOperator, ColumnStatistic.unknown());
-        }
+        try (Timer ignored = Tracers.watchScope("GetPaimonTableStatistics")) {
+            for (ColumnRefOperator columnRefOperator : columns.keySet()) {
+                builder.addColumnStatistic(columnRefOperator, ColumnStatistic.unknown());
+            }
 
-        List<String> fieldNames = columns.keySet().stream().map(ColumnRefOperator::getName).collect(Collectors.toList());
-        List<RemoteFileInfo> fileInfos = GlobalStateMgr.getCurrentState().getMetadataMgr().getRemoteFileInfos(
-                catalogName, table, null, -1, predicate, fieldNames, limit);
-        PaimonRemoteFileDesc remoteFileDesc = (PaimonRemoteFileDesc) fileInfos.get(0).getFiles().get(0);
-        List<Split> splits = remoteFileDesc.getPaimonSplitsInfo().getPaimonSplits();
-        long rowCount = getRowCount(splits);
-        if (rowCount == 0) {
-            builder.setOutputRowCount(1);
-        } else {
-            builder.setOutputRowCount(rowCount);
+            List<String> fieldNames = columns.keySet().stream().map(ColumnRefOperator::getName).collect(Collectors.toList());
+            List<RemoteFileInfo> fileInfos = GlobalStateMgr.getCurrentState().getMetadataMgr().getRemoteFileInfos(
+                    catalogName, table, null, -1, predicate, fieldNames, limit);
+            PaimonRemoteFileDesc remoteFileDesc = (PaimonRemoteFileDesc) fileInfos.get(0).getFiles().get(0);
+            List<Split> splits = remoteFileDesc.getPaimonSplitsInfo().getPaimonSplits();
+            long rowCount = getRowCount(splits);
+            if (rowCount == 0) {
+                builder.setOutputRowCount(1);
+            } else {
+                builder.setOutputRowCount(rowCount);
+            }
         }
-
         return builder.build();
     }
 
@@ -673,7 +735,7 @@ public class PaimonMetadata implements ConnectorMetadata {
     public String getLocalDataTokenFile(String ramUser, String dbName, String tblName) throws Exception {
         Identifier paimonIdentifier = new Identifier(dbName, tblName);
         String catalogID = DlfPaimonCatalog.from(this.paimonNativeCatalog).getCatalogUUid();
-        String databaseID =  DlfPaimonCatalog.from(this.paimonNativeCatalog)
+        String databaseID = DlfPaimonCatalog.from(this.paimonNativeCatalog)
                 .getDlfDatabase(dbName).getParameters().get("databaseUuid");
 
         String dataTokenName = ramUser + ":" + catalogID + ":" + databaseID;
