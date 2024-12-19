@@ -65,7 +65,8 @@ public:
     std::vector<ShardInfo> shards() const override;
 
     // `conf`: a k-v map, provides additional information about the filesystem configuration
-    absl::StatusOr<std::shared_ptr<FileSystem>> get_shard_filesystem(ShardId id, const Configuration& conf);
+    absl::StatusOr<std::shared_ptr<FileSystem>> get_shard_filesystem(ShardId id, const Configuration& conf,
+                                                                     bool* enable_datacache);
 
     // retrieve shard info from the worker. Unlike `get_shard_info`, if the shard info is not there in local cache,
     // the worker will try to fetch it back from starmgr.
@@ -95,7 +96,8 @@ private:
 
     static bool need_enable_cache(const ShardInfo& info);
 
-    absl::StatusOr<std::shared_ptr<FileSystem>> build_filesystem_on_demand(ShardId id, const Configuration& conf);
+    absl::StatusOr<std::shared_ptr<FileSystem>> build_filesystem_on_demand(ShardId id, const Configuration& conf,
+                                                                           bool* enable_datacache);
     absl::StatusOr<std::shared_ptr<FileSystem>> build_filesystem_from_shard_info(const ShardInfo& info,
                                                                                  const Configuration& conf);
     absl::StatusOr<std::shared_ptr<FileSystem>> new_shared_filesystem(std::string_view scheme,
