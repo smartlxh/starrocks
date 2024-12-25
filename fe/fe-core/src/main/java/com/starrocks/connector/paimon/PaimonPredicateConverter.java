@@ -15,7 +15,9 @@
 
 package com.starrocks.connector.paimon;
 
+import com.starrocks.analysis.BoolLiteral;
 import com.starrocks.catalog.PrimitiveType;
+import com.starrocks.connector.exception.StarRocksConnectorException;
 import com.starrocks.sql.optimizer.operator.scalar.BinaryPredicateOperator;
 import com.starrocks.sql.optimizer.operator.scalar.CastOperator;
 import com.starrocks.sql.optimizer.operator.scalar.ColumnRefOperator;
@@ -32,7 +34,9 @@ import org.apache.paimon.data.BinaryString;
 import org.apache.paimon.data.Decimal;
 import org.apache.paimon.predicate.Predicate;
 import org.apache.paimon.predicate.PredicateBuilder;
+import org.apache.paimon.types.BooleanType;
 import org.apache.paimon.types.DataField;
+import org.apache.paimon.types.DataType;
 import org.apache.paimon.types.RowType;
 
 import java.math.BigDecimal;
@@ -52,9 +56,11 @@ public class PaimonPredicateConverter extends ScalarOperatorVisitor<Predicate, V
     private static final Logger LOG = LogManager.getLogger(PaimonPredicateConverter.class);
     private final PredicateBuilder builder;
     private final List<String> fieldNames;
+    private final List<DataType> fieldTypes;
 
     public PaimonPredicateConverter(RowType rowType) {
         this.builder = new PredicateBuilder(rowType);
+        this.fieldTypes = rowType.getFieldTypes();
         this.fieldNames = rowType.getFields().stream().map(DataField::name).collect(Collectors.toList());
     }
 
@@ -118,6 +124,9 @@ public class PaimonPredicateConverter extends ScalarOperatorVisitor<Predicate, V
         if (literal == null) {
             return null;
         }
+        if (fieldTypes.get(idx) instanceof BooleanType) {
+            literal = convertBoolLiteralValue(literal);
+        }
         switch (operator.getBinaryType()) {
             case LT:
                 return builder.lessThan(idx, literal);
@@ -149,6 +158,9 @@ public class PaimonPredicateConverter extends ScalarOperatorVisitor<Predicate, V
             Object value = getLiteral(valueOperator);
             if (value == null) {
                 return null;
+            }
+            if (fieldTypes.get(idx) instanceof BooleanType) {
+                value = convertBoolLiteralValue(value);
             }
             literalValues.add(value);
         }
@@ -221,6 +233,14 @@ public class PaimonPredicateConverter extends ScalarOperatorVisitor<Predicate, V
                 return fromSQLTimestamp(Timestamp.valueOf((localDateTime)));
             default:
                 return null;
+        }
+    }
+
+    private static Object convertBoolLiteralValue(Object literalValue) {
+        try {
+            return new BoolLiteral(String.valueOf(literalValue)).getValue();
+        } catch (Exception e) {
+            throw new StarRocksConnectorException("Failed to convert %s to boolean type", literalValue);
         }
     }
 
