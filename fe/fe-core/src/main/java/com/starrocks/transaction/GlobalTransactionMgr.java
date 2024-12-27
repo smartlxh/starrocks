@@ -634,16 +634,21 @@ public class GlobalTransactionMgr implements MemoryTrackable {
     /**
      * Get the min txn id of running compaction transactions.
      *
-     * @return the min txn id of running compaction transactions.
+     * @return the min txn id of running compaction transactions with the db id it resided in.
      * If there are no running compaction transactions, return the next transaction id that will be assigned.
      */
-    public long getMinActiveCompactionTxnId() {
+    public Pair<Long, Long> getMinActiveCompactionTxnId() {
+        long dbId = -1;
         long minId = idGenerator.peekNextTransactionId();
         for (Map.Entry<Long, DatabaseTransactionMgr> entry : dbIdToDatabaseTransactionMgrs.entrySet()) {
             DatabaseTransactionMgr dbTransactionMgr = entry.getValue();
-            minId = Math.min(minId, dbTransactionMgr.getMinActiveCompactionTxnId().orElse(Long.MAX_VALUE));
+            long minTxnId = dbTransactionMgr.getMinActiveCompactionTxnId().orElse(Long.MAX_VALUE);
+            if (minTxnId < minId) {
+                minId = minTxnId;
+                dbId = dbTransactionMgr.getDbId();
+            }
         }
-        return minId;
+        return Pair.create(minId, dbId);
     }
 
     /**

@@ -2743,6 +2743,23 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true)
     public static int lake_compaction_history_size = 20;
 
+    @ConfField
+    public static long lake_compaction_schedule_interval_ms = 1000L;
+
+    /**
+     * While some compaction related txn's stat is not visible (prepared, committed, etc),
+     * it will block Lake compaction scheduler from starting while FE is restarted.
+     * If the txn can't be recovered by itself, we need some method to skip this txn.
+     * One option is using this config can be set as "123,456,789" to filter out txn 123 and 456 and 789.
+     * The other option is to drop partition or table forcefully.
+     * <p>
+     * Caution!! This might be a dangerous operation. Data might be lost if the compaction txn is committed.
+     * So don't try this option until users can afford lost of data or have some method to recover data,
+     * e.g. replay from some checkpoint
+     */
+    @ConfField
+    public static String lake_compaction_txn_id_filter_list = "";
+
     @ConfField(mutable = true)
     public static String lake_compaction_warehouse = "default_warehouse";
 

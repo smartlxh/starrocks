@@ -77,12 +77,14 @@ import com.starrocks.transaction.InsertTxnCommitAttachment;
 import com.starrocks.warehouse.Warehouse;
 import io.opentelemetry.api.trace.Span;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -691,11 +693,22 @@ public class DatabaseTransactionMgr {
         try {
             OptionalLong minId = idToRunningTransactionState.values().stream()
                     .filter(state -> state.getSourceType() == TransactionState.LoadJobSourceType.LAKE_COMPACTION)
-                    .mapToLong(TransactionState::getTransactionId).min();
+                    .mapToLong(TransactionState::getTransactionId)
+                    .filter(txnId -> !getFilteredTxnIdList().contains(String.valueOf(txnId)))
+                    .min();
             return minId.isPresent() ? Optional.of(minId.getAsLong()) : Optional.empty();
         } finally {
             readUnlock();
         }
+    }
+
+    protected static Set<String> getFilteredTxnIdList() {
+        String txnIdFilterList = Config.lake_compaction_txn_id_filter_list;
+        if (StringUtils.isEmpty(txnIdFilterList)) {
+            return Collections.emptySet();
+        }
+        return Arrays.stream(StringUtils.split(txnIdFilterList, ','))
+                .map(StringUtils::trim).filter(StringUtils::isNotBlank).collect(Collectors.toSet());
     }
 
     private void getTxnStateInfo(TransactionState txnState, List<String> info) {

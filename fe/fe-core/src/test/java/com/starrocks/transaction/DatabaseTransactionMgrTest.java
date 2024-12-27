@@ -137,7 +137,7 @@ public class DatabaseTransactionMgrTest {
     public Map<String, Long> addTransactionToTransactionMgr() throws UserException {
         TransactionIdGenerator idGenerator = masterTransMgr.getTransactionIDGenerator();
         Assert.assertEquals(idGenerator.peekNextTransactionId(), masterTransMgr.getMinActiveTxnId());
-        Assert.assertEquals(idGenerator.peekNextTransactionId(), masterTransMgr.getMinActiveCompactionTxnId());
+        Assert.assertEquals(idGenerator.peekNextTransactionId(), masterTransMgr.getMinActiveCompactionTxnId().first.longValue());
 
         Map<String, Long> lableToTxnId = Maps.newHashMap();
         FakeGlobalStateMgr.setGlobalStateMgr(masterGlobalStateMgr);
@@ -149,7 +149,7 @@ public class DatabaseTransactionMgrTest {
                         TransactionState.LoadJobSourceType.FRONTEND, Config.stream_load_default_timeout_second);
 
         Assert.assertEquals(transactionId1, masterTransMgr.getMinActiveTxnId());
-        Assert.assertEquals(idGenerator.peekNextTransactionId(), masterTransMgr.getMinActiveCompactionTxnId());
+        Assert.assertEquals(idGenerator.peekNextTransactionId(), masterTransMgr.getMinActiveCompactionTxnId().first.longValue());
 
         // commit a transaction
         TabletCommitInfo tabletCommitInfo1 = new TabletCommitInfo(GlobalStateMgrTestUtil.testTabletId1,
@@ -169,13 +169,13 @@ public class DatabaseTransactionMgrTest {
         assertEquals(TTransactionStatus.COMMITTED, masterDbTransMgr.getTxnStatus(transactionId1));
 
         Assert.assertEquals(transactionId1, masterTransMgr.getMinActiveTxnId());
-        Assert.assertEquals(idGenerator.peekNextTransactionId(), masterTransMgr.getMinActiveCompactionTxnId());
+        Assert.assertEquals(idGenerator.peekNextTransactionId(), masterTransMgr.getMinActiveCompactionTxnId().first.longValue());
 
         masterTransMgr.finishTransaction(GlobalStateMgrTestUtil.testDbId1, transactionId1, null);
         lableToTxnId.put(GlobalStateMgrTestUtil.testTxnLable1, transactionId1);
 
         Assert.assertEquals(idGenerator.peekNextTransactionId(), masterTransMgr.getMinActiveTxnId());
-        Assert.assertEquals(idGenerator.peekNextTransactionId(), masterTransMgr.getMinActiveCompactionTxnId());
+        Assert.assertEquals(idGenerator.peekNextTransactionId(), masterTransMgr.getMinActiveCompactionTxnId().first.longValue());
 
         TransactionState.TxnCoordinator beTransactionSource =
                 new TransactionState.TxnCoordinator(TransactionState.TxnSourceType.BE, "be1");
@@ -250,7 +250,8 @@ public class DatabaseTransactionMgrTest {
         lableToTxnId.put(GlobalStateMgrTestUtil.testTxnLable8, transactionId8);
 
         Assert.assertEquals(transactionId2, masterTransMgr.getMinActiveTxnId());
-        Assert.assertEquals(transactionId5, masterTransMgr.getMinActiveCompactionTxnId());
+        Assert.assertEquals(transactionId5, masterTransMgr.getMinActiveCompactionTxnId().first.longValue());
+        Assert.assertEquals(GlobalStateMgrTestUtil.testDbId1, masterTransMgr.getMinActiveCompactionTxnId().second.longValue());
 
         transactionGraph.add(transactionId6, Lists.newArrayList(GlobalStateMgrTestUtil.testTableId1));
         transactionGraph.add(transactionId7, Lists.newArrayList(GlobalStateMgrTestUtil.testTableId1));
