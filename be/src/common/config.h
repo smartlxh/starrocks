@@ -1039,6 +1039,8 @@ CONF_mInt32(starlet_fslib_s3client_connect_timeout_ms, "1000");
 // NOTE: need to handle the negative value properly
 CONF_Alias(object_storage_request_timeout_ms, starlet_fslib_s3client_request_timeout_ms);
 CONF_mInt32(starlet_delete_files_max_key_in_batch, "1000");
+// rpc timeout between starlet and starmgr, default as 5s
+CONF_mInt32(starlet_starmgr_client_rpc_timeout_ms, "5000");
 #endif
 
 CONF_mInt64(lake_metadata_cache_limit, /*2GB=*/"2147483648");
