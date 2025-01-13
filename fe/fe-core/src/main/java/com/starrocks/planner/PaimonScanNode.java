@@ -131,13 +131,13 @@ public class PaimonScanNode extends ScanNode {
         return rowCount * rowSize;
     }
 
-    public void setupScanRangeLocations(TupleDescriptor tupleDescriptor, ScalarOperator predicate) {
+    public void setupScanRangeLocations(TupleDescriptor tupleDescriptor, ScalarOperator predicate, long limit) {
         List<String> fieldNames =
                 tupleDescriptor.getSlots().stream().map(s -> s.getColumn().getName()).collect(Collectors.toList());
         List<RemoteFileInfo> fileInfos;
         try (Timer ignored = Tracers.watchScope(paimonTable.getTableName() + ".getPaimonRemoteFileInfos")) {
             fileInfos = GlobalStateMgr.getCurrentState().getMetadataMgr().getRemoteFileInfos(
-                    paimonTable.getCatalogName(), paimonTable, null, -1, predicate, fieldNames, -1);
+                    paimonTable.getCatalogName(), paimonTable, null, -1, predicate, fieldNames, limit);
         }
 
         PaimonRemoteFileDesc remoteFileDesc = (PaimonRemoteFileDesc) fileInfos.get(0).getFiles().get(0);

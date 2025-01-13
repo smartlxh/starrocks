@@ -423,7 +423,13 @@ public class PaimonMetadata implements ConnectorMetadata {
             ReadBuilder readBuilder = paimonTable.getNativeTable().newReadBuilder();
             int[] projected = fieldNames.stream().mapToInt(name -> (paimonTable.getFieldNames().indexOf(name))).toArray();
             List<Predicate> predicates = extractPredicates(paimonTable, predicate);
-            InnerTableScan scan = (InnerTableScan) readBuilder.withFilter(predicates).withProjection(projected).newScan();
+            boolean pruneManifestsByLimit = limit != -1 && limit < Integer.MAX_VALUE
+                    && onlyHasPartitionPredicate(table, predicate);
+            readBuilder = readBuilder.withFilter(predicates).withProjection(projected);
+            if (pruneManifestsByLimit) {
+                readBuilder = readBuilder.withLimit((int) limit);
+            }
+            InnerTableScan scan = (InnerTableScan) readBuilder.newScan();
             PaimonMetricRegistry paimonMetricRegistry = new PaimonMetricRegistry();
             List<Split> splits = scan.withMetricsRegistry(paimonMetricRegistry).plan().splits();
             traceScanMetrics(paimonMetricRegistry, splits, ((PaimonTable) table).getTableName(), predicates);
@@ -837,5 +843,21 @@ public class PaimonMetadata implements ConnectorMetadata {
         } catch (Exception e) {
             throw new StarRocksConnectorException(e.getMessage());
         }
+    }
+
+    public static boolean onlyHasPartitionPredicate(Table table, ScalarOperator predicate) {
+        if (predicate == null) {
+            return true;
+        }
+
+        List<ColumnRefOperator> columnRefOperators = predicate.getColumnRefs();
+        List<String> partitionColNames = table.getPartitionColumnNames();
+        for (ColumnRefOperator c : columnRefOperators) {
+            if (!partitionColNames.contains(c.getName())) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
