@@ -251,6 +251,8 @@ public class StatisticsCollectJobFactory {
             // check table last update time, if last collect time is after last update time, skip this table
             LocalDateTime statisticsUpdateTime = basicStatsMeta.getUpdateTime();
             LocalDateTime tableUpdateTime = StatisticUtils.getTableLastUpdateTime(table);
+            LOG.info("statistics job  table: {}, last update time: {}, last collect time: {}",
+                    table.getName(), tableUpdateTime, statisticsUpdateTime);
             if (tableUpdateTime != null) {
                 if (statisticsUpdateTime.isAfter(tableUpdateTime)) {
                     LOG.info("statistics job doesn't work on non-update table: {}, " +

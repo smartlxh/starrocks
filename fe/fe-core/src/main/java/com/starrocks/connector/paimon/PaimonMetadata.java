@@ -67,6 +67,7 @@ import org.apache.paimon.catalog.CachingCatalog;
 import org.apache.paimon.catalog.Catalog;
 import org.apache.paimon.catalog.Identifier;
 import org.apache.paimon.data.InternalRow;
+import org.apache.paimon.data.Timestamp;
 import org.apache.paimon.io.DataFileMeta;
 import org.apache.paimon.manifest.PartitionEntry;
 import org.apache.paimon.metrics.Gauge;
@@ -77,6 +78,7 @@ import org.apache.paimon.predicate.PredicateBuilder;
 import org.apache.paimon.reader.RecordReader;
 import org.apache.paimon.reader.RecordReaderIterator;
 import org.apache.paimon.schema.Schema;
+import org.apache.paimon.stats.ColStats;
 import org.apache.paimon.table.FileStoreTable;
 import org.apache.paimon.table.sink.BatchTableCommit;
 import org.apache.paimon.table.sink.BatchWriteBuilder;
@@ -105,12 +107,16 @@ import java.io.FileWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -125,9 +131,12 @@ import static com.starrocks.catalog.KeysType.PRIMARY_KEYS;
 import static com.starrocks.catalog.PaimonTable.FILE_FORMAT;
 import static com.starrocks.connector.ColumnTypeConverter.toPaimonSchema;
 import static com.starrocks.connector.ConnectorTableId.CONNECTOR_ID_GENERATOR;
+import static com.starrocks.sql.optimizer.Utils.getLongFromDateTime;
 
 public class PaimonMetadata implements ConnectorMetadata {
     private static final Logger LOG = LogManager.getLogger(PaimonMetadata.class);
+
+    public static final String PAIMON_PARTITION_NULL_VALUE = "null";
     private final Catalog paimonNativeCatalog;
     private final HdfsEnvironment hdfsEnvironment;
     private final String catalogName;
@@ -345,6 +354,13 @@ public class PaimonMetadata implements ConnectorMetadata {
         return sb.substring(0, sb.length() - 1);
     }
 
+    private Long convertToSystemDefaultTime(Timestamp lastUpdateTime) {
+        LocalDateTime localDateTime = lastUpdateTime.toLocalDateTime();
+        ZoneId zoneId = ZoneId.systemDefault();
+        ZonedDateTime zonedDateTime = localDateTime.atZone(zoneId);
+        return zonedDateTime.toInstant().toEpochMilli();
+    }
+
     @Override
     public List<String> listPartitionNames(String databaseName, String tableName, long snapshotId) {
         updatePartitionInfo(databaseName, tableName);
@@ -505,23 +521,97 @@ public class PaimonMetadata implements ConnectorMetadata {
                                          long limit) {
         Statistics.Builder builder = Statistics.builder();
         try (Timer ignored = Tracers.watchScope("GetPaimonTableStatistics")) {
-            for (ColumnRefOperator columnRefOperator : columns.keySet()) {
-                builder.addColumnStatistic(columnRefOperator, ColumnStatistic.unknown());
+            if (!session.getSessionVariable().enablePaimonColumnStatistics()) {
+                return defaultStatistics(columns, table, predicate, limit);
             }
-
-            List<String> fieldNames = columns.keySet().stream().map(ColumnRefOperator::getName).collect(Collectors.toList());
-            List<RemoteFileInfo> fileInfos = GlobalStateMgr.getCurrentState().getMetadataMgr().getRemoteFileInfos(
-                    catalogName, table, null, -1, predicate, fieldNames, limit);
-            PaimonRemoteFileDesc remoteFileDesc = (PaimonRemoteFileDesc) fileInfos.get(0).getFiles().get(0);
-            List<Split> splits = remoteFileDesc.getPaimonSplitsInfo().getPaimonSplits();
-            long rowCount = getRowCount(splits);
-            if (rowCount == 0) {
-                builder.setOutputRowCount(1);
-            } else {
-                builder.setOutputRowCount(rowCount);
+            org.apache.paimon.table.Table nativeTable = ((PaimonTable) table).getNativeTable();
+            Optional<org.apache.paimon.stats.Statistics> statistics = nativeTable.statistics();
+            if (!statistics.isPresent() || statistics.get().colStats() == null
+                    || statistics.get().mergedRecordCount().isEmpty()) {
+                return defaultStatistics(columns, table, predicate, limit);
+            }
+            long rowCount = statistics.get().mergedRecordCount().getAsLong();
+            builder.setOutputRowCount(rowCount);
+            Map<String, ColStats<?>> colStatsMap = statistics.get().colStats();
+            for (ColumnRefOperator column : columns.keySet()) {
+                builder.addColumnStatistic(column, buildColumnStatistic(columns.get(column), colStatsMap, rowCount));
             }
         }
         return builder.build();
+    }
+
+    private Statistics defaultStatistics(Map<ColumnRefOperator, Column> columns, Table table, ScalarOperator predicate,
+                                         long limit) {
+        Statistics.Builder builder = Statistics.builder();
+        for (ColumnRefOperator columnRefOperator : columns.keySet()) {
+            builder.addColumnStatistic(columnRefOperator, ColumnStatistic.unknown());
+        }
+        List<String> fieldNames = columns.keySet().stream().map(ColumnRefOperator::getName).collect(Collectors.toList());
+        List<RemoteFileInfo> fileInfos = GlobalStateMgr.getCurrentState().getMetadataMgr().getRemoteFileInfos(
+                catalogName, table, null, -1, predicate, fieldNames, limit);
+        PaimonRemoteFileDesc remoteFileDesc = (PaimonRemoteFileDesc) fileInfos.get(0).getFiles().get(0);
+        List<Split> splits = remoteFileDesc.getPaimonSplitsInfo().getPaimonSplits();
+        long rowCount = getRowCount(splits);
+        if (rowCount == 0) {
+            builder.setOutputRowCount(1);
+        } else {
+            builder.setOutputRowCount(rowCount);
+        }
+        return builder.build();
+    }
+
+
+    private ColumnStatistic buildColumnStatistic(Column column, Map<String, ColStats<?>> colStatsMap,
+                                                 long rowCount) {
+        ColumnStatistic columnStatistic = null;
+        for (Map.Entry<String, ColStats<?>> colStatsEntry : colStatsMap.entrySet()) {
+            if (!colStatsEntry.getKey().equalsIgnoreCase(column.getName())) {
+                continue;
+            }
+            ColumnStatistic.Builder builder = ColumnStatistic.builder();
+            ColStats<?> colStats = colStatsEntry.getValue();
+            if (colStats.min().isPresent()) {
+                if (column.getType().isBoolean()) {
+                    builder.setMinValue((Boolean) colStats.min().get() ? 1 : 0);
+                } else if (column.getType().isDatetime()) {
+                    builder.setMinValue(getLongFromDateTime(((Timestamp) colStats.min().get()).toLocalDateTime()));
+                } else {
+                    builder.setMinValue(Double.parseDouble(colStats.min().get().toString()));
+                }
+            }
+
+            if (colStats.max().isPresent()) {
+                if (column.getType().isBoolean()) {
+                    builder.setMaxValue((Boolean) colStats.max().get() ? 1 : 0);
+                } else if (column.getType().isDatetime()) {
+                    builder.setMaxValue(getLongFromDateTime(((Timestamp) colStats.max().get()).toLocalDateTime()));
+                } else if (!column.getType().isBoolean()) {
+                    builder.setMaxValue(Double.parseDouble(colStats.max().get().toString()));
+                }
+            }
+
+            if (colStats.nullCount().isPresent()) {
+                builder.setNullsFraction(colStats.nullCount().getAsLong() * 1.0 / Math.max(rowCount, 1));
+            } else {
+                builder.setNullsFraction(0);
+            }
+
+            builder.setAverageRowSize(colStats.nullCount().isPresent() ? colStats.nullCount().getAsLong() : 1);
+
+            if (colStats.distinctCount().isPresent()) {
+                builder.setDistinctValuesCount(colStats.distinctCount().getAsLong());
+                builder.setType(ColumnStatistic.StatisticType.ESTIMATE);
+            } else {
+                builder.setDistinctValuesCount(1);
+                builder.setType(ColumnStatistic.StatisticType.UNKNOWN);
+            }
+            columnStatistic = builder.build();
+        }
+
+        if (columnStatistic == null) {
+            columnStatistic = ColumnStatistic.unknown();
+        }
+        return columnStatistic;
     }
 
     public static long getRowCount(List<? extends Split> splits) {
@@ -612,7 +702,7 @@ public class PaimonMetadata implements ConnectorMetadata {
                 org.apache.paimon.data.Timestamp commitTime = rowData
                         .getTimestamp(0, DataTypeChecks.getPrecision(commitTimeType));
                 if (commitTime.getMillisecond() > lastCommitTime) {
-                    lastCommitTime = commitTime.getMillisecond();
+                    lastCommitTime = convertToSystemDefaultTime(commitTime);
                 }
             }
         } catch (Exception e) {
