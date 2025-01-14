@@ -42,7 +42,7 @@ under the License.
         <paimon.version>1.0-20241220-a057fd-SNAPSHOT</paimon.version>
         <dlf.sdk.version>2.3.0-20241217-338cc3-SNAPSHOT</dlf.sdk.version>
         <delta-kernel.version>4.0.0rc1</delta-kernel.version>
-        <staros.version>3.3.0</staros.version>
+        <staros.version>3.3.0-SNAPSHOT</staros.version>
         <python>python</python>
     </properties>
 
