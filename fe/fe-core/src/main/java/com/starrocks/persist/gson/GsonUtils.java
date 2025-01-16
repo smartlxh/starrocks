@@ -122,6 +122,7 @@ import com.starrocks.catalog.TableFunction;
 import com.starrocks.catalog.Tablet;
 import com.starrocks.catalog.View;
 import com.starrocks.encryption.EncryptionKeyPBAdapter;
+import com.starrocks.epack.warehouse.LocalWarehouse;
 import com.starrocks.lake.LakeMaterializedView;
 import com.starrocks.lake.LakeTable;
 import com.starrocks.lake.LakeTablet;
@@ -348,7 +349,8 @@ public class GsonUtils {
 
     private static final RuntimeTypeAdapterFactory<Warehouse> WAREHOUSE_TYPE_ADAPTER_FACTORY = RuntimeTypeAdapterFactory
             .of(Warehouse.class, "clazz")
-            .registerSubtype(DefaultWarehouse.class, "DefaultWarehouse");
+            .registerSubtype(DefaultWarehouse.class, "DefaultWarehouse")
+            .registerSubtype(LocalWarehouse.class, "LocalWarehouse");
 
     public static final RuntimeTypeAdapterFactory<LoadJob> LOAD_JOB_TYPE_RUNTIME_ADAPTER_FACTORY =
             RuntimeTypeAdapterFactory.of(LoadJob.class, "clazz")

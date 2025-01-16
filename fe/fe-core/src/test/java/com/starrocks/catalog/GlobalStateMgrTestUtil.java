@@ -111,6 +111,8 @@ public class GlobalStateMgrTestUtil {
                 testStartVersion);
         LocalMetastore metastore = (LocalMetastore) globalStateMgr.getMetadata();
         metastore.unprotectCreateDb(db);
+        // init default warehouse
+        globalStateMgr.getWarehouseMgr().initDefaultWarehouse();
         return globalStateMgr;
     }
 
