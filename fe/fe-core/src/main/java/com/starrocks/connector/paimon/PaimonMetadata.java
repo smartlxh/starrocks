@@ -462,16 +462,16 @@ public class PaimonMetadata implements ConnectorMetadata {
     public void refreshTable(String srDbName, Table table, List<String> partitionNames, boolean onlyCachedPartitions) {
         String tableName = ((PaimonTable) table).getTableName();
         Identifier identifier = new Identifier(srDbName, tableName);
-        tables.remove(identifier);
         paimonNativeCatalog.invalidateTable(identifier);
         try {
-            this.getTable(srDbName, tableName);
+            ((PaimonTable) table).setPaimonNativeTable(paimonNativeCatalog.getTable(identifier));
             if (partitionNames != null && !partitionNames.isEmpty()) {
                 // todo: do not support refresh an exact partition
                 this.refreshPartitionInfo(identifier);
             } else {
                 this.refreshPartitionInfo(identifier);
             }
+            tables.put(identifier, table);
         } catch (Exception e) {
             LOG.error("Failed to refresh table {}.{}.{}.", catalogName, srDbName, tableName, e);
         }
