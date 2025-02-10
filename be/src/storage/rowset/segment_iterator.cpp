@@ -295,6 +295,7 @@ private:
     std::shared_ptr<Segment> _segment;
     std::unordered_map<std::string, std::shared_ptr<Segment>> _dcg_segments;
     SegmentReadOptions _opts;
+    std::shared_ptr<RandomAccessFile> _index_file = nullptr;
     RawColumnIterators _column_iterators;
     std::vector<int> _io_coalesce_column_index;
     ColumnDecoders _column_decoders;
@@ -622,20 +623,22 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
                     _shared_buffered_input_stream->increase_hold_count();
                 }
 
-                iter_opts.read_file = _shared_buffered_input_stream.get();
+                iter_opts.data_read_file = _shared_buffered_input_stream.get();
                 _column_files[cid] = _shared_buffered_input_stream;
             } else {
                 auto shared_buffered_input_stream = std::make_shared<io::SharedBufferedInputStream>(
                         rfile->stream(), _segment->file_name(), file_size);
                 shared_buffered_input_stream->set_coalesce_options(options);
-                iter_opts.read_file = shared_buffered_input_stream.get();
+                iter_opts.data_read_file = shared_buffered_input_stream.get();
                 iter_opts.is_io_coalesce = true;
                 _column_files[cid] = std::move(shared_buffered_input_stream);
                 _io_coalesce_column_index.emplace_back(cid);
             }
+            iter_opts.read_file = _index_file.get();
 
         } else {
-            iter_opts.read_file = rfile.get();
+            iter_opts.data_read_file = rfile.get();
+            iter_opts.read_file = _index_file.get();
             _column_files[cid] = std::move(rfile);
         }
     } else {
@@ -644,6 +647,7 @@ Status SegmentIterator::_init_column_iterator_by_cid(const ColumnId cid, const C
         _column_iterators[cid] = std::move(col_iter);
         opts.encryption_info = dcg_encryption_info;
         ASSIGN_OR_RETURN(auto dcg_file, _opts.fs->new_random_access_file(opts, dcg_filename));
+        iter_opts.data_read_file = dcg_file.get();
         iter_opts.read_file = dcg_file.get();
         _column_files[cid] = std::move(dcg_file);
     }
@@ -680,6 +684,22 @@ Status SegmentIterator::_init_column_iterators(const Schema& schema) {
             } else {
                 check_dict_enc = has_predicate;
             }
+
+            // init a common index reader
+            RandomAccessFileOptions opts{.skip_fill_local_cache = !_opts.lake_io_opts.fill_data_cache,
+                                         .buffer_size = _opts.lake_io_opts.buffer_size};
+
+            bool is_compaction =
+                    (_opts.reader_type == READER_BASE_COMPACTION || _opts.reader_type == READER_CUMULATIVE_COMPACTION);
+            if (is_compaction) {
+                opts.op_type = OperationKind::COMPACTION;
+            }
+            const auto encryption_info = _segment->encryption_info();
+            if (encryption_info) {
+                opts.encryption_info = *encryption_info;
+            }
+            ASSIGN_OR_RETURN(auto rfile, _opts.fs->new_random_access_file(opts, _segment->file_info()));
+            _index_file = std::shared_ptr<RandomAccessFile>(std::move(rfile));
 
             RETURN_IF_ERROR(_init_column_iterator_by_cid(cid, f->uid(), check_dict_enc));
 

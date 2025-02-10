@@ -346,7 +346,7 @@ Status ColumnReader::read_page(const ColumnIteratorOptions& iter_opts, const Pag
                                Slice* page_body, PageFooterPB* footer) {
     iter_opts.sanity_check();
     PageReadOptions opts;
-    opts.read_file = iter_opts.read_file;
+    opts.read_file = iter_opts.data_read_file;
     opts.page_pointer = pp;
     opts.codec = _compress_codec;
     opts.stats = iter_opts.stats;

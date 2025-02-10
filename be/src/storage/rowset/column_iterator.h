@@ -57,6 +57,7 @@ struct ColumnIteratorOptions {
     //RandomAccessFile* read_file = nullptr;
     io::SeekableInputStream* read_file = nullptr;
     bool is_io_coalesce = false;
+    io::SeekableInputStream* data_read_file = nullptr;
     // reader statistics
     OlapReaderStatistics* stats = nullptr;
     bool use_page_cache = false;
