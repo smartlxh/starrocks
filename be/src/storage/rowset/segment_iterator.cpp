@@ -698,8 +698,11 @@ Status SegmentIterator::_init_column_iterators(const Schema& schema) {
             if (encryption_info) {
                 opts.encryption_info = *encryption_info;
             }
-            ASSIGN_OR_RETURN(auto rfile, _opts.fs->new_random_access_file(opts, _segment->file_info()));
-            _index_file = std::shared_ptr<RandomAccessFile>(std::move(rfile));
+
+            if (_index_file != nullptr) {
+                ASSIGN_OR_RETURN(auto rfile, _opts.fs->new_random_access_file(opts, _segment->file_info()));
+                _index_file = std::shared_ptr<RandomAccessFile>(std::move(rfile));
+            }
 
             RETURN_IF_ERROR(_init_column_iterator_by_cid(cid, f->uid(), check_dict_enc));
 
