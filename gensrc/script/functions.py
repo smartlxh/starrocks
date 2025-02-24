@@ -341,7 +341,7 @@ vectorized_functions = [
     # @Deprecated: 'replace_old' will be deleted in the future version, keep it just for compatible
     [30331, 'replace_old', True, True, 'VARCHAR', ['VARCHAR', 'VARCHAR', 'VARCHAR'], 'StringFunctions::regexp_replace',
      'StringFunctions::regexp_replace_prepare', 'StringFunctions::regexp_close'],
-    [30332, 'replace', True, True, 'VARCHAR', ['VARCHAR', 'VARCHAR', 'VARCHAR'], 'StringFunctions::replace',
+    [30332, 'replace', True, True, 'VARCHAR', ['VARCHAR', 'VARCHAR', 'VARCHAR'], 'StringFunctions::regexp_replace',
      'StringFunctions::replace_prepare', 'StringFunctions::replace_close'],
     [30333, 'regexp_split', True, True, 'ARRAY_VARCHAR', ['VARCHAR', 'VARCHAR'], 'StringFunctions::regexp_split',
      'StringFunctions::regexp_extract_prepare', 'StringFunctions::regexp_close'],
