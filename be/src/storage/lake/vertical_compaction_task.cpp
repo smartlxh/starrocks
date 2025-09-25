@@ -102,6 +102,10 @@ Status VerticalCompactionTask::execute(CancelFunc cancel_func, ThreadPool* flush
     LOG(INFO) << "Vertical compaction finished. tablet: " << _tablet.id() << ", txn_id: " << _txn_id
               << ", statistics: " << _context->stats->to_json_stats();
 
+    // Note: Segment warmup is now triggered automatically in writer->finish()
+    // Each segment is warmed up asynchronously as soon as it's finalized, allowing
+    // warmup to happen in parallel with finalizing other segments.
+
     return Status::OK();
 }
 

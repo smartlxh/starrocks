@@ -1145,6 +1145,20 @@ CONF_mInt32(lake_pk_index_sst_max_compaction_versions, "100");
 // When the ratio of cumulative level to base level is greater than this config, use base merge.
 CONF_mDouble(lake_pk_index_cumulative_base_compaction_ratio, "0.1");
 CONF_Int32(lake_pk_index_block_cache_limit_percent, "10");
+
+// Segment warmup configurations
+// Enable segment warmup after compaction or memtable flush
+CONF_mBool(lake_enable_segment_warmup, "true");
+// Maximum number of pending segments waiting to be warmed up
+// If exceeded, new warmup requests will be skipped (backpressure)
+CONF_mInt32(lake_segment_warmup_max_pending_segments, "100");
+// Maximum pending memory (in MB) for segment warmup
+// If exceeded, new warmup requests will be skipped (backpressure)
+CONF_mInt64(lake_segment_warmup_max_pending_memory_mb, "1024"); // 1GB
+// Maximum number of blocks to warm up per request
+CONF_mInt32(lake_segment_warmup_max_blocks_per_request, "1024");
+// RPC timeout for segment warmup requests (in milliseconds)
+CONF_mInt32(lake_segment_warmup_rpc_timeout_ms, "30000"); // 30 seconds
 CONF_mBool(lake_clear_corrupted_cache, "true");
 // The maximum number of files which need to rebuilt in cloud native pk index.
 // If files which need to rebuilt larger than this, we will flush memtable immediately.

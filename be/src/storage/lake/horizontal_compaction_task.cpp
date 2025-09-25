@@ -131,6 +131,10 @@ Status HorizontalCompactionTask::execute(CancelFunc cancel_func, ThreadPool* flu
     LOG(INFO) << "Horizontal compaction finished. tablet: " << _tablet.id() << ", txn_id: " << _txn_id
               << ", statistics: " << _context->stats->to_json_stats();
 
+    // Note: Segment warmup is now triggered automatically in writer->flush_segment_writer()
+    // Each segment is warmed up asynchronously as soon as it's written, allowing
+    // warmup to happen in parallel with writing other segments.
+
     return Status::OK();
 }
 
