@@ -153,101 +153,104 @@ void SegmentWarmupManager::warm_up_segment_async(int64_t tablet_id, std::string 
 
 Status SegmentWarmupManager::warmup_segment_blocks(int64_t tablet_id, const std::string& segment_path,
                                                     const std::vector<std::pair<std::string, int>>& peer_nodes) {
-    // Build warmup request with block metadata and attachment with block data
-    WarmUpSegmentRequest request;
-    request.set_tablet_id(tablet_id);
-    request.set_segment_path(segment_path);
-
-    // Build attachment for zero-copy data transmission
-    butil::IOBuf attachment;
-    int64_t total_bytes = 0;
-    RETURN_IF_ERROR(build_block_data(segment_path, &request, &attachment, &total_bytes));
-
-    if (request.blocks_size() == 0) {
-        VLOG(3) << "No blocks to warmup. tablet_id=" << tablet_id << " segment_path=" << segment_path;
-        return Status::OK();
-    }
-
-    // Update pending memory (only count attachment size now, not protobuf)
-    _pending_memory_bytes.fetch_add(total_bytes, std::memory_order_relaxed);
-    DeferOp defer([this, total_bytes]() { _pending_memory_bytes.fetch_sub(total_bytes, std::memory_order_relaxed); });
-
-    LOG(INFO) << "Start warming up segment. tablet_id=" << tablet_id << " segment_path=" << segment_path
-              << " block_count=" << request.blocks_size() << " total_bytes=" << total_bytes
-              << " attachment_size=" << attachment.size() << " peer_count=" << peer_nodes.size();
-
-    // Send RPC to all peer nodes with attachment
-    Status final_status = Status::OK();
-    for (const auto& [host, port] : peer_nodes) {
-        Status st = send_warmup_rpc_to_peer(host, port, request, attachment);
-        if (!st.ok()) {
-            LOG(WARNING) << "Failed to send warmup RPC to peer. host=" << host << " port=" << port << " error=" << st;
-            final_status.update(st);
-        }
-    }
-
-    return final_status;
-}
-
-Status SegmentWarmupManager::build_block_data(const std::string& segment_path, WarmUpSegmentRequest* request,
-                                               butil::IOBuf* attachment, int64_t* total_bytes) {
-    // Get file system
+    // Get file system and file size first
     ASSIGN_OR_RETURN(auto fs, FileSystem::CreateSharedFromString(segment_path));
-
-    // Get file size
     ASSIGN_OR_RETURN(auto file_size, fs->get_file_size(segment_path));
 
-    // Calculate block size from BlockCache
+    // Get block size from BlockCache
     auto block_cache = BlockCache::instance();
     if (!block_cache->available()) {
         return Status::NotSupported("BlockCache is not available");
     }
-
     size_t block_size = block_cache->block_size();
     if (block_size == 0) {
         return Status::InternalError("Invalid block size");
     }
 
-    // Read file in blocks
-    *total_bytes = 0;
-    size_t offset = 0;
-    std::vector<char> buffer(block_size);
-
     // Open file once for better performance
     ASSIGN_OR_RETURN(auto file, fs->new_random_access_file(segment_path));
 
+    // Stream-based sending: read a batch → send → read next batch
+    size_t offset = 0;
+    int batch_num = 0;
+    int64_t total_blocks = 0;
+    int64_t total_bytes_sent = 0;
+    Status final_status = Status::OK();
+
+    std::vector<char> buffer(block_size);
+
     while (offset < file_size) {
-        size_t read_size = std::min(block_size, file_size - offset);
+        // Build one batch (up to max_blocks_per_request blocks)
+        WarmUpSegmentRequest request;
+        request.set_tablet_id(tablet_id);
+        request.set_segment_path(segment_path);
 
-        // Read block from file
-        RETURN_IF_ERROR(file->read_at_fully(offset, buffer.data(), read_size));
+        butil::IOBuf attachment;
+        int64_t batch_bytes = 0;
 
-        // Add block metadata to request (no data!)
-        auto* block_data = request->add_blocks();
-        block_data->set_cache_key(segment_path);
-        block_data->set_offset(offset);
-        block_data->set_size(read_size);
-        // NOTE: Do NOT set data field! Data goes to attachment for zero-copy
+        // Read blocks for this batch
+        while (offset < file_size && request.blocks_size() < config::lake_segment_warmup_max_blocks_per_request) {
+            size_t read_size = std::min(block_size, file_size - offset);
 
-        // Append block data to attachment (zero-copy)
-        attachment->append(buffer.data(), read_size);
+            // Read block from file
+            Status st = file->read_at_fully(offset, buffer.data(), read_size);
+            if (!st.ok()) {
+                LOG(WARNING) << "Failed to read block at offset " << offset << " for segment " << segment_path
+                             << " error=" << st;
+                final_status.update(st);
+                // Skip this block and continue with next
+                offset += read_size;
+                continue;
+            }
 
-        *total_bytes += read_size;
-        offset += read_size;
+            // Add block metadata to request (no data!)
+            auto* block_data = request.add_blocks();
+            block_data->set_cache_key(segment_path);
+            block_data->set_offset(offset);
+            block_data->set_size(read_size);
 
-        // Limit the number of blocks per request
-        if (request->blocks_size() >= config::lake_segment_warmup_max_blocks_per_request) {
-            break;
+            // Append block data to attachment (zero-copy)
+            attachment.append(buffer.data(), read_size);
+
+            batch_bytes += read_size;
+            offset += read_size;
         }
+
+        if (request.blocks_size() == 0) {
+            // No blocks in this batch (all failed to read), skip
+            continue;
+        }
+
+        // Update pending memory for this batch
+        _pending_memory_bytes.fetch_add(batch_bytes, std::memory_order_relaxed);
+        DeferOp defer([this, batch_bytes]() { _pending_memory_bytes.fetch_sub(batch_bytes, std::memory_order_relaxed); });
+
+        // Send this batch to all peer nodes
+        VLOG(2) << "Sending warmup batch. tablet_id=" << tablet_id << " segment_path=" << segment_path
+                << " batch_num=" << batch_num << " block_count=" << request.blocks_size() 
+                << " batch_bytes=" << batch_bytes << " progress=" << offset << "/" << file_size;
+
+        for (const auto& [host, port] : peer_nodes) {
+            Status st = send_warmup_rpc_to_peer(host, port, request, attachment);
+            if (!st.ok()) {
+                LOG(WARNING) << "Failed to send warmup RPC batch " << batch_num << " to peer. host=" << host 
+                             << " port=" << port << " error=" << st;
+                final_status.update(st);
+            }
+        }
+
+        total_blocks += request.blocks_size();
+        total_bytes_sent += batch_bytes;
+        batch_num++;
     }
 
-    VLOG(2) << "Built warmup request. segment_path=" << segment_path 
-            << " blocks=" << request->blocks_size() 
-            << " total_bytes=" << *total_bytes
-            << " attachment_size=" << attachment->size();
+    LOG(INFO) << "Completed warming up segment. tablet_id=" << tablet_id << " segment_path=" << segment_path
+              << " total_blocks=" << total_blocks << " total_bytes=" << total_bytes_sent 
+              << " batches=" << batch_num << " peer_count=" << peer_nodes.size();
 
-    return Status::OK();
+    return final_status;
 }
+
 
 Status SegmentWarmupManager::send_warmup_rpc_to_peer(const std::string& host, int port,
                                                        const WarmUpSegmentRequest& request,

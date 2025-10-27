@@ -68,10 +68,6 @@ private:
     Status send_warmup_rpc_to_peer(const std::string& host, int port, const WarmUpSegmentRequest& request,
                                    const butil::IOBuf& attachment);
 
-    // Build block data from segment file and attachment for zero-copy transmission
-    Status build_block_data(const std::string& segment_path, WarmUpSegmentRequest* request, 
-                           butil::IOBuf* attachment, int64_t* total_bytes);
-
     ExecEnv* _env;
     TabletManager* _tablet_mgr;
 
