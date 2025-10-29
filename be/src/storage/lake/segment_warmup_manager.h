@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include <butil/iobuf.h>
+
 #include "common/status.h"
 #include "gen_cpp/lake_service.pb.h"
 
