@@ -14,8 +14,10 @@
 
 #include "storage/lake/segment_warmup_manager.h"
 
+#include <brpc/channel.h>
 #include <brpc/controller.h>
 
+#include "agent/agent_server.h"
 #include "cache/block_cache/block_cache.h"
 #include "common/config.h"
 #include "common/logging.h"
@@ -343,21 +345,23 @@ Status SegmentWarmupManager::warmup_segment_blocks(int64_t tablet_id, const std:
 Status SegmentWarmupManager::send_warmup_rpc_to_peer(const std::string& host, int port,
                                                        const WarmUpSegmentRequest& request,
                                                        const butil::IOBuf& attachment) {
-    // Get stub
-    auto stub_cache = _env->brpc_stub_cache();
-    if (stub_cache == nullptr) {
-        return Status::InternalError("BrpcStubCache is null");
+    // Create brpc channel
+    brpc::ChannelOptions options;
+    options.timeout_ms = config::lake_segment_warmup_rpc_timeout_ms;
+    options.max_retry = 3;
+    
+    brpc::Channel channel;
+    std::string server_addr = strings::Substitute("$0:$1", host, port);
+    if (channel.Init(server_addr.c_str(), &options) != 0) {
+        return Status::InternalError(strings::Substitute("Failed to init channel to $0", server_addr));
     }
 
-    auto stub = stub_cache->get_stub(host, port);
-    if (stub == nullptr) {
-        return Status::InternalError(strings::Substitute("Failed to get stub for $0:$1", host, port));
-    }
+    // Create LakeService stub
+    LakeService_Stub stub(&channel);
 
     // Send RPC with attachment for zero-copy data transmission
     brpc::Controller cntl;
     WarmUpSegmentResponse response;
-    cntl.set_timeout_ms(config::lake_segment_warmup_rpc_timeout_ms);
     
     // Append attachment (block data) - this is zero-copy
     cntl.request_attachment().append(attachment);
@@ -366,7 +370,7 @@ Status SegmentWarmupManager::send_warmup_rpc_to_peer(const std::string& host, in
             << " blocks=" << request.blocks_size() 
             << " attachment_size=" << cntl.request_attachment().size();
 
-    stub->warm_up_segment(&cntl, &request, &response, nullptr);
+    stub.warm_up_segment(&cntl, &request, &response, nullptr);
 
     if (cntl.Failed()) {
         return Status::InternalError(
