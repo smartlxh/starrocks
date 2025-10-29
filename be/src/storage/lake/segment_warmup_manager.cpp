@@ -33,7 +33,15 @@
 namespace starrocks::lake {
 
 SegmentWarmupManager::SegmentWarmupManager(ExecEnv* env, TabletManager* tablet_mgr)
-        : _env(env), _tablet_mgr(tablet_mgr) {}
+        : _env(env), _tablet_mgr(tablet_mgr) {
+    // Parse peer nodes at construction time
+    _peer_nodes_config_cache = config::lake_segment_warmup_peer_nodes;
+    _peer_nodes = parse_peer_nodes(_peer_nodes_config_cache);
+    
+    if (!_peer_nodes.empty()) {
+        LOG(INFO) << "SegmentWarmupManager initialized with " << _peer_nodes.size() << " peer nodes";
+    }
+}
 
 SegmentWarmupManager::~SegmentWarmupManager() = default;
 
@@ -49,6 +57,86 @@ bool SegmentWarmupManager::should_apply_backpressure() const {
     }
 
     return false;
+}
+
+std::vector<std::pair<std::string, int>> SegmentWarmupManager::parse_peer_nodes(const std::string& config_str) {
+    std::vector<std::pair<std::string, int>> peer_nodes;
+    
+    if (config_str.empty()) {
+        return peer_nodes;
+    }
+
+    // Parse comma-separated list: "host1:port1,host2:port2,..."
+    size_t start = 0;
+    while (start < config_str.size()) {
+        size_t comma_pos = config_str.find(',', start);
+        size_t end = (comma_pos == std::string::npos) ? config_str.size() : comma_pos;
+        
+        std::string node_str = config_str.substr(start, end - start);
+        
+        // Trim whitespace
+        size_t first = node_str.find_first_not_of(" \t\r\n");
+        size_t last = node_str.find_last_not_of(" \t\r\n");
+        if (first != std::string::npos && last != std::string::npos) {
+            node_str = node_str.substr(first, last - first + 1);
+        }
+        
+        if (!node_str.empty()) {
+            // Parse "host:port"
+            size_t colon_pos = node_str.find(':');
+            if (colon_pos != std::string::npos) {
+                std::string host = node_str.substr(0, colon_pos);
+                std::string port_str = node_str.substr(colon_pos + 1);
+                try {
+                    int port = std::stoi(port_str);
+                    if (port > 0 && port <= 65535) {
+                        peer_nodes.emplace_back(host, port);
+                        VLOG(3) << "Parsed peer node: " << host << ":" << port;
+                    } else {
+                        LOG(WARNING) << "Invalid port in peer node config: " << node_str;
+                    }
+                } catch (const std::exception& e) {
+                    LOG(WARNING) << "Failed to parse port in peer node config: " << node_str 
+                                 << " error=" << e.what();
+                }
+            } else {
+                LOG(WARNING) << "Invalid peer node format (expected host:port): " << node_str;
+            }
+        }
+        
+        if (comma_pos == std::string::npos) {
+            break;
+        }
+        start = comma_pos + 1;
+    }
+
+    return peer_nodes;
+}
+
+std::vector<std::pair<std::string, int>> SegmentWarmupManager::get_peer_nodes() {
+    std::string current_config = config::lake_segment_warmup_peer_nodes;
+    
+    // Fast path: if config hasn't changed, return cached result
+    {
+        std::lock_guard<std::mutex> lock(_peer_nodes_mutex);
+        if (current_config == _peer_nodes_config_cache) {
+            return _peer_nodes;
+        }
+    }
+    
+    // Config changed, re-parse
+    auto new_peer_nodes = parse_peer_nodes(current_config);
+    
+    {
+        std::lock_guard<std::mutex> lock(_peer_nodes_mutex);
+        _peer_nodes_config_cache = current_config;
+        _peer_nodes = new_peer_nodes;
+        
+        LOG(INFO) << "Peer nodes config changed. New peer count: " << _peer_nodes.size()
+                  << " config: " << current_config;
+    }
+    
+    return new_peer_nodes;
 }
 
 Status SegmentWarmupManager::warm_up_segment(int64_t tablet_id, const std::string& segment_path,
@@ -69,12 +157,11 @@ Status SegmentWarmupManager::warm_up_segment(int64_t tablet_id, const std::strin
 
     _total_warmup_requests.fetch_add(1, std::memory_order_relaxed);
 
-    // TODO: Get peer CN nodes in the same warehouse
-    // This requires integrating with the cluster management system to discover peer nodes.
-    // For now, return OK as warmup will be skipped if no peers are configured.
-    std::vector<std::pair<std::string, int>> peer_nodes;
+    // Get peer CN nodes (cached, auto-refreshed on config change)
+    std::vector<std::pair<std::string, int>> peer_nodes = get_peer_nodes();
     if (peer_nodes.empty()) {
-        VLOG(3) << "No peer nodes configured for warmup. tablet_id=" << tablet_id << " warehouse_id=" << warehouse_id;
+        VLOG(3) << "No peer nodes configured for warmup. tablet_id=" << tablet_id 
+                << " warehouse_id=" << warehouse_id;
         return Status::OK();
     }
 
@@ -116,10 +203,11 @@ void SegmentWarmupManager::warm_up_segment_async(int64_t tablet_id, std::string 
     
     // Capture by value to ensure lifetime
     auto task = [env, tablet_mgr, tablet_id, segment_path = std::move(segment_path), warehouse_id, this]() {
-        // TODO: Get peer CN nodes in the same warehouse
-        std::vector<std::pair<std::string, int>> peer_nodes;
+        // Get peer CN nodes (cached, auto-refreshed on config change)
+        std::vector<std::pair<std::string, int>> peer_nodes = get_peer_nodes();
         if (peer_nodes.empty()) {
-            VLOG(3) << "No peer nodes configured for async warmup. tablet_id=" << tablet_id;
+            VLOG(3) << "No peer nodes configured for async warmup. tablet_id=" << tablet_id
+                    << " warehouse_id=" << warehouse_id;
             return;
         }
 

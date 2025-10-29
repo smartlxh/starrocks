@@ -1159,6 +1159,10 @@ CONF_mInt64(lake_segment_warmup_max_pending_memory_mb, "1024"); // 1GB
 CONF_mInt32(lake_segment_warmup_max_blocks_per_request, "1024");
 // RPC timeout for segment warmup requests (in milliseconds)
 CONF_mInt32(lake_segment_warmup_rpc_timeout_ms, "30000"); // 30 seconds
+// Peer CN nodes for segment warmup (comma-separated list of host:port pairs)
+// Example: "192.168.1.10:8060,192.168.1.11:8060,192.168.1.12:8060"
+// If empty, segment warmup will be skipped
+CONF_mString(lake_segment_warmup_peer_nodes, "");
 CONF_mBool(lake_clear_corrupted_cache, "true");
 // The maximum number of files which need to rebuilt in cloud native pk index.
 // If files which need to rebuilt larger than this, we will flush memtable immediately.
