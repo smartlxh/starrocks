@@ -503,7 +503,7 @@ void init_staros_worker(const std::shared_ptr<starcache::StarCache>& star_cache)
     fslib::FLAGS_star_cache_disk_size_bytes = config::starlet_star_cache_disk_size_bytes;
     fslib::FLAGS_star_cache_block_size_bytes = config::starlet_star_cache_block_size_bytes;
     
-    fslib::FLAGS_use_peer_cache = config::starlet_enable_peer_cache;
+    fslib::FLAGS_enable_peer_cache = config::starlet_enable_peer_cache;
 
     staros::starlet::StarletConfig starlet_config;
     starlet_config.rpc_port = config::starlet_port;
