@@ -327,6 +327,10 @@ public:
         if (info.size.has_value()) {
             opt.file_size = info.size.value();
         }
+        // Set peer nodes for peer cache
+        if (!opts.peer_nodes.empty()) {
+            opt.peer_nodes = opts.peer_nodes;
+        }
         auto file_st = (*fs_st)->open(pair.first, std::move(opt));
 
         if (!file_st.ok()) {
