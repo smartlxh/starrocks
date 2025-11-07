@@ -244,8 +244,9 @@ void SegmentWarmupManager::warm_up_segment_async(int64_t tablet_id, std::string 
 Status SegmentWarmupManager::warmup_segment_blocks(int64_t tablet_id, const std::string& segment_path,
                                                     const std::vector<std::pair<std::string, int>>& peer_nodes) {
     // Get file system and file size first
+    // there should pass the size of segment, otherwise will issue a headbject reqeust
     ASSIGN_OR_RETURN(auto fs, FileSystem::CreateSharedFromString(segment_path));
-    ASSIGN_OR_RETURN(auto file_size, fs->get_file_size(segment_path));
+    ASSIGN_OR_RETURN(auto file_size, fs->get_size(segment_path));
 
     // Get block size from BlockCache
     auto block_cache = BlockCache::instance();
