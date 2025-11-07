@@ -243,10 +243,8 @@ void SegmentWarmupManager::warm_up_segment_async(int64_t tablet_id, std::string 
 
 Status SegmentWarmupManager::warmup_segment_blocks(int64_t tablet_id, const std::string& segment_path,
                                                     const std::vector<std::pair<std::string, int>>& peer_nodes) {
-    // Get file system and file size first
-    // there should pass the size of segment, otherwise will issue a headbject reqeust
+    // Get file system first
     ASSIGN_OR_RETURN(auto fs, FileSystem::CreateSharedFromString(segment_path));
-    ASSIGN_OR_RETURN(auto file_size, fs->get_size(segment_path));
 
     // Get block size from BlockCache
     auto block_cache = BlockCache::instance();
@@ -258,8 +256,14 @@ Status SegmentWarmupManager::warmup_segment_blocks(int64_t tablet_id, const std:
         return Status::InternalError("Invalid block size");
     }
 
-    // Open file once for better performance
-    ASSIGN_OR_RETURN(auto file, fs->new_random_access_file(segment_path));
+    // Open file with bundling interface (similar to segment.cpp)
+    FileInfo file_info{.path = segment_path};
+    RandomAccessFileOptions opts{.skip_fill_local_cache = false, .buffer_size = -1};
+    
+    ASSIGN_OR_RETURN(auto file, fs->new_random_access_file(opts, file_info));
+    
+    // Get file size from the RandomAccessFile object
+    ASSIGN_OR_RETURN(auto file_size, file->get_size());
 
     // Stream-based sending: read a batch → send → read next batch
     size_t offset = 0;
