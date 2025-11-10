@@ -151,7 +151,7 @@ Status SegmentWarmupManager::warm_up_segment(int64_t tablet_id, const std::strin
     // Check backpressure
     if (should_apply_backpressure()) {
         _backpressure_skip_count.fetch_add(1, std::memory_order_relaxed);
-        VLOG(2) << "Skip segment warmup due to backpressure. tablet_id=" << tablet_id
+        LOG(INFO) << "Skip segment warmup due to backpressure. tablet_id=" << tablet_id
                 << " segment_path=" << segment_path << " pending_segments=" << _pending_segment_count.load()
                 << " pending_memory_mb=" << (_pending_memory_bytes.load() / 1024 / 1024);
         return Status::OK();
@@ -162,7 +162,7 @@ Status SegmentWarmupManager::warm_up_segment(int64_t tablet_id, const std::strin
     // Get peer CN nodes (cached, auto-refreshed on config change)
     std::vector<std::pair<std::string, int>> peer_nodes = get_peer_nodes();
     if (peer_nodes.empty()) {
-        VLOG(3) << "No peer nodes configured for warmup. tablet_id=" << tablet_id 
+        LOG(INFO) << "No peer nodes configured for warmup. tablet_id=" << tablet_id
                 << " warehouse_id=" << warehouse_id;
         return Status::OK();
     }
@@ -191,7 +191,7 @@ void SegmentWarmupManager::warm_up_segment_async(int64_t tablet_id, std::string 
     // Check backpressure - skip if over threshold
     if (should_apply_backpressure()) {
         _backpressure_skip_count.fetch_add(1, std::memory_order_relaxed);
-        VLOG(2) << "Skip async segment warmup due to backpressure. tablet_id=" << tablet_id
+        LOG(INFO) << "Skip async segment warmup due to backpressure. tablet_id=" << tablet_id
                 << " segment_path=" << segment_path;
         return;
     }
@@ -208,7 +208,7 @@ void SegmentWarmupManager::warm_up_segment_async(int64_t tablet_id, std::string 
         // Get peer CN nodes (cached, auto-refreshed on config change)
         std::vector<std::pair<std::string, int>> peer_nodes = get_peer_nodes();
         if (peer_nodes.empty()) {
-            VLOG(3) << "No peer nodes configured for async warmup. tablet_id=" << tablet_id
+            LOG(INFO) << "No peer nodes configured for async warmup. tablet_id=" << tablet_id
                     << " warehouse_id=" << warehouse_id;
             return;
         }
@@ -236,7 +236,7 @@ void SegmentWarmupManager::warm_up_segment_async(int64_t tablet_id, std::string 
         }
     } else {
         // Fallback: execute in current thread (not ideal but better than nothing)
-        VLOG(1) << "No thread pool available for async warmup, executing synchronously";
+        LOG(INFO) << "No thread pool available for async warmup, executing synchronously";
         task();
     }
 }
@@ -321,7 +321,7 @@ Status SegmentWarmupManager::warmup_segment_blocks(int64_t tablet_id, const std:
         DeferOp defer([this, batch_bytes]() { _pending_memory_bytes.fetch_sub(batch_bytes, std::memory_order_relaxed); });
 
         // Send this batch to all peer nodes
-        VLOG(2) << "Sending warmup batch. tablet_id=" << tablet_id << " segment_path=" << segment_path
+        LOG(INFO) << "Sending warmup batch. tablet_id=" << tablet_id << " segment_path=" << segment_path
                 << " batch_num=" << batch_num << " block_count=" << request.blocks_size() 
                 << " batch_bytes=" << batch_bytes << " progress=" << offset << "/" << file_size;
 
