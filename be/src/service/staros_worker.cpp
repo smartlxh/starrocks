@@ -56,6 +56,8 @@ DECLARE_bool(fslib_s3client_use_list_objects_v1);
 DECLARE_int32(fs_buffer_prefetch_threadpool_size);
 // switch to turn on/off buffer prefetch when read
 DECLARE_bool(fs_enable_buffer_prefetch);
+// enable peer cache for sharing cache between starlet nodes
+DECLARE_bool(enable_peer_cache);
 
 namespace starrocks {
 

@@ -61,14 +61,14 @@ bool SegmentWarmupManager::should_apply_backpressure() const {
     return false;
 }
 
-std::vector<std::pair<std::string, int>> SegmentWarmupManager::parse_peer_nodes(const std::string& config_str) {
-    std::vector<std::pair<std::string, int>> peer_nodes;
+std::vector<std::string> SegmentWarmupManager::parse_peer_nodes(const std::string& config_str) {
+    std::vector<std::string> peer_nodes;
     
     if (config_str.empty()) {
         return peer_nodes;
     }
 
-    // Parse comma-separated list: "host1:port1,host2:port2,..."
+    // Parse comma-separated list: "host1,host2,..." (port is automatically from config::brpc_port)
     size_t start = 0;
     while (start < config_str.size()) {
         size_t comma_pos = config_str.find(',', start);
@@ -84,26 +84,8 @@ std::vector<std::pair<std::string, int>> SegmentWarmupManager::parse_peer_nodes(
         }
         
         if (!node_str.empty()) {
-            // Parse "host:port"
-            size_t colon_pos = node_str.find(':');
-            if (colon_pos != std::string::npos) {
-                std::string host = node_str.substr(0, colon_pos);
-                std::string port_str = node_str.substr(colon_pos + 1);
-                try {
-                    int port = std::stoi(port_str);
-                    if (port > 0 && port <= 65535) {
-                        peer_nodes.emplace_back(host, port);
-                        VLOG(3) << "Parsed peer node: " << host << ":" << port;
-                    } else {
-                        LOG(WARNING) << "Invalid port in peer node config: " << node_str;
-                    }
-                } catch (const std::exception& e) {
-                    LOG(WARNING) << "Failed to parse port in peer node config: " << node_str 
-                                 << " error=" << e.what();
-                }
-            } else {
-                LOG(WARNING) << "Invalid peer node format (expected host:port): " << node_str;
-            }
+            peer_nodes.push_back(node_str);
+            VLOG(3) << "Parsed peer node: " << node_str << " (will use brpc_port=" << config::brpc_port << ")";
         }
         
         if (comma_pos == std::string::npos) {
@@ -115,7 +97,7 @@ std::vector<std::pair<std::string, int>> SegmentWarmupManager::parse_peer_nodes(
     return peer_nodes;
 }
 
-std::vector<std::pair<std::string, int>> SegmentWarmupManager::get_peer_nodes() {
+std::vector<std::string> SegmentWarmupManager::get_peer_nodes() {
     std::string current_config = config::lake_segment_warmup_peer_nodes;
     
     // Fast path: if config hasn't changed, return cached result
@@ -135,7 +117,7 @@ std::vector<std::pair<std::string, int>> SegmentWarmupManager::get_peer_nodes() 
         _peer_nodes = new_peer_nodes;
         
         LOG(INFO) << "Peer nodes config changed. New peer count: " << _peer_nodes.size()
-                  << " config: " << current_config;
+                  << " config: " << current_config << " (brpc_port=" << config::brpc_port << ")";
     }
     
     return new_peer_nodes;
@@ -160,7 +142,7 @@ Status SegmentWarmupManager::warm_up_segment(int64_t tablet_id, const std::strin
     _total_warmup_requests.fetch_add(1, std::memory_order_relaxed);
 
     // Get peer CN nodes (cached, auto-refreshed on config change)
-    std::vector<std::pair<std::string, int>> peer_nodes = get_peer_nodes();
+    std::vector<std::string> peer_nodes = get_peer_nodes();
     if (peer_nodes.empty()) {
         LOG(INFO) << "No peer nodes configured for warmup. tablet_id=" << tablet_id
                 << " warehouse_id=" << warehouse_id;
@@ -206,7 +188,7 @@ void SegmentWarmupManager::warm_up_segment_async(int64_t tablet_id, std::string 
     // Capture by value to ensure lifetime
     auto task = [env, tablet_mgr, tablet_id, segment_path = std::move(segment_path), warehouse_id, this]() {
         // Get peer CN nodes (cached, auto-refreshed on config change)
-        std::vector<std::pair<std::string, int>> peer_nodes = get_peer_nodes();
+        std::vector<std::string> peer_nodes = get_peer_nodes();
         if (peer_nodes.empty()) {
             LOG(INFO) << "No peer nodes configured for async warmup. tablet_id=" << tablet_id
                     << " warehouse_id=" << warehouse_id;
@@ -242,7 +224,7 @@ void SegmentWarmupManager::warm_up_segment_async(int64_t tablet_id, std::string 
 }
 
 Status SegmentWarmupManager::warmup_segment_blocks(int64_t tablet_id, const std::string& segment_path,
-                                                    const std::vector<std::pair<std::string, int>>& peer_nodes) {
+                                                    const std::vector<std::string>& peer_nodes) {
     // Get file system first
     ASSIGN_OR_RETURN(auto fs, FileSystem::CreateSharedFromString(segment_path));
 
@@ -325,11 +307,11 @@ Status SegmentWarmupManager::warmup_segment_blocks(int64_t tablet_id, const std:
                 << " batch_num=" << batch_num << " block_count=" << request.blocks_size() 
                 << " batch_bytes=" << batch_bytes << " progress=" << offset << "/" << file_size;
 
-        for (const auto& [host, port] : peer_nodes) {
-            Status st = send_warmup_rpc_to_peer(host, port, request, attachment);
+        for (const auto& host : peer_nodes) {
+            Status st = send_warmup_rpc_to_peer(host, request, attachment);
             if (!st.ok()) {
                 LOG(WARNING) << "Failed to send warmup RPC batch " << batch_num << " to peer. host=" << host 
-                             << " port=" << port << " error=" << st;
+                             << " port=" << config::brpc_port << " error=" << st;
                 final_status.update(st);
             }
         }
@@ -347,16 +329,16 @@ Status SegmentWarmupManager::warmup_segment_blocks(int64_t tablet_id, const std:
 }
 
 
-Status SegmentWarmupManager::send_warmup_rpc_to_peer(const std::string& host, int port,
+Status SegmentWarmupManager::send_warmup_rpc_to_peer(const std::string& host,
                                                        const WarmUpSegmentRequest& request,
                                                        const butil::IOBuf& attachment) {
-    // Create brpc channel
+    // Create brpc channel (port is automatically from config::brpc_port)
     brpc::ChannelOptions options;
     options.timeout_ms = config::lake_segment_warmup_rpc_timeout_ms;
     options.max_retry = 3;
     
     brpc::Channel channel;
-    std::string server_addr = strings::Substitute("$0:$1", host, port);
+    std::string server_addr = strings::Substitute("$0:$1", host, config::brpc_port);
     if (channel.Init(server_addr.c_str(), &options) != 0) {
         return Status::InternalError(strings::Substitute("Failed to init channel to $0", server_addr));
     }
@@ -371,7 +353,7 @@ Status SegmentWarmupManager::send_warmup_rpc_to_peer(const std::string& host, in
     // Append attachment (block data) - this is zero-copy
     cntl.request_attachment().append(attachment);
 
-    VLOG(2) << "Sending warmup RPC. host=" << host << " port=" << port
+    VLOG(2) << "Sending warmup RPC. host=" << host << " port=" << config::brpc_port
             << " blocks=" << request.blocks_size() 
             << " attachment_size=" << cntl.request_attachment().size();
 
@@ -379,15 +361,15 @@ Status SegmentWarmupManager::send_warmup_rpc_to_peer(const std::string& host, in
 
     if (cntl.Failed()) {
         return Status::InternalError(
-                strings::Substitute("Failed to send warmup RPC to $0:$1: $2", host, port, cntl.ErrorText()));
+                strings::Substitute("Failed to send warmup RPC to $0:$1: $2", host, config::brpc_port, cntl.ErrorText()));
     }
 
     if (response.status().status_code() != 0) {
-        return Status::InternalError(strings::Substitute("Warmup RPC failed on peer $0:$1: $2", host, port,
+        return Status::InternalError(strings::Substitute("Warmup RPC failed on peer $0:$1: $2", host, config::brpc_port,
                                                           response.status().DebugString()));
     }
 
-    VLOG(2) << "Successfully sent warmup RPC to peer. host=" << host << " port=" << port
+    VLOG(2) << "Successfully sent warmup RPC to peer. host=" << host << " port=" << config::brpc_port
             << " cached_blocks=" << response.cached_block_count();
 
     return Status::OK();

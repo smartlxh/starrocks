@@ -169,7 +169,7 @@ Status HorizontalGeneralTabletWriter::flush_segment_writer(SegmentPB* segment) {
             // TODO: Get warehouse_id from context
             int64_t warehouse_id = 0;
             warmup_mgr->warm_up_segment_async(_tablet_id, segment_path, warehouse_id);
-            VLOG(2) << "Triggered async warmup for segment. tablet_id=" << _tablet_id
+            LOG(INFO) << "Triggered async warmup for segment. tablet_id=" << _tablet_id
                     << " segment=" << segment_name << " size=" << segment_size;
         }
 
@@ -310,7 +310,7 @@ Status VerticalGeneralTabletWriter::finish(SegmentPB* segment) {
         // Async warmup: send segment to peer nodes immediately after it's finalized
         if (warmup_mgr) {
             warmup_mgr->warm_up_segment_async(_tablet_id, segment_path, warehouse_id);
-            VLOG(2) << "Triggered async warmup for vertical segment. tablet_id=" << _tablet_id
+            LOG(INFO) << "Triggered async warmup for vertical segment. tablet_id=" << _tablet_id
                     << " segment=" << segment_name << " size=" << segment_size;
         }
         

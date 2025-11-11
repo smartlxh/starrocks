@@ -62,18 +62,18 @@ private:
     // Check if backpressure should be applied
     bool should_apply_backpressure() const;
 
-    // Parse peer nodes from config string (format: "host1:port1,host2:port2,...")
-    static std::vector<std::pair<std::string, int>> parse_peer_nodes(const std::string& config_str);
+    // Parse peer nodes from config string (format: "host1,host2,..." - port is automatically from config::brpc_port)
+    static std::vector<std::string> parse_peer_nodes(const std::string& config_str);
 
     // Get peer nodes (with caching and auto-refresh on config change)
-    std::vector<std::pair<std::string, int>> get_peer_nodes();
+    std::vector<std::string> get_peer_nodes();
 
     // Read segment blocks and send to peer nodes
     Status warmup_segment_blocks(int64_t tablet_id, const std::string& segment_path,
-                                 const std::vector<std::pair<std::string, int>>& peer_nodes);
+                                 const std::vector<std::string>& peer_nodes);
 
-    // Send warm up RPC to a single peer node with attachment
-    Status send_warmup_rpc_to_peer(const std::string& host, int port, const WarmUpSegmentRequest& request,
+    // Send warm up RPC to a single peer node with attachment (port is automatically from config::brpc_port)
+    Status send_warmup_rpc_to_peer(const std::string& host, const WarmUpSegmentRequest& request,
                                    const butil::IOBuf& attachment);
 
     ExecEnv* _env;
@@ -81,7 +81,7 @@ private:
 
     // Cached peer nodes and config string for change detection
     mutable std::mutex _peer_nodes_mutex;
-    std::vector<std::pair<std::string, int>> _peer_nodes;
+    std::vector<std::string> _peer_nodes;
     std::string _peer_nodes_config_cache;
 
     // Metrics for backpressure control
