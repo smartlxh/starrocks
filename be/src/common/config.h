@@ -1090,6 +1090,7 @@ CONF_mInt32(starlet_cache_evict_throughput_mb, "200");
 CONF_mInt32(starlet_fs_stream_buffer_size_bytes, "1048576");
 CONF_mBool(starlet_use_star_cache, "true");
 CONF_mBool(starlet_enable_peer_cache, "true");
+CONF_mBool(starlet_force_local_cache_miss, "false");
 CONF_Bool(starlet_star_cache_async_init, "true");
 CONF_mInt32(starlet_star_cache_mem_size_percent, "0");
 CONF_mInt64(starlet_star_cache_mem_size_bytes, "134217728");
