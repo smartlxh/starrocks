@@ -50,6 +50,10 @@ struct CompactionTaskStats {
     int64_t io_count_local_disk = 0;
     int64_t io_count_remote = 0;
     int64_t in_queue_time_sec = 0;
+    // peer cache stats
+    int64_t io_bytes_read_peer_cache = 0;
+    int64_t io_count_peer_cache = 0;
+    int64_t io_ns_read_peer_cache = 0;
     int64_t read_segment_count = 0;
     int64_t write_segment_count = 0;
     int64_t write_segment_bytes = 0;

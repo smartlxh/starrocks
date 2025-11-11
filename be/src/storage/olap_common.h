@@ -305,6 +305,11 @@ struct OlapReaderStatistics {
     int64_t prefetch_hit_count = 0;
     int64_t prefetch_wait_finish_ns = 0;
     int64_t prefetch_pending_ns = 0;
+
+    // peer cache stats
+    int64_t bytes_read_peer_cache = 0;
+    int64_t io_count_peer_cache = 0;
+    int64_t io_ns_read_peer_cache = 0;
     // ------ for lake tablet ------
 
     // ------ for json type, to count flat column ------
@@ -345,6 +350,10 @@ const char* const kIONsWriteRemote = "io_ns_write_remote";
 const char* const kPrefetchHitCount = "prefetch_hit_count";
 const char* const kPrefetchWaitFinishNs = "prefetch_wait_finish_ns";
 const char* const kPrefetchPendingNs = "prefetch_pending_ns";
+// io stats for peer cache
+const char* const kBytesReadPeerCache = "bytes_read_peer_cache";
+const char* const kIOCountPeerCache = "io_count_peer_cache";
+const char* const kIONsReadPeerCache = "io_ns_read_peer_cache";
 
 // The position index of a column in a specific TabletSchema starts from 0.
 // The position of the same column in different TabletSchema may be different, which

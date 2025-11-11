@@ -200,7 +200,7 @@ public:
 
         const auto& read_stats = (*stream_st)->get_io_stats();
         auto stats = std::make_unique<io::NumericStatistics>();
-        stats->reserve(11);
+        stats->reserve(14);
         stats->append(kBytesReadLocalDisk, read_stats.bytes_read_local_disk);
         stats->append(kBytesWriteLocalDisk, read_stats.bytes_write_local_disk);
         stats->append(kBytesReadRemote, read_stats.bytes_read_remote);
@@ -212,6 +212,9 @@ public:
         stats->append(kPrefetchHitCount, read_stats.prefetch_hit_count);
         stats->append(kPrefetchWaitFinishNs, read_stats.prefetch_wait_finish_ns);
         stats->append(kPrefetchPendingNs, read_stats.prefetch_pending_ns);
+        stats->append(kBytesReadPeerCache, read_stats.bytes_read_peer_cache);
+        stats->append(kIOCountPeerCache, read_stats.io_count_peer_cache);
+        stats->append(kIONsReadPeerCache, read_stats.io_ns_read_peer_cache);
         return std::move(stats);
     }
 

@@ -2537,6 +2537,14 @@ void SegmentIterator::_update_stats(io::SeekableInputStream* rfile) {
             _opts.stats->prefetch_wait_finish_ns += value;
         } else if (name == kPrefetchPendingNs) {
             _opts.stats->prefetch_pending_ns += value;
+        } else if (name == kBytesReadPeerCache) {
+            _opts.stats->bytes_read_peer_cache += value;
+            _opts.stats->compressed_bytes_read += value;
+        } else if (name == kIOCountPeerCache) {
+            _opts.stats->io_count_peer_cache += value;
+            _opts.stats->io_count += value;
+        } else if (name == kIONsReadPeerCache) {
+            _opts.stats->io_ns_read_peer_cache += value;
         }
     }
 }
