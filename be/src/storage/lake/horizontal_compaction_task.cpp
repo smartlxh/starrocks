@@ -51,9 +51,12 @@ Status HorizontalCompactionTask::execute(CancelFunc cancel_func, ThreadPool* flu
     reader_params.chunk_size = chunk_size;
     reader_params.profile = nullptr;
     reader_params.use_page_cache = false;
+    // Use peer nodes from context (FE passed) if available, otherwise fallback to config
+    std::string peer_nodes = !_context->peer_nodes.empty() ? _context->peer_nodes 
+                                                            : config::lake_segment_warmup_peer_nodes;
     reader_params.lake_io_opts = {.fill_data_cache = true,
                                   .buffer_size = config::lake_compaction_stream_buffer_size_bytes,
-                                  .peer_nodes = config::lake_segment_warmup_peer_nodes};
+                                  .peer_nodes = peer_nodes};
     reader_params.column_access_paths = &_column_access_paths;
     RETURN_IF_ERROR(reader.open(reader_params));
 

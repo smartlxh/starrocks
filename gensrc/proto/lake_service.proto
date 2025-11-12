@@ -91,6 +91,8 @@ message CompactRequest {
     optional bool allow_partial_success = 5;
     optional bytes encryption_meta = 6;
     optional bool force_base_compaction = 7;
+    // peer cache nodes for warm-up, list of IP addresses
+    repeated string peer_nodes = 8;
 }
 
 message CompactStat {

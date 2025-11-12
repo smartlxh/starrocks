@@ -2946,6 +2946,9 @@ public class Config extends ConfigBase {
     public static String lake_compaction_warehouse = "default_warehouse";
 
     @ConfField(mutable = true)
+    public static String lake_compaction_service_warehouse = "default_warehouse";
+
+    @ConfField(mutable = true)
     public static String lake_background_warehouse = "default_warehouse";
 
     @ConfField(mutable = true)

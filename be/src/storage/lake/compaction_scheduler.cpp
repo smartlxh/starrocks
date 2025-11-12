@@ -259,10 +259,22 @@ void CompactionScheduler::compact(::google::protobuf::RpcController* controller,
     // thread to avoid blocking other transactions, but if there are idle threads, they will steal
     // tasks from busy threads to execute.
     auto cb = std::make_shared<CompactionTaskCallback>(this, request, response, done);
+    
+    // Convert peer_nodes from request to comma-separated string
+    std::string peer_nodes_str;
+    if (request->peer_nodes_size() > 0) {
+        std::vector<std::string> peer_nodes_vec;
+        for (int i = 0; i < request->peer_nodes_size(); ++i) {
+            peer_nodes_vec.push_back(request->peer_nodes(i));
+        }
+        peer_nodes_str = fmt::format("{}", fmt::join(peer_nodes_vec, ","));
+        LOG(INFO) << "Compaction txn_id=" << request->txn_id() << " using peer nodes: " << peer_nodes_str;
+    }
+    
     std::vector<std::unique_ptr<CompactionTaskContext>> contexts_vec;
     for (auto tablet_id : request->tablet_ids()) {
         auto context = std::make_unique<CompactionTaskContext>(request->txn_id(), tablet_id, request->version(),
-                                                               request->force_base_compaction(), cb);
+                                                               request->force_base_compaction(), cb, peer_nodes_str);
         contexts_vec.push_back(std::move(context));
         // DO NOT touch `context` from here!
     }
