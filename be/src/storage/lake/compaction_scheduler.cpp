@@ -255,6 +255,7 @@ void CompactionScheduler::compact(::google::protobuf::RpcController* controller,
                                         st.detailed_message());
         }
     }
+    LOG(INFO) << "debug compact request " << request->DebugString();
     // By default, all the tablet compaction tasks with the same txn id will be executed in the same
     // thread to avoid blocking other transactions, but if there are idle threads, they will steal
     // tasks from busy threads to execute.
@@ -286,7 +287,7 @@ void CompactionScheduler::compact(::google::protobuf::RpcController* controller,
     
     if (total_peer_nodes > 0) {
         LOG(INFO) << "Compaction txn_id=" << request->txn_id() 
-                  << " tablets=" << request->tablet_ids_size() 
+                  << " tablets=" << request->tablet_ids_size()
                   << " total_peer_nodes=" << total_peer_nodes;
     }
     // initialize last check time, compact request is received right after FE sends it, so consider it valid now

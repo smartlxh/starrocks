@@ -379,13 +379,13 @@ public class CompactionScheduler extends Daemon {
             for (Long tabletId : request.tabletIds) {
                 List<String> peerNodesForTablet = tabletsToPeerCacheNode.get(tabletId);
                 TabletPeerNodesList peerNodesList = new TabletPeerNodesList();
+                // For StarRocks protobuf, peerNodes is a public List field that should be directly assigned
                 if (peerNodesForTablet != null && !peerNodesForTablet.isEmpty()) {
-                    peerNodesList.setPeerNodes(peerNodesForTablet);
+                    peerNodesList.peerNodes = new ArrayList<>(peerNodesForTablet);
                     peerNodeCount += peerNodesForTablet.size();
                 } else {
-                    peerNodesList.setPeerNodes(new ArrayList<>());
+                    peerNodesList.peerNodes = new ArrayList<>();
                 }
-                // Add empty TabletPeerNodesList for tablets without peer nodes
                 request.tabletPeerNodes.add(peerNodesList);
             }
             
