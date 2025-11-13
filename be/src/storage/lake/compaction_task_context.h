@@ -71,7 +71,7 @@ struct CompactionTaskStats {
 // Context of a single tablet compaction task.
 struct CompactionTaskContext : public butil::LinkNode<CompactionTaskContext> {
     explicit CompactionTaskContext(int64_t txn_id_, int64_t tablet_id_, int64_t version_, bool force_base_compaction_,
-                                   std::shared_ptr<CompactionTaskCallback> cb_, std::string peer_nodes_ = "")
+                                   std::shared_ptr<CompactionTaskCallback> cb_, std::vector<std::string> peer_nodes_ = {})
             : txn_id(txn_id_),
               tablet_id(tablet_id_),
               version(version_),
@@ -89,7 +89,7 @@ struct CompactionTaskContext : public butil::LinkNode<CompactionTaskContext> {
     const int64_t tablet_id;
     const int64_t version;
     const bool force_base_compaction;
-    const std::string peer_nodes; // peer cache nodes from FE, comma-separated IP addresses
+    const std::vector<std::string> peer_nodes; // peer cache nodes from FE (list of IP addresses/hostnames)
     std::atomic<int64_t> start_time{0};
     std::atomic<int64_t> finish_time{0};
     std::atomic<bool> skipped{false};

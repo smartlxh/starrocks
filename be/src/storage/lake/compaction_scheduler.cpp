@@ -260,23 +260,34 @@ void CompactionScheduler::compact(::google::protobuf::RpcController* controller,
     // tasks from busy threads to execute.
     auto cb = std::make_shared<CompactionTaskCallback>(this, request, response, done);
     
-    // Convert peer_nodes from request to comma-separated string
-    std::string peer_nodes_str;
-    if (request->peer_nodes_size() > 0) {
-        std::vector<std::string> peer_nodes_vec;
-        for (int i = 0; i < request->peer_nodes_size(); ++i) {
-            peer_nodes_vec.push_back(request->peer_nodes(i));
+    // Create compaction contexts for each tablet with corresponding peer nodes
+    std::vector<std::unique_ptr<CompactionTaskContext>> contexts_vec;
+    int tablet_index = 0;
+    int total_peer_nodes = 0;
+    
+    for (auto tablet_id : request->tablet_ids()) {
+        // Get peer nodes for this specific tablet (if available)
+        std::vector<std::string> peer_nodes_for_tablet;
+        if (tablet_index < request->tablet_peer_nodes_size()) {
+            const auto& tablet_peer_nodes = request->tablet_peer_nodes(tablet_index);
+            for (int i = 0; i < tablet_peer_nodes.peer_nodes_size(); ++i) {
+                peer_nodes_for_tablet.push_back(tablet_peer_nodes.peer_nodes(i));
+            }
+            total_peer_nodes += peer_nodes_for_tablet.size();
         }
-        peer_nodes_str = fmt::format("{}", fmt::join(peer_nodes_vec, ","));
-        LOG(INFO) << "Compaction txn_id=" << request->txn_id() << " using peer nodes: " << peer_nodes_str;
+        
+        auto context = std::make_unique<CompactionTaskContext>(request->txn_id(), tablet_id, request->version(),
+                                                               request->force_base_compaction(), cb, 
+                                                               std::move(peer_nodes_for_tablet));
+        contexts_vec.push_back(std::move(context));
+        tablet_index++;
+        // DO NOT touch `context` from here!
     }
     
-    std::vector<std::unique_ptr<CompactionTaskContext>> contexts_vec;
-    for (auto tablet_id : request->tablet_ids()) {
-        auto context = std::make_unique<CompactionTaskContext>(request->txn_id(), tablet_id, request->version(),
-                                                               request->force_base_compaction(), cb, peer_nodes_str);
-        contexts_vec.push_back(std::move(context));
-        // DO NOT touch `context` from here!
+    if (total_peer_nodes > 0) {
+        LOG(INFO) << "Compaction txn_id=" << request->txn_id() 
+                  << " tablets=" << request->tablet_ids_size() 
+                  << " total_peer_nodes=" << total_peer_nodes;
     }
     // initialize last check time, compact request is received right after FE sends it, so consider it valid now
     cb->set_last_check_time(time(nullptr));

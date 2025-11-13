@@ -87,9 +87,9 @@ struct LakeIOOptions {
     bool cache_file_only = false; // only used for CACHE SELECT
     std::shared_ptr<FileSystem> fs;
     std::shared_ptr<starrocks::lake::LocationProvider> location_provider;
-    // Peer nodes for peer cache (comma-separated list of host:port pairs)
-    // Example: "192.168.1.10:8060,192.168.1.11:8060"
-    std::string peer_nodes;
+    // Peer nodes for peer cache (list of IP addresses/hostnames)
+    // Example: {"192.168.1.10", "192.168.1.11"}
+    std::vector<std::string> peer_nodes;
 };
 
 } // namespace starrocks

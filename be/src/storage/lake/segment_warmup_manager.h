@@ -45,12 +45,16 @@ public:
     // Warm up segment blocks on peer CN nodes in the same warehouse (synchronous)
     // This method checks backpressure conditions before sending RPCs
     // Returns OK if warm up is initiated successfully or skipped due to backpressure
-    Status warm_up_segment(int64_t tablet_id, const std::string& segment_path, int64_t warehouse_id);
+    // peer_nodes: list of peer node IP addresses/hostnames (provided by FE via compaction request)
+    Status warm_up_segment(int64_t tablet_id, const std::string& segment_path, int64_t warehouse_id,
+                           const std::vector<std::string>& peer_nodes);
 
     // Warm up segment blocks asynchronously (non-blocking)
     // Submits the warmup task to a thread pool and returns immediately
     // This is preferred for use in hot path to avoid blocking
-    void warm_up_segment_async(int64_t tablet_id, std::string segment_path, int64_t warehouse_id);
+    // peer_nodes: list of peer node IP addresses/hostnames (provided by FE via compaction request)
+    void warm_up_segment_async(int64_t tablet_id, std::string segment_path, int64_t warehouse_id,
+                               std::vector<std::string> peer_nodes);
 
     // Get current metrics
     int64_t pending_segment_count() const { return _pending_segment_count.load(std::memory_order_relaxed); }
@@ -62,12 +66,6 @@ private:
     // Check if backpressure should be applied
     bool should_apply_backpressure() const;
 
-    // Parse peer nodes from config string (format: "host1,host2,..." - port is automatically from config::brpc_port)
-    static std::vector<std::string> parse_peer_nodes(const std::string& config_str);
-
-    // Get peer nodes (with caching and auto-refresh on config change)
-    std::vector<std::string> get_peer_nodes();
-
     // Read segment blocks and send to peer nodes
     Status warmup_segment_blocks(int64_t tablet_id, const std::string& segment_path,
                                  const std::vector<std::string>& peer_nodes);
@@ -78,11 +76,6 @@ private:
 
     ExecEnv* _env;
     TabletManager* _tablet_mgr;
-
-    // Cached peer nodes and config string for change detection
-    mutable std::mutex _peer_nodes_mutex;
-    std::vector<std::string> _peer_nodes;
-    std::string _peer_nodes_config_cache;
 
     // Metrics for backpressure control
     std::atomic<int64_t> _pending_segment_count{0};

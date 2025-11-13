@@ -165,12 +165,10 @@ Status VerticalCompactionTask::compact_column_group(bool is_key, int column_grou
     reader_params.profile = nullptr;
     reader_params.use_page_cache = false;
     reader_params.column_access_paths = &_column_access_paths;
-    // Use peer nodes from context (FE passed) if available, otherwise fallback to config
-    std::string peer_nodes = !_context->peer_nodes.empty() ? _context->peer_nodes 
-                                                            : config::lake_segment_warmup_peer_nodes;
+    // Use peer nodes from context (FE passed via compaction request)
     reader_params.lake_io_opts = {.fill_data_cache = config::lake_enable_vertical_compaction_fill_data_cache,
                                   .buffer_size = config::lake_compaction_stream_buffer_size_bytes,
-                                  .peer_nodes = peer_nodes};
+                                  .peer_nodes = _context->peer_nodes};
     RETURN_IF_ERROR(reader.open(reader_params));
 
     CompactionTaskStats prev_stats;

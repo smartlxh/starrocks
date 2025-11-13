@@ -371,7 +371,25 @@ public class CompactionScheduler extends Daemon {
             request.allowPartialSuccess = allowPartialSuccess;
             request.encryptionMeta = GlobalStateMgr.getCurrentState().getKeyMgr().getCurrentKEKAsEncryptionMeta();
             request.forceBaseCompaction = (priority == PartitionStatistics.CompactionPriority.MANUAL_COMPACT);
-            request.peerNodes = tabletsToPeerCacheNode.get(entry.getKey());
+            
+            // Collect peer nodes for each tablet in this request (maintain order and correspondence)
+            request.tabletPeerNodes = new ArrayList<>();
+            int peerNodeCount = 0;
+            for (Long tabletId : request.tabletIds) {
+                List<String> peerNodesForTablet = tabletsToPeerCacheNode.get(tabletId);
+                if (peerNodesForTablet != null && !peerNodesForTablet.isEmpty()) {
+                    request.tabletPeerNodes.add(peerNodesForTablet);
+                    peerNodeCount += peerNodesForTablet.size();
+                } else {
+                    // Empty list for tablets without peer nodes
+                    request.tabletPeerNodes.add(new ArrayList<>());
+                }
+            }
+            
+            if (peerNodeCount > 0) {
+                LOG.info("Compaction txn_id={} node={} tablets={} total_peer_nodes={}", 
+                        txnId, node.getHost(), request.tabletIds.size(), peerNodeCount);
+            }
 
             CompactionTask task = new CompactionTask(node.getId(), service, request);
             tasks.add(task);
@@ -395,14 +413,15 @@ public class CompactionScheduler extends Daemon {
                         csWarehouse.getName(), (LakeTablet) tablet);
                 ComputeNode computeNode = manager.getComputeNodeAssignedToTablet(
                         compactionWarehouse.getName(), (LakeTablet) tablet);
-                tabletsToPeerCacheNode.computeIfAbsent(tablet.getId(), key -> new ArrayList<>()).add(computeNode.getHost());
                 if (computeNode == null || compactionServiceCnNode == null) {
                     LOG.warn("compaction node or is compactionServiceCnNode null for tablet {}", tablet.getId());
                     beToTablets.clear();
                     return beToTablets;
                 }
 
-                beToTablets.computeIfAbsent(computeNode.getId(), k -> Lists.newArrayList()).add(tablet.getId());
+                beToTablets.computeIfAbsent(compactionServiceCnNode.getId(), k -> Lists.newArrayList()).add(tablet.getId());
+                tabletsToPeerCacheNode.computeIfAbsent(tablet.getId(), key -> new ArrayList<>()).add(computeNode.getHost());
+                LOG.info("tabletId {}, compute node {}, csNode {}", tablet.getId(), computeNode.getHost(), compactionServiceCnNode.getHost());
             }
         }
         return beToTablets;
