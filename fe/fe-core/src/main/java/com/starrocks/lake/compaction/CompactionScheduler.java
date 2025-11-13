@@ -276,6 +276,7 @@ public class CompactionScheduler extends Daemon {
         OlapTable table;
         PhysicalPartition partition;
         Map<Long, List<Long>> beToTablets;
+        Map<Long, List<String>> tabletsToPeerCacheNode = new HashMap<>();
 
         Locker locker = new Locker();
         locker.lockDatabase(db.getId(), LockType.READ);
@@ -299,7 +300,6 @@ public class CompactionScheduler extends Daemon {
 
             currentVersion = partition.getVisibleVersion();
 
-            Map<Long, List<String>> tabletsToPeerCacheNode = new HashMap<>();
             beToTablets = collectPartitionTablets(partition, tabletsToPeerCacheNode);
             if (beToTablets.isEmpty()) {
                 compactionManager.enableCompactionAfter(partitionIdentifier, Config.lake_compaction_interval_ms_on_failure);
@@ -325,7 +325,7 @@ public class CompactionScheduler extends Daemon {
         long nextCompactionInterval = Config.lake_compaction_interval_ms_on_success;
         CompactionJob job = new CompactionJob(db, table, partition, txnId, Config.lake_compaction_allow_partial_success);
         try {
-            List<CompactionTask> tasks = createCompactionTasks(currentVersion, beToTablets, txnId,
+            List<CompactionTask> tasks = createCompactionTasks(currentVersion, beToTablets, tabletsToPeerCacheNode, txnId,
                     job.getAllowPartialSuccess(), partitionStatisticsSnapshot.getPriority(), partition);
             for (CompactionTask task : tasks) {
                 task.sendRequest();
@@ -348,8 +348,10 @@ public class CompactionScheduler extends Daemon {
     @NotNull
     private List<CompactionTask> createCompactionTasks(long currentVersion,
                                                        Map<Long, List<Long>> beToTablets,
-                                                       Map<Long, List<Long>> tabletsToPeerCacheNode, long txnId,
-                                                       boolean allowPartialSuccess, PartitionStatistics.CompactionPriority priority,
+                                                       Map<Long, List<String>> tabletsToPeerCacheNode,
+                                                       long txnId,
+                                                       boolean allowPartialSuccess,
+                                                       PartitionStatistics.CompactionPriority priority,
                                                        PhysicalPartition partition)
             throws StarRocksException, RpcException {
         List<CompactionTask> tasks = new ArrayList<>();
@@ -378,7 +380,8 @@ public class CompactionScheduler extends Daemon {
     }
 
     @NotNull
-    private Map<Long, List<Long>> collectPartitionTablets(PhysicalPartition partition, Map<Long, List<String>> tabletsToPeerCacheNode) {
+    private Map<Long, List<Long>> collectPartitionTablets(PhysicalPartition partition,
+                                                          Map<Long, List<String>> tabletsToPeerCacheNode) {
         List<MaterializedIndex> visibleIndexes = partition.getMaterializedIndices(MaterializedIndex.IndexExtState.VISIBLE);
         Map<Long, List<Long>> beToTablets = new HashMap<>();
         WarehouseManager manager = GlobalStateMgr.getCurrentState().getWarehouseMgr();
