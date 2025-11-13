@@ -61,6 +61,8 @@ Status HorizontalCompactionTask::execute(CancelFunc cancel_func, ThreadPool* flu
     ASSIGN_OR_RETURN(auto writer,
                      _tablet.new_writer_with_schema(kHorizontal, _txn_id, 0, flush_pool, true /** compaction **/,
                                                     _tablet_schema /** output rowset schema**/))
+    // Set peer nodes for segment warmup
+    writer->set_peer_nodes(_context->peer_nodes);
     RETURN_IF_ERROR(writer->open());
     DeferOp defer([&]() { writer->close(); });
 

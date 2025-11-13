@@ -51,6 +51,8 @@ Status VerticalCompactionTask::execute(CancelFunc cancel_func, ThreadPool* flush
             CompactionUtils::get_segment_max_rows(config::max_segment_file_size, _total_num_rows, _total_data_size);
     ASSIGN_OR_RETURN(auto writer, _tablet.new_writer_with_schema(kVertical, _txn_id, max_rows_per_segment, flush_pool,
                                                                  true /** is compaction**/, _tablet_schema));
+    // Set peer nodes for segment warmup
+    writer->set_peer_nodes(_context->peer_nodes);
     RETURN_IF_ERROR(writer->open());
     DeferOp defer([&]() { writer->close(); });
 
