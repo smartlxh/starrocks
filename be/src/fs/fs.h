@@ -120,8 +120,8 @@ struct RandomAccessFileOptions {
     int64_t buffer_size = -1;
     FileEncryptionInfo encryption_info;
     bool skip_disk_cache = false;
-    // Peer nodes for peer cache (comma-separated list of host:port pairs)
-    std::string peer_nodes;
+    // Peer nodes for peer cache (list of IP addresses/hostnames)
+    std::vector<std::string> peer_nodes;
 };
 
 struct DirEntry {
