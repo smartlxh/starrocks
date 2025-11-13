@@ -33,6 +33,7 @@ import com.starrocks.common.util.concurrent.lock.LockType;
 import com.starrocks.common.util.concurrent.lock.Locker;
 import com.starrocks.lake.LakeTablet;
 import com.starrocks.proto.CompactRequest;
+import com.starrocks.proto.TabletPeerNodesList;
 import com.starrocks.rpc.BrpcProxy;
 import com.starrocks.rpc.LakeService;
 import com.starrocks.rpc.RpcException;
@@ -377,13 +378,15 @@ public class CompactionScheduler extends Daemon {
             int peerNodeCount = 0;
             for (Long tabletId : request.tabletIds) {
                 List<String> peerNodesForTablet = tabletsToPeerCacheNode.get(tabletId);
+                TabletPeerNodesList peerNodesList = new TabletPeerNodesList();
                 if (peerNodesForTablet != null && !peerNodesForTablet.isEmpty()) {
-                    request.tabletPeerNodes.add(peerNodesForTablet);
+                    peerNodesList.setPeerNodes(peerNodesForTablet);
                     peerNodeCount += peerNodesForTablet.size();
                 } else {
-                    // Empty list for tablets without peer nodes
-                    request.tabletPeerNodes.add(new ArrayList<>());
+                    peerNodesList.setPeerNodes(new ArrayList<>());
                 }
+                // Add empty TabletPeerNodesList for tablets without peer nodes
+                request.tabletPeerNodes.add(peerNodesList);
             }
             
             if (peerNodeCount > 0) {
@@ -421,7 +424,8 @@ public class CompactionScheduler extends Daemon {
 
                 beToTablets.computeIfAbsent(compactionServiceCnNode.getId(), k -> Lists.newArrayList()).add(tablet.getId());
                 tabletsToPeerCacheNode.computeIfAbsent(tablet.getId(), key -> new ArrayList<>()).add(computeNode.getHost());
-                LOG.info("tabletId {}, compute node {}, csNode {}", tablet.getId(), computeNode.getHost(), compactionServiceCnNode.getHost());
+                LOG.info("tabletId {}, compute node {}, csNode {}",
+                        tablet.getId(), computeNode.getHost(), compactionServiceCnNode.getHost());
             }
         }
         return beToTablets;
