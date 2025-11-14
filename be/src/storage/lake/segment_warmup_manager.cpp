@@ -237,14 +237,27 @@ Status SegmentWarmupManager::warmup_segment_blocks(int64_t tablet_id, const std:
         // Send this batch to all peer nodes
         LOG(INFO) << "Sending warmup batch. tablet_id=" << tablet_id << " segment_path=" << segment_path
                 << " batch_num=" << batch_num << " block_count=" << request.blocks_size() 
-                << " batch_bytes=" << batch_bytes << " progress=" << offset << "/" << file_size;
+                << " batch_bytes=" << batch_bytes << " progress=" << offset << "/" << file_size
+                << " target_peer_nodes=" << peer_nodes.size();
 
         for (const auto& host : peer_nodes) {
+            LOG(INFO) << "Warmup batch " << batch_num << " to peer_node=" << host 
+                     << ":" << config::brpc_port
+                     << ", tablet_id=" << tablet_id
+                     << ", blocks=" << request.blocks_size()
+                     << ", bytes=" << batch_bytes;
+            
             Status st = send_warmup_rpc_to_peer(host, request, attachment);
             if (!st.ok()) {
-                LOG(WARNING) << "Failed to send warmup RPC batch " << batch_num << " to peer. host=" << host 
-                             << " port=" << config::brpc_port << " error=" << st;
+                LOG(WARNING) << "Failed to send warmup RPC batch " << batch_num << " to peer_node=" << host 
+                             << ":" << config::brpc_port 
+                             << ", tablet_id=" << tablet_id
+                             << ", error=" << st;
                 final_status.update(st);
+            } else {
+                LOG(INFO) << "Successfully sent warmup batch " << batch_num << " to peer_node=" << host
+                         << ":" << config::brpc_port
+                         << ", tablet_id=" << tablet_id;
             }
         }
 
@@ -253,9 +266,12 @@ Status SegmentWarmupManager::warmup_segment_blocks(int64_t tablet_id, const std:
         batch_num++;
     }
 
-    LOG(INFO) << "Completed warming up segment. tablet_id=" << tablet_id << " segment_path=" << segment_path
-              << " total_blocks=" << total_blocks << " total_bytes=" << total_bytes_sent 
-              << " batches=" << batch_num << " peer_count=" << peer_nodes.size();
+    LOG(INFO) << "Completed warming up segment. tablet_id=" << tablet_id 
+              << " segment_path=" << segment_path
+              << " total_blocks=" << total_blocks 
+              << " total_bytes=" << total_bytes_sent 
+              << " batches=" << batch_num 
+              << " target_peer_nodes=" << peer_nodes.size();
 
     return final_status;
 }
@@ -285,7 +301,8 @@ Status SegmentWarmupManager::send_warmup_rpc_to_peer(const std::string& host,
     // Append attachment (block data) - this is zero-copy
     cntl.request_attachment().append(attachment);
 
-    VLOG(2) << "Sending warmup RPC. host=" << host << " port=" << config::brpc_port
+    LOG(INFO) << "Sending warmup RPC to peer_node=" << host << ":" << config::brpc_port
+            << " tablet_id=" << request.tablet_id()
             << " blocks=" << request.blocks_size() 
             << " attachment_size=" << cntl.request_attachment().size();
 
@@ -301,7 +318,8 @@ Status SegmentWarmupManager::send_warmup_rpc_to_peer(const std::string& host,
                                                           response.status().DebugString()));
     }
 
-    VLOG(2) << "Successfully sent warmup RPC to peer. host=" << host << " port=" << config::brpc_port
+    LOG(INFO) << "Successfully sent warmup RPC to peer_node=" << host << ":" << config::brpc_port
+            << " tablet_id=" << request.tablet_id()
             << " cached_blocks=" << response.cached_block_count();
 
     return Status::OK();
