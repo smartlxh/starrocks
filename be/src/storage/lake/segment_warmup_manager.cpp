@@ -158,8 +158,10 @@ Status SegmentWarmupManager::warmup_segment_blocks(int64_t tablet_id, const std:
     ASSIGN_OR_RETURN(auto fs, FileSystem::CreateSharedFromString(segment_path));
 
     // Get block size from BlockCache
-    auto block_cache = BlockCache::instance();
-    if (!block_cache->available()) {
+    auto block_cache = CacheEnv::GetInstance()->block_cache();
+    if (block_cache == nullptr || !block_cache->available()) {
+        LOG(WARNING) << "BlockCache is not available for warmup. tablet_id=" << tablet_id 
+                     << " segment_path=" << segment_path;
         return Status::NotSupported("BlockCache is not available");
     }
     size_t block_size = block_cache->block_size();

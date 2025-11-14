@@ -374,8 +374,8 @@ public class CompactionScheduler extends Daemon {
             request.forceBaseCompaction = (priority == PartitionStatistics.CompactionPriority.MANUAL_COMPACT);
             
             // Collect peer nodes for each tablet in this request (maintain order and correspondence)
-            request.tabletPeerNodes = new ArrayList<>();
             int peerNodeCount = 0;
+            List<TabletPeerNodesList> peerNodes = new ArrayList<>();
             for (Long tabletId : request.tabletIds) {
                 List<String> peerNodesForTablet = tabletsToPeerCacheNode.get(tabletId);
                 TabletPeerNodesList peerNodesList = new TabletPeerNodesList();
@@ -386,13 +386,14 @@ public class CompactionScheduler extends Daemon {
                 } else {
                     peerNodesList.peerNodes = new ArrayList<>();
                 }
-                request.tabletPeerNodes.add(peerNodesList);
+                peerNodes.add(peerNodesList);
             }
             
             if (peerNodeCount > 0) {
                 LOG.info("Compaction txn_id={} node={} tablets={} total_peer_nodes={}", 
                         txnId, node.getHost(), request.tabletIds.size(), peerNodeCount);
             }
+            request.tabletPeerNodes = peerNodes;
 
             CompactionTask task = new CompactionTask(node.getId(), service, request);
             tasks.add(task);
