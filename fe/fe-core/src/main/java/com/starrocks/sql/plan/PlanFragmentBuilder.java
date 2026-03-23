@@ -1418,6 +1418,11 @@ public class PlanFragmentBuilder {
             paimonScanNode.setScanOptimizeOption(node.getScanOptimizeOption());
             paimonScanNode.computeStatistics(optExpression.getStatistics());
             paimonScanNode.setTvrVersionRange(node.getTvrVersionRange());
+
+            if (node.getPaimonVectorSearchOptions() != null) {
+                paimonScanNode.setVectorSearchOptions(node.getPaimonVectorSearchOptions());
+            }
+
             currentExecGroup.add(paimonScanNode, true);
             try {
                 // set predicate
@@ -1428,7 +1433,13 @@ public class PlanFragmentBuilder {
                     paimonScanNode.getConjuncts()
                             .add(ScalarOperatorToExpr.buildExecExpression(predicate, formatterContext));
                 }
-                paimonScanNode.setupScanRangeLocations(tupleDescriptor, node.getPredicate(), node.getLimit());
+
+                if (paimonScanNode.getVectorSearchOptions() != null) {
+                    paimonScanNode.setupSingleRoundVectorScanRanges();
+                } else {
+                    paimonScanNode.setupScanRangeLocations(tupleDescriptor, node.getPredicate(), node.getLimit());
+                }
+
                 HDFSScanNodePredicates scanNodePredicates = paimonScanNode.getScanNodePredicates();
                 prepareCommonExpr(scanNodePredicates, node.getScanOperatorPredicates(), context);
                 prepareMinMaxExpr(scanNodePredicates, node.getScanOperatorPredicates(), context, referenceTable);
