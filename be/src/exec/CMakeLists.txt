@@ -116,6 +116,7 @@ set(EXEC_FILES
     range_router.cpp
     iceberg/iceberg_delete_builder.cpp    
     paimon/paimon_delete_file_builder.cpp
+    paimon/paimon_vector_data_scanner.cpp
     hdfs_scanner/cache_select_scanner.cpp
     hdfs_scanner/hdfs_scanner_text.cpp
     hdfs_scanner/hdfs_scanner_json.cpp
