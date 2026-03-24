@@ -41,7 +41,6 @@ public:
     Status do_open(RuntimeState* state) override;
     void do_close(RuntimeState* runtime_state) noexcept override;
     Status do_get_next(RuntimeState* runtime_state, ChunkPtr* chunk) override;
-    Status do_has_next() override { return Status::OK(); }
 
 private:
     const TPaimonVectorSearchCondition* _vector_condition = nullptr;
