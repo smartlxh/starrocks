@@ -336,6 +336,30 @@ struct TDeletionVectorDescriptor {
   5: optional i64 cardinality
 }
 
+struct TPaimonVectorSearchCondition {
+  // distance function: "approx_l2_distance" / "approx_cosine_similarity"
+  1: optional string score_function_name
+  // column with vector index
+  2: optional string vector_column_name
+  // query vector values
+  3: optional list<double> query_vector
+  // top-k for this shard
+  4: optional i64 limit_per_shard
+  // global top-k (for downstream distributed merge)
+  5: optional i64 limit_global
+  // 0=ASC (L2 distance), 1=DESC (cosine similarity)
+  6: optional i32 result_order
+  // additional ANN search params (ef_search, nprobe, etc.)
+  7: optional map<string, string> search_params
+  // shard routing
+  8: optional i32 shard_id
+  // shard row range
+  9: optional i64 range_from
+  10: optional i64 range_to
+  // Paimon table path for native index access
+  11: optional string table_path
+}
+
 // Hdfs scan range
 struct THdfsScanRange {
     // File name (not the full path).  The path is assumed to be relative to the
@@ -597,29 +621,6 @@ struct TColumnAccessPath {
     6: optional bool extended
 }
 
-struct TPaimonVectorSearchCondition {
-  // distance function: "approx_l2_distance" / "approx_cosine_similarity"
-  1: optional string score_function_name
-  // column with vector index
-  2: optional string vector_column_name
-  // query vector values
-  3: optional list<double> query_vector
-  // top-k for this shard
-  4: optional i64 limit_per_shard
-  // global top-k (for downstream distributed merge)
-  5: optional i64 limit_global
-  // 0=ASC (L2 distance), 1=DESC (cosine similarity)
-  6: optional i32 result_order
-  // additional ANN search params (ef_search, nprobe, etc.)
-  7: optional map<string, string> search_params
-  // shard routing
-  8: optional i32 shard_id
-  // shard row range
-  9: optional i64 range_from
-  10: optional i64 range_to
-  // Paimon table path for native index access
-  11: optional string table_path
-}
 
 struct TVectorSearchOptions {
   1: optional bool enable_use_ann;
