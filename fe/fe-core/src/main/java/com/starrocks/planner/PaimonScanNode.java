@@ -152,7 +152,6 @@ public class PaimonScanNode extends ScanNode {
             Pair<Long, Long> range = shardRanges.get(shardId);
 
             THdfsScanRange hdfsScanRange = new THdfsScanRange();
-            hdfsScanRange.setUse_paimon_jni_reader(true);
             hdfsScanRange.setPaimon_vector_search_condition(
                     vectorSearchOptions.toThrift(shardId, range.first, range.second, tablePath));
 
