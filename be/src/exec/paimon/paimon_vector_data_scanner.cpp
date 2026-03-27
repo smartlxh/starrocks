@@ -159,7 +159,11 @@ Status PaimonVectorDataScanner::do_get_next(RuntimeState* runtime_state, ChunkPt
             // Heuristic: if it's a double/float column and not the vector column, treat as score.
             // In practice the FE rewrites approx_l2_distance(...) into a score output slot.
             for (int64_t i = 0; i < num_rows; i++) {
-                col->append_datum(Datum(rows[i].score));
+                if (col_info.slot_desc->type().type == TYPE_FLOAT) {
+                    col->append_datum(Datum(static_cast<float>(rows[i].score)));
+                } else {
+                    col->append_datum(Datum(rows[i].score));
+                }
             }
         } else {
             // Other columns (e.g. pk): fill with mock string/int data.
