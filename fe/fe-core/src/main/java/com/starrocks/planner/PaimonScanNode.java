@@ -16,6 +16,7 @@ package com.starrocks.planner;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.starrocks.catalog.Column;
 import com.starrocks.catalog.PaimonTable;
@@ -146,12 +147,10 @@ public class PaimonScanNode extends ScanNode {
      * file path in _init_scanner. file_format is also needed to avoid uninitialized format.
      */
     public void setupSingleRoundVectorScanRanges() {
-        String catalogName = paimonTable.getCatalogName();
-        CatalogConnector connector = GlobalStateMgr.getCurrentState().getConnectorMgr().getConnector(catalogName);
-        ConnectorMetadata metadata = connector.getMetadata();
-
-        List<Pair<Long, Long>> shardRanges = metadata.getGlobalIndexShardRanges(paimonTable);
+        // Mock: hardcode 1 shard covering all rows, bypass metadata lookup
+        List<Pair<Long, Long>> shardRanges = Lists.newArrayList(Pair.create(0L, Long.MAX_VALUE));
         String tablePath = paimonTable.getTableLocation();
+        LOG.info("setupSingleRoundVectorScanRanges: tablePath={}, shardRanges={}", tablePath, shardRanges.size());
 
         for (int shardId = 0; shardId < shardRanges.size(); shardId++) {
             Pair<Long, Long> range = shardRanges.get(shardId);
