@@ -141,11 +141,11 @@ public class RewriteToPaimonVectorPlanRule extends TransformationRule {
                                                      VectorSearchRuleUtils.VectorFuncInfo info,
                                                      PaimonVectorSearchOptions vecOpts) {
         String distanceColumnName = "__vector_" + info.outColumnRef.getName();
-        Column distanceColumn = new Column(distanceColumnName, FloatType.FLOAT);
+        Column distanceColumn = new Column(distanceColumnName, FloatType.FLOAT, true);
         scanOp.getTable().addColumn(distanceColumn);
 
         ColumnRefOperator distanceColRef =
-                context.getColumnRefFactory().create(distanceColumnName, FloatType.FLOAT, false);
+                context.getColumnRefFactory().create(distanceColumnName, FloatType.FLOAT, true);
 
         Map<ColumnRefOperator, Column> newColRefToColumnMetaMap = new HashMap<>(scanOp.getColRefToColumnMetaMap());
         newColRefToColumnMetaMap.put(distanceColRef, distanceColumn);
