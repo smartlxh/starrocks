@@ -139,6 +139,11 @@ public class PaimonScanNode extends ScanNode {
     /**
      * Build per-shard scan ranges for single-round vector search.
      * Each shard becomes one THdfsScanRange with its vector search condition populated.
+     *
+     * BE's HiveDataSource::open checks file_length == 0 → _no_data = true, so we must
+     * set file_length/length to a non-zero mock value. relative_path is used by
+     * HDFSBackendSelector for BE hashing, and full_path is used to build the native
+     * file path in _init_scanner. file_format is also needed to avoid uninitialized format.
      */
     public void setupSingleRoundVectorScanRanges() {
         String catalogName = paimonTable.getCatalogName();
@@ -154,6 +159,16 @@ public class PaimonScanNode extends ScanNode {
             THdfsScanRange hdfsScanRange = new THdfsScanRange();
             hdfsScanRange.setPaimon_vector_search_condition(
                     vectorSearchOptions.toThrift(shardId, range.first, range.second, tablePath));
+
+            // BE requires these fields to avoid short-circuit (_no_data = true when file_length == 0)
+            // and to properly initialize the scanner path / BE selector.
+            hdfsScanRange.setFile_length(1);
+            hdfsScanRange.setLength(1);
+            hdfsScanRange.setOffset(0);
+            hdfsScanRange.setRelative_path("__vector_shard_" + shardId);
+            hdfsScanRange.setFull_path(tablePath);
+            hdfsScanRange.setFile_format(THdfsFileFormat.PARQUET);
+            hdfsScanRange.setUse_paimon_jni_reader(false);
 
             TScanRange scanRange = new TScanRange();
             scanRange.setHdfs_scan_range(hdfsScanRange);

@@ -78,6 +78,9 @@ Status PaimonVectorDataScanner::do_get_next(RuntimeState* runtime_state, ChunkPt
     }
     _is_finished = true;
 
+    LOG(INFO) << "PaimonVectorDataScanner::do_get_next materialized_columns="
+              << _scanner_ctx.materialized_columns.size();
+
     // Determine how many mock rows to produce.
     int64_t limit = 10; // default
     if (_vector_condition->__isset.limit_per_shard && _vector_condition->limit_per_shard > 0) {
