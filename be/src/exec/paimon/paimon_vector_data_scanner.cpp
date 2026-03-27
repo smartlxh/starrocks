@@ -161,8 +161,7 @@ Status PaimonVectorDataScanner::do_get_next(RuntimeState* runtime_state, ChunkPt
         } else {
             // Other columns (e.g. pk): fill with mock string/int data.
             for (int64_t i = 0; i < num_rows; i++) {
-                if (col_info.slot_desc->type().type == TYPE_VARCHAR ||
-                    col_info.slot_desc->type().type == TYPE_CHAR) {
+                if (col_info.slot_desc->type().type == TYPE_VARCHAR || col_info.slot_desc->type().type == TYPE_CHAR) {
                     col->append_datum(Datum(Slice(rows[i].pk)));
                 } else if (col_info.slot_desc->type().type == TYPE_INT) {
                     col->append_datum(Datum(static_cast<int32_t>(i)));
