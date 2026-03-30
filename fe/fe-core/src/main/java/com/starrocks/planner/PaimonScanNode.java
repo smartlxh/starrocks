@@ -168,9 +168,11 @@ public class PaimonScanNode extends ScanNode {
 
             // BE requires these fields to avoid short-circuit (_no_data = true when file_length == 0)
             // and to properly initialize the scanner path / BE selector.
+            // Use different offset for each shard so HDFSBackendSelector's consistent hash
+            // distributes them across different BEs.
             hdfsScanRange.setFile_length(1);
             hdfsScanRange.setLength(1);
-            hdfsScanRange.setOffset(0);
+            hdfsScanRange.setOffset(shardId);
             hdfsScanRange.setRelative_path("__vector_shard_" + shardId);
             hdfsScanRange.setFull_path(tablePath);
             hdfsScanRange.setFile_format(THdfsFileFormat.PARQUET);
