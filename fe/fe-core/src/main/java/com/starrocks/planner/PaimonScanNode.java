@@ -147,10 +147,17 @@ public class PaimonScanNode extends ScanNode {
      * file path in _init_scanner. file_format is also needed to avoid uninitialized format.
      */
     public void setupSingleRoundVectorScanRanges() {
-        // Mock: hardcode 1 shard covering all rows, bypass metadata lookup
-        List<Pair<Long, Long>> shardRanges = Lists.newArrayList(Pair.create(0L, Long.MAX_VALUE));
+        // Mock: create multiple shards to test distributed vector search across BEs
+        int numShards = 16;
+        List<Pair<Long, Long>> shardRanges = new ArrayList<>();
+        long shardSize = Long.MAX_VALUE / numShards;
+        for (int i = 0; i < numShards; i++) {
+            long rangeFrom = i * shardSize;
+            long rangeTo = (i == numShards - 1) ? Long.MAX_VALUE : (i + 1) * shardSize;
+            shardRanges.add(Pair.create(rangeFrom, rangeTo));
+        }
         String tablePath = paimonTable.getTableLocation();
-        LOG.info("setupSingleRoundVectorScanRanges: tablePath={}, shardRanges={}", tablePath, shardRanges.size());
+        LOG.info("setupSingleRoundVectorScanRanges: tablePath={}, numShards={}", tablePath, shardRanges.size());
 
         for (int shardId = 0; shardId < shardRanges.size(); shardId++) {
             Pair<Long, Long> range = shardRanges.get(shardId);
