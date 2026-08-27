@@ -302,6 +302,7 @@ set(EXEC_NON_PIPELINE_FILES
     select_node.cpp
     short_circuit.cpp
     short_circuit_hybrid.cpp
+    vector_search/vector_search_executor.cpp
     olap_common.cpp
     write_combined_txn_log.cpp
     cache_stats_scanner.cpp

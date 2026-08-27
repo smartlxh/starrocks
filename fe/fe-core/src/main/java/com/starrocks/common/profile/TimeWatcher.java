@@ -153,13 +153,17 @@ public class TimeWatcher {
         public String toString() {
             int totalCount = count + accumulatedCount.get();
             return StringUtils.repeat("    ", scopeLevel) + "-- " + name + "[" + totalCount + "] " +
-                    DebugUtil.getPrettyStringMs(getTotalTime());
+                    DebugUtil.getPrettyStringNs(getTotalTimeNs());
         }
 
         @Override
         public long getTotalTime() {
-            return stopWatch.elapsed(TimeUnit.MILLISECONDS)
-                    + TimeUnit.NANOSECONDS.toMillis(accumulatedNanos.get());
+            return TimeUnit.NANOSECONDS.toMillis(getTotalTimeNs());
+        }
+
+        @Override
+        public long getTotalTimeNs() {
+            return stopWatch.elapsed(TimeUnit.NANOSECONDS) + accumulatedNanos.get();
         }
     }
 }

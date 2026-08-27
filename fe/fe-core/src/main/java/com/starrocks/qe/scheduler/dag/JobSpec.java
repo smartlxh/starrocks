@@ -21,6 +21,7 @@ import com.starrocks.common.util.CompressionUtils;
 import com.starrocks.common.util.DebugUtil;
 import com.starrocks.load.loadv2.BulkLoadJob;
 import com.starrocks.planner.DescriptorTable;
+import com.starrocks.planner.OlapScanNode;
 import com.starrocks.planner.PlanFragment;
 import com.starrocks.planner.ScanNode;
 import com.starrocks.planner.SchemaScanNode;
@@ -502,7 +503,10 @@ public class JobSpec {
 
     public boolean supportSingleNodeParallelSchedule() {
         return connectContext.getSessionVariable().enableSingleNodeSchedule() &&
-                !scanNodes.stream().anyMatch(scanNode -> scanNode.isConnectorScanNode()) && !isLoadType();
+                !scanNodes.stream().anyMatch(scanNode -> scanNode.isConnectorScanNode() &&
+                        (!(scanNode instanceof OlapScanNode) ||
+                                !((OlapScanNode) scanNode).isVectorSearchEnabled())) &&
+                !isLoadType();
     }
 
     public static class Builder {

@@ -19,6 +19,7 @@ package com.starrocks.common.profile;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class Timer implements AutoCloseable {
     public String name() {
@@ -33,6 +34,10 @@ public class Timer implements AutoCloseable {
 
     public long getTotalTime() {
         return 0;
+    }
+
+    public long getTotalTimeNs() {
+        return TimeUnit.MILLISECONDS.toNanos(getTotalTime());
     }
 
     public long getFirstTimePoint() {

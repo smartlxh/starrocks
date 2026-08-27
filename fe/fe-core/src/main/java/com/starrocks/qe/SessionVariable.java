@@ -1086,6 +1086,8 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
 
     public static final String ENABLE_VECTOR_INDEX_REFINE = "enable_vector_index_refine";
 
+    public static final String ENABLE_VECTOR_SEARCH_PLAN_CACHE = "enable_vector_search_plan_cache";
+
     /**
      * Used to split files stored in dfs such as object storage or hdfs into smaller files.
      */
@@ -3175,12 +3177,25 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
     @VarAttr(name = ENABLE_VECTOR_INDEX_REFINE)
     private boolean enableVectorIndexRefine = false;
 
+    // Experimental: cache the optimized plan template of an eligible prepared vector TopK query.
+    // Each execution only rebinds the query vector and rebuilds fragments.
+    @VarAttr(name = ENABLE_VECTOR_SEARCH_PLAN_CACHE)
+    private boolean enableVectorSearchPlanCache = false;
+
     public boolean isEnableVectorIndexRefine() {
         return enableVectorIndexRefine;
     }
 
     public void setEnableVectorIndexRefine(boolean enableVectorIndexRefine) {
         this.enableVectorIndexRefine = enableVectorIndexRefine;
+    }
+
+    public boolean isEnableVectorSearchPlanCache() {
+        return enableVectorSearchPlanCache;
+    }
+
+    public void setEnableVectorSearchPlanCache(boolean enableVectorSearchPlanCache) {
+        this.enableVectorSearchPlanCache = enableVectorSearchPlanCache;
     }
 
     public int getPrepareMetadataPoolSize() {

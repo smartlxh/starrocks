@@ -233,6 +233,10 @@ public class OlapScanNode extends AbstractOlapTableScanNode {
         this.vectorSearchOptions = vectorSearchOptions;
     }
 
+    public boolean isVectorSearchEnabled() {
+        return vectorSearchOptions != null && vectorSearchOptions.isEnableUseANN();
+    }
+
     public void setIsPreAggregation(boolean isPreAggregation, String reason) {
         this.isPreAggregation = isPreAggregation;
         this.reasonOfPreAggregation = reason;

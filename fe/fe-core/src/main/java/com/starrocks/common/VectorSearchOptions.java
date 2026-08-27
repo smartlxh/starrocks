@@ -73,6 +73,10 @@ public class VectorSearchOptions {
         this.queryVector = queryVector;
     }
 
+    public int getQueryVectorSize() {
+        return queryVector.size();
+    }
+
     public void setPredicateRange(double predicateRange) {
         this.predicateRange = predicateRange;
     }

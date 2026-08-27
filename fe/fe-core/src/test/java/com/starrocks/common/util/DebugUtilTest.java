@@ -58,6 +58,14 @@ public class DebugUtilTest {
     }
 
     @Test
+    public void testGetPrettyStringNs() {
+        Assertions.assertEquals("22ns", DebugUtil.getPrettyStringNs(22));
+        Assertions.assertEquals("22.222us", DebugUtil.getPrettyStringNs(22_222));
+        Assertions.assertEquals("22.222ms", DebugUtil.getPrettyStringNs(22_222_222));
+        Assertions.assertEquals("2s222ms", DebugUtil.getPrettyStringNs(2_222_222_222L));
+    }
+
+    @Test
     public void testGetByteUint() {
         Pair<Double, String> result;
         result = DebugUtil.getByteUint(0);

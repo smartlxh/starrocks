@@ -549,6 +549,12 @@ public class RewriteToVectorPlanRule extends TransformationRule {
         }
     }
 
+    public static List<String> parseVectorLiteral(String literal) {
+        List<String> result = new ArrayList<>();
+        parseStringAsFloatList(literal, result);
+        return result;
+    }
+
     private static class VectorFuncInfo {
         private final Index index;
         // vector index column

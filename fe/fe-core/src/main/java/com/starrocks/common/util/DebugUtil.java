@@ -44,6 +44,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.DecimalFormat;
+import java.util.Locale;
 import java.util.UUID;
 
 public class DebugUtil {
@@ -108,7 +109,16 @@ public class DebugUtil {
     }
 
     public static String getPrettyStringNs(long timestampNs) {
-        return getPrettyStringMs(timestampNs / 1000 / 1000);
+        if (timestampNs >= 1000L * 1000L * SECOND) {
+            return getPrettyStringMs(timestampNs / 1000 / 1000);
+        }
+        if (timestampNs >= 1000L * 1000L) {
+            return String.format(Locale.ROOT, "%.3fms", timestampNs / 1_000_000.0);
+        }
+        if (timestampNs >= 1000L) {
+            return String.format(Locale.ROOT, "%.3fus", timestampNs / 1_000.0);
+        }
+        return timestampNs + "ns";
     }
 
     public static String getPrettyStringMs(long timestampMs) {

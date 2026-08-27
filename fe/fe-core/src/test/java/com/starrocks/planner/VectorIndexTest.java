@@ -38,9 +38,12 @@ import com.starrocks.catalog.OlapTable;
 import com.starrocks.common.Config;
 import com.starrocks.common.FeConstants;
 import com.starrocks.sql.analyzer.SemanticException;
+import com.starrocks.sql.optimizer.rule.transformation.RewriteToVectorPlanRule;
 import com.starrocks.sql.plan.PlanTestBase;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -108,6 +111,16 @@ public class VectorIndexTest extends PlanTestBase {
                 + "DUPLICATE KEY(c0) "
                 + "DISTRIBUTED BY HASH(c0) BUCKETS 1 "
                 + "PROPERTIES ('replication_num'='1');");
+    }
+
+    @Test
+    public void testParsePreparedVectorLiteral() {
+        assertEquals(List.of("1.0", "-2", "3e-2"),
+                RewriteToVectorPlanRule.parseVectorLiteral("[1.0, -2, 3e-2]"));
+        assertThatThrownBy(() -> RewriteToVectorPlanRule.parseVectorLiteral("[1.0, NaN]"))
+                .isInstanceOf(SemanticException.class);
+        assertThatThrownBy(() -> RewriteToVectorPlanRule.parseVectorLiteral("[1.0,]"))
+                .isInstanceOf(SemanticException.class);
     }
 
     @Test

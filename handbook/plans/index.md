@@ -5,6 +5,7 @@ Use this directory for repo-local execution plans that agents can read, update, 
 ## Active Plans
 
 - [Harness Engineering Roadmap](active/2026-03-27-harness-engineering-roadmap.md)
+- [SQL Vector Search Short-Circuit Design](active/2026-08-26-vector-search-sql-short-circuit-design.md)
 
 ## Templates
 

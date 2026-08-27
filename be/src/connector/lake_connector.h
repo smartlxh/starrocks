@@ -188,6 +188,10 @@ private:
     RuntimeProfile::Counter* _block_fetch_timer = nullptr;
     RuntimeProfile::Counter* _bi_filtered_counter = nullptr;
     RuntimeProfile::Counter* _bi_filter_timer = nullptr;
+    RuntimeProfile::Counter* _get_row_ranges_by_vector_index_timer = nullptr;
+    RuntimeProfile::Counter* _vector_search_timer = nullptr;
+    RuntimeProfile::Counter* _process_vector_distance_and_id_timer = nullptr;
+    RuntimeProfile::Counter* _vector_index_filtered_counter = nullptr;
 
     // Gin filter Statistics
     RuntimeProfile::Counter* _gin_filtered_timer = nullptr;

@@ -957,6 +957,15 @@ void LakeDataSource::init_counter(RuntimeState* state) {
     const std::string segment_init_name = "SegmentInit";
     _seg_init_timer = ADD_TIMER(_runtime_profile, segment_init_name);
     _bi_filter_timer = ADD_CHILD_TIMER(_runtime_profile, "BitmapIndexFilter", segment_init_name);
+    if (_use_vector_index && state->query_runtime_state()->enable_profile()) {
+        _get_row_ranges_by_vector_index_timer =
+                ADD_CHILD_TIMER(_runtime_profile, "GetVectorRowRangesTime", segment_init_name);
+        _vector_search_timer = ADD_CHILD_TIMER(_runtime_profile, "VectorSearchTime", segment_init_name);
+        _process_vector_distance_and_id_timer =
+                ADD_CHILD_TIMER(_runtime_profile, "ProcessVectorDistanceAndIdTime", segment_init_name);
+        _vector_index_filtered_counter =
+                ADD_CHILD_COUNTER(_runtime_profile, "VectorIndexFilterRows", TUnit::UNIT, segment_init_name);
+    }
     _bi_filtered_counter = ADD_CHILD_COUNTER(_runtime_profile, "BitmapIndexFilterRows", TUnit::UNIT, segment_init_name);
     _bf_filtered_counter = ADD_CHILD_COUNTER(_runtime_profile, "BloomFilterFilterRows", TUnit::UNIT, segment_init_name);
     _seg_zm_filtered_counter =
@@ -1108,6 +1117,9 @@ void LakeDataSource::update_counter(RuntimeState* state) {
     COUNTER_UPDATE(_segs_metadata_filtered_counter, _reader->stats().segments_metadata_filtered);
     COUNTER_UPDATE(_seg_rt_filtered_counter, _reader->stats().runtime_stats_filtered);
     COUNTER_UPDATE(_zm_filtered_counter, _reader->stats().rows_stats_filtered);
+    if (_vector_search_timer != nullptr) {
+        COUNTER_UPDATE(_vector_index_filtered_counter, _reader->stats().rows_vector_index_filtered);
+    }
     COUNTER_UPDATE(_bf_filtered_counter, _reader->stats().rows_bf_filtered);
     COUNTER_UPDATE(_sk_filtered_counter, _reader->stats().rows_key_range_filtered);
     COUNTER_UPDATE(_rows_after_sk_filtered_counter, _reader->stats().rows_after_key_range);
@@ -1115,6 +1127,11 @@ void LakeDataSource::update_counter(RuntimeState* state) {
 
     COUNTER_UPDATE(_bi_filtered_counter, _reader->stats().rows_bitmap_index_filtered);
     COUNTER_UPDATE(_bi_filter_timer, _reader->stats().bitmap_index_filter_timer);
+    if (_vector_search_timer != nullptr) {
+        COUNTER_UPDATE(_get_row_ranges_by_vector_index_timer, _reader->stats().get_row_ranges_by_vector_index_timer);
+        COUNTER_UPDATE(_vector_search_timer, _reader->stats().vector_search_timer);
+        COUNTER_UPDATE(_process_vector_distance_and_id_timer, _reader->stats().process_vector_distance_and_id_timer);
+    }
     COUNTER_UPDATE(_block_seek_counter, _reader->stats().block_seek_num);
 
     COUNTER_UPDATE(_gin_filtered_timer, _reader->stats().gin_index_filter_ns);
