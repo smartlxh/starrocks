@@ -29,6 +29,7 @@
 #include "compute_env/workgroup/priority_scan_task_queue.h"
 #include "compute_env/workgroup/scan_executor.h"
 #include "compute_env/workgroup/work_group.h"
+#include "exec/vector_search/vector_search_merge_executor.h"
 #if __has_include("exec_primitive/pipeline/primitives/pipeline_metrics.h")
 #include "exec_primitive/pipeline/primitives/pipeline_metrics.h"
 #else
@@ -75,6 +76,27 @@ struct AsyncResult {
     Status status;
     std::vector<VectorSearchCandidate> candidates;
 };
+
+class CountingNoopMergePolicy final : public VectorSearchMergePolicy {
+public:
+    bool try_merge(const std::shared_ptr<VectorSearchTask>& queued,
+                   const std::shared_ptr<VectorSearchTask>& incoming) override {
+        attempts.fetch_add(1, std::memory_order_relaxed);
+        return false;
+    }
+
+    std::atomic<int> attempts{0};
+};
+
+bool wait_until(const std::function<bool()>& predicate) {
+    for (int i = 0; i < 1000; ++i) {
+        if (predicate()) {
+            return true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return false;
+}
 
 } // namespace
 
@@ -242,6 +264,126 @@ TEST_F(VectorSearchExecutorTest, RejectsInvalidOptions) {
     auto result =
             executor.submit({.top_k = 0, .max_parallelism = 1}, _workgroup, std::move(work_items), [](Status, auto) {});
     EXPECT_TRUE(result.status().is_invalid_argument());
+}
+
+TEST_F(VectorSearchExecutorTest, MergeExecutorKeepsRequestsSeparateAndBoundsInflight) {
+    VectorSearchExecutor executor(_executor.get());
+    auto policy = std::make_unique<CountingNoopMergePolicy>();
+    auto* policy_ptr = policy.get();
+    VectorSearchMergeExecutor merge_executor(&executor, {.max_pending_tasks = 8, .max_inflight_tasks = 1},
+                                             std::move(policy));
+
+    std::promise<void> first_started;
+    std::promise<void> release_first;
+    auto release_future = release_first.get_future().share();
+    std::promise<AsyncResult> first_result;
+    std::promise<AsyncResult> second_result;
+    std::promise<AsyncResult> third_result;
+
+    auto first = std::make_shared<VectorSearchTask>();
+    first->id = {1, 1};
+    first->options = {.top_k = 1, .max_parallelism = 1};
+    first->workgroup = _workgroup;
+    first->work_items.emplace_back([&](auto* out) {
+        first_started.set_value();
+        release_future.wait();
+        out->push_back({1.0F, 1, "first"});
+        return Status::OK();
+    });
+    first->completion = [&first_result](Status status, auto candidates) {
+        first_result.set_value({std::move(status), std::move(candidates)});
+    };
+    ASSERT_OK(merge_executor.submit(first));
+    first_started.get_future().get();
+
+    auto second = std::make_shared<VectorSearchTask>();
+    second->id = {2, 2};
+    second->options = {.top_k = 1, .max_parallelism = 1};
+    second->workgroup = _workgroup;
+    second->work_items.emplace_back([](auto* out) {
+        out->push_back({2.0F, 2, "second"});
+        return Status::OK();
+    });
+    second->completion = [&second_result](Status status, auto candidates) {
+        second_result.set_value({std::move(status), std::move(candidates)});
+    };
+    ASSERT_OK(merge_executor.submit(second));
+
+    auto third = std::make_shared<VectorSearchTask>();
+    third->id = {5, 5};
+    third->options = {.top_k = 1, .max_parallelism = 1};
+    third->workgroup = _workgroup;
+    third->work_items.emplace_back([](auto* out) {
+        out->push_back({3.0F, 3, "third"});
+        return Status::OK();
+    });
+    third->completion = [&third_result](Status status, auto candidates) {
+        third_result.set_value({std::move(status), std::move(candidates)});
+    };
+    ASSERT_OK(merge_executor.submit(third));
+
+    ASSERT_TRUE(wait_until([&] { return merge_executor.pending_tasks() == 2; }));
+    EXPECT_EQ(1, merge_executor.inflight_tasks());
+    EXPECT_GE(policy_ptr->attempts.load(), 1);
+
+    release_first.set_value();
+    auto result1 = first_result.get_future().get();
+    auto result2 = second_result.get_future().get();
+    auto result3 = third_result.get_future().get();
+    ASSERT_OK(result1.status);
+    ASSERT_OK(result2.status);
+    ASSERT_OK(result3.status);
+    ASSERT_EQ(1, result1.candidates.size());
+    ASSERT_EQ(1, result2.candidates.size());
+    ASSERT_EQ(1, result3.candidates.size());
+    EXPECT_EQ("first", result1.candidates[0].encoded_row);
+    EXPECT_EQ("second", result2.candidates[0].encoded_row);
+    EXPECT_EQ("third", result3.candidates[0].encoded_row);
+}
+
+TEST_F(VectorSearchExecutorTest, MergeExecutorCancelsPendingRequest) {
+    VectorSearchExecutor executor(_executor.get());
+    VectorSearchMergeExecutor merge_executor(&executor, {.max_pending_tasks = 8, .max_inflight_tasks = 1});
+
+    std::promise<void> first_started;
+    std::promise<void> release_first;
+    auto release_future = release_first.get_future().share();
+    std::promise<AsyncResult> first_result;
+    std::promise<AsyncResult> pending_result;
+
+    auto first = std::make_shared<VectorSearchTask>();
+    first->id = {3, 3};
+    first->options = {.top_k = 1, .max_parallelism = 1};
+    first->workgroup = _workgroup;
+    first->work_items.emplace_back([&](auto*) {
+        first_started.set_value();
+        release_future.wait();
+        return Status::OK();
+    });
+    first->completion = [&first_result](Status status, auto candidates) {
+        first_result.set_value({std::move(status), std::move(candidates)});
+    };
+    ASSERT_OK(merge_executor.submit(first));
+    first_started.get_future().get();
+
+    auto pending = std::make_shared<VectorSearchTask>();
+    pending->id = {4, 4};
+    pending->options = {.top_k = 1, .max_parallelism = 1};
+    pending->workgroup = _workgroup;
+    pending->work_items.emplace_back([](auto*) { return Status::OK(); });
+    pending->completion = [&pending_result](Status status, auto candidates) {
+        pending_result.set_value({std::move(status), std::move(candidates)});
+    };
+    ASSERT_OK(merge_executor.submit(pending));
+    ASSERT_TRUE(wait_until([&] { return merge_executor.pending_tasks() == 1; }));
+
+    EXPECT_TRUE(merge_executor.cancel(pending->id));
+    auto cancelled = pending_result.get_future().get();
+    EXPECT_TRUE(cancelled.status.is_cancelled());
+    EXPECT_EQ(0, merge_executor.pending_tasks());
+
+    release_first.set_value();
+    ASSERT_OK(first_result.get_future().get().status);
 }
 
 } // namespace starrocks::vector_search

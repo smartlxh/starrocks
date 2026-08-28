@@ -1632,6 +1632,32 @@ Serial 1000-query result：recall@100=0.8870，NDCG=0.9038，平均延迟 5.2ms�
 
 最新一轮原始结果与 Profile 位于 `sr-vdbbench` 容器的 `/results/sq8_fe_fastpath_ab.json` 和 `/results/sq8_fe_fastpath_{baseline,plan_cache,plan_cache_batch}_profile.txt`。
 
+### 21.10 BE direct RPC 与双 executor 线程模型（2026-08-27）
+
+参考 Milvus QueryNode 中“单调度循环负责 pending queue/兼容请求合并，有界执行池负责 SearchTask::Execute”的分工，BE direct vector RPC 采用两个逻辑 executor：
+
+```text
+BRPC handler
+  -> VectorSearchMergeExecutor (single scheduler thread)
+  -> VectorSearchExecutor (WorkGroup ScanExecutor bounded lanes)
+  -> Lake TabletReader / SegmentIterator / VectorIndexReader
+  -> BE-local TopK
+  -> RPC completion
+```
+
+V1 的 `VectorSearchMergeExecutor` **不合并请求**：`VectorSearchMergePolicy::try_merge()` 是可注入接口，默认 `NoopVectorSearchMergePolicy` 始终返回 false。它当前只负责有界 pending queue、inflight 准入、query-id 取消、shutdown drain 和 exactly-once completion。不设 micro-batch 等待窗口，串行查询不会因为等待合并增加延迟。后续增加 NQ grouping 时，只替换 merge policy，不改 RPC handler 和实际执行器边界。
+
+`VectorSearchExecutor` 不建独立 vector CPU pool，实际 ANN/tablet work 以 bounded lanes 提交给 WorkGroup ScanExecutor；每个 lane 保持私有 TopK heap，每处理一个 tablet/work item 后 yield，最后一个 lane 执行 BE-local reduce。ScanTask 进入 worker 后安装 WorkGroup mem tracker，避免 direct path 绕过资源组内存记账。
+
+新增内部 RPC：
+
+- `exec_vector_search(PExecVectorSearchRequest) -> PExecVectorSearchResult`
+- `cancel_vector_search(PCancelVectorSearchRequest) -> PCancelVectorSearchResult`
+
+BRPC handler 只验证 protobuf、复制 packed float query vector、构造 task 并 enqueue，不同步执行 ANN；`done` 由完成回调在 ScanExecutor 执行结束后触发。请求只携带 query ID、tablet/version、id/vector column、float32 vector、K、result order、efSearch 和并行度，不携带 DescriptorTable、PlanNode、Fragment 或 Pipeline 参数。
+
+存储路径直接复用 Lake `VersionedTablet -> TabletReader -> SegmentIterator -> VectorIndexReader`，因此保留 visible version、delvec、索引 cache 和 fallback 语义，但不构造 ExecNode、FragmentContext、PipelineDriver、Exchange 或 LOOK_UP Fragment。V1 限定 shared-data、HNSW、`refine=OFF`、无 scalar predicate、BIGINT id projection；FE 尚未路由到新 RPC，所以这一阶段不改变已有 SQL 执行路径。
+
 ---
 
 ## 22. 验收标准

@@ -22,7 +22,9 @@
 
 #include "compute_env/workgroup/scan_executor.h"
 #include "compute_env/workgroup/scan_task.h"
+#include "compute_env/workgroup/work_group.h"
 #include "gen_cpp/InternalService_types.h"
+#include "runtime/current_thread.h"
 
 namespace starrocks::vector_search {
 
@@ -220,6 +222,7 @@ StatusOr<std::shared_ptr<VectorSearchExecutionHandle>> VectorSearchExecutor::sub
 
     for (size_t lane = 0; lane < num_lanes; ++lane) {
         workgroup::ScanTask task(state->workgroup, [state, lane](workgroup::YieldContext& yield_ctx) {
+            SCOPED_THREAD_LOCAL_MEM_TRACKER_SETTER(state->workgroup->mem_tracker());
             if (yield_ctx.total_yield_point_cnt == 0) {
                 // Keep the task unfinished until the lane has exhausted the shared work cursor.
                 yield_ctx.total_yield_point_cnt = 1;

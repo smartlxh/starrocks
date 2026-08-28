@@ -45,6 +45,7 @@ struct VectorSearchCandidate {
     float score = 0;
     uint64_t tie_breaker = 0;
     std::string encoded_row;
+    int64_t int64_id = 0;
 };
 
 class VectorSearchTopK {

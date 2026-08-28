@@ -51,6 +51,11 @@ class Controller;
 
 namespace starrocks {
 
+namespace vector_search {
+class VectorSearchExecutor;
+class VectorSearchMergeExecutor;
+} // namespace vector_search
+
 class TExecPlanFragmentParams;
 class ExecEnv;
 
@@ -183,6 +188,12 @@ public:
     void exec_short_circuit(google::protobuf::RpcController* controller, const PExecShortCircuitRequest* request,
                             PExecShortCircuitResult* response, google::protobuf::Closure* done) override;
 
+    void exec_vector_search(google::protobuf::RpcController* controller, const PExecVectorSearchRequest* request,
+                            PExecVectorSearchResult* response, google::protobuf::Closure* done) override;
+
+    void cancel_vector_search(google::protobuf::RpcController* controller, const PCancelVectorSearchRequest* request,
+                              PCancelVectorSearchResult* response, google::protobuf::Closure* done) override;
+
     void process_dictionary_cache(google::protobuf::RpcController* controller,
                                   const PProcessDictionaryCacheRequest* request,
                                   PProcessDictionaryCacheResult* response, google::protobuf::Closure* done) override;
@@ -252,6 +263,8 @@ private:
 
 protected:
     ExecEnv* _exec_env;
+    std::unique_ptr<vector_search::VectorSearchExecutor> _vector_search_executor;
+    std::unique_ptr<vector_search::VectorSearchMergeExecutor> _vector_search_merge_executor;
 };
 
 } // namespace starrocks

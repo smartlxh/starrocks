@@ -36,7 +36,9 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <future>
 #include <memory>
 #include <shared_mutex>
@@ -76,6 +78,9 @@
 #include "exec/runtime/fragment_context_manager.h"
 #include "exec/runtime/query_context_manager.h"
 #include "exec/short_circuit.h"
+#include "exec/vector_search/lake_vector_search_reader.h"
+#include "exec/vector_search/vector_search_executor.h"
+#include "exec/vector_search/vector_search_merge_executor.h"
 #include "gen_cpp/AgentService_types.h"
 #include "gen_cpp/BackendService.h"
 #include "gen_cpp/InternalService_types.h"
@@ -105,7 +110,11 @@ static Status reject_legacy_stream_pipeline(const TExecPlanFragmentParams& param
 static Status reject_legacy_stream_pipeline(const TExecBatchPlanFragmentsParams& params);
 
 template <typename T>
-PInternalServiceImplBase<T>::PInternalServiceImplBase(ExecEnv* exec_env) : _exec_env(exec_env) {}
+PInternalServiceImplBase<T>::PInternalServiceImplBase(ExecEnv* exec_env) : _exec_env(exec_env) {
+    _vector_search_executor = std::make_unique<vector_search::VectorSearchExecutor>(exec_env->scan_executor());
+    _vector_search_merge_executor = std::make_unique<vector_search::VectorSearchMergeExecutor>(
+            _vector_search_executor.get(), vector_search::VectorSearchMergeExecutorOptions{});
+}
 
 template <typename T>
 PInternalServiceImplBase<T>::~PInternalServiceImplBase() = default;
@@ -1344,6 +1353,119 @@ void PInternalServiceImplBase<T>::exec_short_circuit(google::protobuf::RpcContro
     st.to_protobuf(response->mutable_status());
     uint64_t elapsed_time_ns = watch.elapsed_time();
     ServiceMetrics::instance()->short_circuit_request_duration_us.increment(elapsed_time_ns / 1000);
+}
+
+template <typename T>
+void PInternalServiceImplBase<T>::exec_vector_search(google::protobuf::RpcController* cntl_base,
+                                                     const PExecVectorSearchRequest* request,
+                                                     PExecVectorSearchResult* response,
+                                                     google::protobuf::Closure* done) {
+    ClosureGuard done_guard(done);
+    const int64_t start_ns = MonotonicNanos();
+
+    if (process_exit_in_progress()) {
+        Status::ServiceUnavailable("BE is shutting down").to_protobuf(response->mutable_status());
+        return;
+    }
+    if (!request->has_query_id() || (request->query_id().hi() == 0 && request->query_id().lo() == 0)) {
+        Status::InvalidArgument("vector search query_id is missing").to_protobuf(response->mutable_status());
+        return;
+    }
+    if (request->top_k() <= 0 || request->top_k() > 4096) {
+        Status::InvalidArgument("vector search top_k must be in [1, 4096]").to_protobuf(response->mutable_status());
+        return;
+    }
+    if (request->dimension() <= 0 || request->dimension() > 65536 ||
+        request->dimension() != request->query_vector_size()) {
+        Status::InvalidArgument("vector search dimension does not match query vector")
+                .to_protobuf(response->mutable_status());
+        return;
+    }
+    if (request->tablets_size() == 0 || request->tablets_size() > 1024 || request->id_column_name().empty() ||
+        request->vector_column_name().empty()) {
+        Status::InvalidArgument("vector search requires 1-1024 tablets and non-empty column names")
+                .to_protobuf(response->mutable_status());
+        return;
+    }
+    for (float value : request->query_vector()) {
+        if (!std::isfinite(value)) {
+            Status::InvalidArgument("vector search query vector contains a non-finite value")
+                    .to_protobuf(response->mutable_status());
+            return;
+        }
+    }
+
+    auto* tablet_manager = _exec_env->lake_services().lake_tablet_manager;
+    if (tablet_manager == nullptr) {
+        Status::ServiceUnavailable("lake tablet manager is unavailable").to_protobuf(response->mutable_status());
+        return;
+    }
+
+    auto spec = std::make_shared<vector_search::LakeVectorSearchSpec>();
+    spec->query_vector.assign(request->query_vector().begin(), request->query_vector().end());
+    spec->id_column_name = request->id_column_name();
+    spec->vector_column_name = request->vector_column_name();
+    spec->top_k = request->top_k();
+    spec->ef_search = request->ef_search();
+    spec->result_order = request->result_order() == PVectorSearchResultOrder::VECTOR_SEARCH_RESULT_ORDER_ASCENDING
+                                 ? vector_search::VectorSearchResultOrder::ASCENDING
+                                 : vector_search::VectorSearchResultOrder::DESCENDING;
+
+    auto task = std::make_shared<vector_search::VectorSearchTask>();
+    task->id = {request->query_id().hi(), request->query_id().lo()};
+    task->options.top_k = request->top_k();
+    task->options.result_order = spec->result_order;
+    const int32_t requested_parallelism = request->max_parallelism() > 0 ? request->max_parallelism() : 4;
+    task->options.max_parallelism =
+            std::max<int32_t>(1, std::min<int32_t>(requested_parallelism, _exec_env->max_executor_threads()));
+    task->workgroup = _exec_env->workgroup_manager()->get_default_workgroup();
+    task->work_items.reserve(request->tablets_size());
+    for (const auto& request_tablet : request->tablets()) {
+        if (request_tablet.tablet_id() <= 0 || request_tablet.version() <= 0) {
+            Status::InvalidArgument("vector search tablet id and version must be positive")
+                    .to_protobuf(response->mutable_status());
+            return;
+        }
+        task->work_items.emplace_back(vector_search::make_lake_vector_search_work(
+                tablet_manager, spec, {.tablet_id = request_tablet.tablet_id(), .version = request_tablet.version()}));
+    }
+
+    auto* async_done = done_guard.release();
+    task->completion = [response, async_done, start_ns](Status status,
+                                                        std::vector<vector_search::VectorSearchCandidate> candidates) {
+        ClosureGuard completion_guard(async_done);
+        status.to_protobuf(response->mutable_status());
+        if (status.ok()) {
+            for (const auto& candidate : candidates) {
+                response->add_ids(candidate.int64_id);
+                response->add_scores(candidate.score);
+            }
+        }
+        response->set_total_time_ns(MonotonicNanos() - start_ns);
+    };
+
+    Status status = _vector_search_merge_executor->submit(std::move(task));
+    if (!status.ok()) {
+        done_guard.reset(async_done);
+        status.to_protobuf(response->mutable_status());
+        response->set_total_time_ns(MonotonicNanos() - start_ns);
+    }
+}
+
+template <typename T>
+void PInternalServiceImplBase<T>::cancel_vector_search(google::protobuf::RpcController* cntl_base,
+                                                       const PCancelVectorSearchRequest* request,
+                                                       PCancelVectorSearchResult* response,
+                                                       google::protobuf::Closure* done) {
+    ClosureGuard done_guard(done);
+    if (!request->has_query_id()) {
+        Status::InvalidArgument("vector search query_id is missing").to_protobuf(response->mutable_status());
+        return;
+    }
+    const bool cancelled =
+            _vector_search_merge_executor->cancel({.hi = request->query_id().hi(), .lo = request->query_id().lo()});
+    Status status = cancelled ? Status::OK() : Status::NotFound("vector search task does not exist");
+    status.to_protobuf(response->mutable_status());
 }
 
 template <typename T>
